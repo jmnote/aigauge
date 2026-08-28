@@ -12,11 +12,14 @@
 <body>
   <main class="shell">
     <div class="titlebar">
-      <img class="app-logo" src="/icon.png" alt="AI Gauge" draggable="false" />
+      <div class="brand">
+        <img class="app-logo" src="/icon.png" alt="AI Gauge" draggable="false" />
+        <span class="brand-name">AI Gauge</span>
+      </div>
       <div class="actions">
         <span class="window-buttons">
+          <button id="settings" title="Settings" aria-label="Settings">⚙</button>
           <button id="minimise" title="Minimize" aria-label="Minimize">−</button>
-          <button id="exit" title="Hide to Tray" aria-label="Hide to Tray">×</button>
         </span>
       </div>
     </div>
@@ -260,9 +263,6 @@
     }
 
     document.getElementById('minimise').addEventListener('click', () => wails.Window.Minimise());
-    document.getElementById('exit').addEventListener('click', () => {
-      wails.Window.Hide();
-    });
     fetchCodex();
     fetchAntigravity();
     setInterval(() => {
