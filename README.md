@@ -65,8 +65,8 @@ aigauge/
 
 - **Tray Left-Click**: Show and focus widget
 - **Tray Right-Click**: Context menu (Show / Exit)
+- **Titlebar Settings (`⚙`)**: Choose Light, Dark, or Auto theme
 - **Titlebar Minimize (`−`)**: Minimize to taskbar
-- **Titlebar Close (`×`)**: Hide to system tray
 
 ---
 

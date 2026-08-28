@@ -12,14 +12,33 @@
 <body>
   <main class="shell">
     <div class="titlebar">
-      <img class="app-logo" src="/icon.png" alt="AI Gauge" draggable="false" />
+      <div class="brand">
+        <img class="app-logo" src="/icon.png" alt="AI Gauge" draggable="false" />
+        <span class="brand-name">AI Gauge</span>
+      </div>
       <div class="actions">
         <span class="window-buttons">
+          <button id="settings" title="Settings" aria-label="Settings">⚙</button>
           <button id="minimise" title="Minimize" aria-label="Minimize">−</button>
-          <button id="exit" title="Hide to Tray" aria-label="Hide to Tray">×</button>
         </span>
       </div>
     </div>
+    <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
+      <form method="dialog" class="settings-form">
+        <div class="settings-header">
+          <h2 id="settings-title">Settings</h2>
+          <button class="dialog-close" value="cancel" title="Close" aria-label="Close">×</button>
+        </div>
+        <fieldset>
+          <legend>Theme</legend>
+          <div class="theme-options">
+            <label><input type="radio" name="theme" value="light" /> Light</label>
+            <label><input type="radio" name="theme" value="dark" /> Dark</label>
+            <label><input type="radio" name="theme" value="auto" /> Auto</label>
+          </div>
+        </fieldset>
+      </form>
+    </dialog>
     <section id="codex-card" class="usage-card">
       <div class="heading">
         <strong>Codex</strong>
@@ -259,10 +278,28 @@
       }
     }
 
-    document.getElementById('minimise').addEventListener('click', () => wails.Window.Minimise());
-    document.getElementById('exit').addEventListener('click', () => {
-      wails.Window.Hide();
+    const themeStorageKey = 'aigauge-theme';
+    const settingsDialog = document.getElementById('settings-dialog');
+    const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
+    const validThemes = new Set(['light', 'dark', 'auto']);
+
+    function applyTheme(theme) {
+      document.documentElement.dataset.theme = theme;
+      localStorage.setItem(themeStorageKey, theme);
+    }
+
+    const savedTheme = localStorage.getItem(themeStorageKey);
+    applyTheme(validThemes.has(savedTheme) ? savedTheme : 'auto');
+    themeInputs.forEach(input => {
+      input.addEventListener('change', () => applyTheme(input.value));
     });
+
+    document.getElementById('settings').addEventListener('click', () => {
+      const currentTheme = document.documentElement.dataset.theme;
+      themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
+      settingsDialog.showModal();
+    });
+    document.getElementById('minimise').addEventListener('click', () => wails.Window.Minimise());
     fetchCodex();
     fetchAntigravity();
     setInterval(() => {
