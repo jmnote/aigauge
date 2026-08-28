@@ -347,7 +347,7 @@
       wails.Window.Hide();
     });
     wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetVersion').then(version => {
-      document.getElementById('version').textContent = `v${version}`;
+      document.getElementById('version').textContent = version || 'v—';
     });
     fetchCodex();
     fetchAntigravity();
