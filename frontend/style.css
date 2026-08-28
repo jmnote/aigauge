@@ -68,6 +68,11 @@ legend { margin-bottom: 10px; font-size: .8rem; font-weight: 650; }
 .theme-options label { flex: 1; padding: 7px 4px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: .75rem; text-align: center; cursor: pointer; }
 .theme-options label:has(input:checked) { border-color: #0084d1; color: var(--text); }
 .theme-options input { position: absolute; opacity: 0; pointer-events: none; }
+.close-prompt-setting { display: flex; align-items: center; gap: 7px; margin-top: 16px; color: var(--muted); font-size: .75rem; cursor: pointer; }
+.close-prompt-setting input { margin: 0; accent-color: #0084d1; }
+.close-message { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
+.close-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.close-actions button { font-size: .75rem; }
 @media (prefers-color-scheme: dark) {
   :root { color: #e8eaed; background: #202124; }
   body { color: #e8eaed; }

@@ -71,6 +71,7 @@ aigauge/
 - **Tray Right-Click**: Context menu (Show / Exit)
 - **Titlebar Settings (`⚙`)**: Choose Light, Dark, or Auto theme
 - **Titlebar Minimize (`−`)**: Minimize to taskbar
+- **Window Close**: Hides to the tray; use the tray's **Exit** menu item to quit
 
 ---
 
