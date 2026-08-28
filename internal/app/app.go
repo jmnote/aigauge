@@ -14,7 +14,7 @@ import (
 	"time"
 )
 
-var AppVersion = "dev"
+var AppVersion = "v0.0.0"
 
 type App struct{}
 
