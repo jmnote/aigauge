@@ -1,0 +1,7 @@
+{
+  "name": "aigauge",
+  "outputfilename": "aigauge",
+  "frontend": {
+    "dir": "frontend"
+  }
+}
