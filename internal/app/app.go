@@ -123,7 +123,7 @@ func (a *App) GetCodexUsage() CodexUsage {
 	}
 	defer response.Body.Close()
 	if response.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(response.Body)
+		bodyBytes, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
 		bodyStr := strings.TrimSpace(string(bodyBytes))
 		if bodyStr != "" && len(bodyStr) < 150 {
 			usage.Error = fmt.Sprintf("Codex request failed (HTTP %d): %s", response.StatusCode, bodyStr)

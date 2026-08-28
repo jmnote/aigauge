@@ -300,6 +300,9 @@
       themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
       settingsDialog.showModal();
     });
+    settingsDialog.addEventListener('click', event => {
+      if (event.target === settingsDialog) settingsDialog.close();
+    });
     document.getElementById('minimise').addEventListener('click', () => wails.Window.Minimise());
     wails.Call.ByName('main.App.GetVersion').then(version => {
       document.getElementById('version').textContent = `v${version}`;

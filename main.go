@@ -1,10 +1,9 @@
 package main
 
-import "log"
-
 import (
 	"embed"
 	"io/fs"
+	"log"
 
 	"github.com/jmnote/aigauge/internal/ui"
 )

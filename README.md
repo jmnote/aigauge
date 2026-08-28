@@ -51,10 +51,14 @@ cd aigauge
 ```
 aigauge/
 ├── frontend/        # Webview UI and application icon
+├── internal/
+│   ├── app/          # Codex & Antigravity usage fetcher logic
+│   └── ui/           # Wails window, system tray, and runtime wiring
 ├── build.ps1        # Build, run, and test script
+├── VERSION           # Application semantic version
 ├── go.mod           # Go module definition
 ├── go.sum           # Go checksums
-├── main.go          # Go backend logic and Wails lifecycle
+├── main.go          # Application entrypoint and embedded assets
 ├── wails.json       # Wails project configuration
 └── README.md        # Documentation
 ```
