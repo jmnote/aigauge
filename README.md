@@ -9,7 +9,7 @@ A lightweight Windows system tray widget for real-time OpenAI Codex and Google A
 - **Real-Time Tracking**: Displays remaining quotas (%) and reset countdowns for OpenAI Codex (5h, 7d) and Google Antigravity (`agy`) model groups.
 - **Background Polling**: Automatically refreshes data every 60 seconds with non-overlapping asynchronous requests.
 - **Status Indicator**: Visual indicator showing connection health (normal/warning/failed) with live tooltips.
-- **Windows Tray Resident**: Runs in the system tray, hides on close (`×`), clamps to screen boundaries, and supports dark mode.
+- **Windows Tray Resident**: Runs in the system tray, minimizes to the taskbar, clamps to screen boundaries, and supports dark mode.
 
 ---
 
