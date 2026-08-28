@@ -15,6 +15,7 @@
       <div class="brand">
         <img class="app-logo" src="/icon.png" alt="AI Gauge" draggable="false" />
         <span class="brand-name">AI Gauge</span>
+        <span id="version" class="brand-version">v—</span>
       </div>
       <div class="actions">
         <span class="window-buttons">
@@ -300,6 +301,9 @@
       settingsDialog.showModal();
     });
     document.getElementById('minimise').addEventListener('click', () => wails.Window.Minimise());
+    wails.Call.ByName('main.App.GetVersion').then(version => {
+      document.getElementById('version').textContent = `v${version}`;
+    });
     fetchCodex();
     fetchAntigravity();
     setInterval(() => {

@@ -20,7 +20,8 @@ h1 { margin: 0 0 12px; font-size: 1.2rem; font-weight: 650; }
 .titlebar { display: flex; flex: 0 0 30px; align-items: center; justify-content: space-between; margin: -12px -12px 14px; padding: 0 0 0 8px; border-bottom: 1px solid var(--divider); app-region: drag; --wails-draggable: drag; }
 .brand { display: flex; align-items: center; gap: 7px; }
 .app-logo { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; }
-.brand-name { color: var(--text); font-size: .82rem; font-weight: 650; }
+.brand-name { color: var(--text); font-size: .74rem; font-weight: 650; }
+.brand-version { color: var(--subtle); font-size: .64rem; }
 .heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .heading strong { font-size: 1.05rem; }
 .card-status { display: flex; align-items: center; gap: 6px; }
@@ -74,6 +75,7 @@ legend { margin-bottom: 10px; font-size: .8rem; font-weight: 650; }
   .titlebar { border-bottom-color: #3c4043; }
   button { border-color: #5f6368; background: #292a2d; color: #d2d5d8; }
   .brand-name { color: #e8eaed; }
+  .brand-version { color: #9aa0a6; }
   .window-buttons button:hover { background: #3c4043; }
   .status-dot.connected { background: #81c995; }
   .status-dot.warning { background: #fbbc04; }
@@ -95,3 +97,5 @@ legend { margin-bottom: 10px; font-size: .8rem; font-weight: 650; }
 :root[data-theme="dark"] .status-tooltip { border-color: var(--border); background: var(--surface); color: var(--muted); }
 :root[data-theme="light"] .agy-group-title { color: var(--muted); }
 :root[data-theme="dark"] .agy-group-title { color: var(--muted); }
+:root[data-theme="light"] .brand-name { color: var(--text); }
+:root[data-theme="light"] .brand-version { color: var(--subtle); }
