@@ -26,8 +26,7 @@ var embeddedFrontend embed.FS
 //go:embed frontend/icon.png
 var appIcon []byte
 
-//go:embed VERSION
-var versionFile string
+var appVersion = "dev"
 
 var frontendAssets fs.FS
 
@@ -114,7 +113,7 @@ type agyUsageResponse struct {
 type App struct{}
 
 func (a *App) GetVersion() string {
-	return strings.TrimSpace(versionFile)
+	return appVersion
 }
 
 func (a *App) GetCodexUsage() CodexUsage {
