@@ -1,20 +1,11 @@
-package main
+package ui
 
 import (
-	"embed"
 	"io/fs"
 
 	usageapp "github.com/jmnote/aigauge/internal/app"
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
-
-//go:embed frontend
-var embeddedFrontend embed.FS
-
-//go:embed frontend/icon.png
-var appIcon []byte
-
-var frontendAssets fs.FS
 
 var singleInstanceKey = [32]byte{
 	0x61, 0x69, 0x67, 0x61, 0x75, 0x67, 0x65, 0x2d,
@@ -26,21 +17,14 @@ var singleInstanceKey = [32]byte{
 type runtime struct {
 	application *application.App
 	window      *application.WebviewWindow
+	icon        []byte
 }
 
-func init() {
-	var err error
-	frontendAssets, err = fs.Sub(embeddedFrontend, "frontend")
-	if err != nil {
-		panic("failed to initialize embedded frontend assets: " + err.Error())
-	}
-}
-
-func run() error {
-	rt := &runtime{}
+func Run(frontendAssets fs.FS, icon []byte) error {
+	rt := &runtime{icon: icon}
 	rt.application = application.New(application.Options{
 		Name: "AI Gauge",
-		Icon: appIcon,
+		Icon: icon,
 		Services: []application.Service{
 			application.NewService(&usageapp.App{}),
 		},

@@ -1,4 +1,4 @@
-package main
+package ui
 
 import (
 	"github.com/wailsapp/wails/v3/pkg/application"

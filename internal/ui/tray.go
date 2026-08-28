@@ -1,11 +1,11 @@
-package main
+package ui
 
 import "github.com/wailsapp/wails/v3/pkg/application"
 
 func (rt *runtime) configureTray() {
 	tray := rt.application.SystemTray.New()
 	tray.SetLabel("AI Gauge")
-	tray.SetIcon(appIcon)
+	tray.SetIcon(rt.icon)
 	tray.OnClick(func() {
 		rt.showWindow()
 	})
