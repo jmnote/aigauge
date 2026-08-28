@@ -1,0 +1,29 @@
+name: Pull request checks
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Run tests
+        shell: pwsh
+        run: .\build.ps1 -Task test
+
+      - name: Build application
+        shell: pwsh
+        run: .\build.ps1 -Task build
