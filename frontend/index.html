@@ -265,7 +265,7 @@
     async function fetchCodex() {
       setLoading('codex-dot', true);
       try {
-        const usage = await wails.Call.ByName('main.App.GetCodexUsage');
+        const usage = await wails.Call.ByName('app.App.GetCodexUsage');
         clearLoadingText('codex-card');
         if (usage.error) codexFailureCount += 1;
         else codexLastSuccessAt = Date.now();
@@ -284,7 +284,7 @@
     async function fetchAntigravity() {
       setLoading('agy-dot', true);
       try {
-        const usage = await wails.Call.ByName('main.App.GetAntigravityUsage');
+        const usage = await wails.Call.ByName('app.App.GetAntigravityUsage');
         clearLoadingText('agy-card');
         if (usage.error) antigravityFailureCount += 1;
         else antigravityLastSuccessAt = Date.now();
@@ -346,7 +346,7 @@
       closeDialog.close('hide');
       wails.Window.Hide();
     });
-    wails.Call.ByName('main.App.GetVersion').then(version => {
+    wails.Call.ByName('app.App.GetVersion').then(version => {
       document.getElementById('version').textContent = `v${version}`;
     });
     fetchCodex();
