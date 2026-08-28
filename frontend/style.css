@@ -20,7 +20,8 @@ h1 { margin: 0 0 12px; font-size: 1.2rem; font-weight: 650; }
 .titlebar { display: flex; flex: 0 0 30px; align-items: center; justify-content: space-between; margin: -12px -12px 14px; padding: 0 0 0 8px; border-bottom: 1px solid var(--divider); app-region: drag; --wails-draggable: drag; }
 .brand { display: flex; align-items: center; gap: 7px; }
 .app-logo { width: 20px; height: 20px; object-fit: contain; border-radius: 4px; }
-.brand-name { color: var(--text); font-size: .82rem; font-weight: 650; }
+.brand-name { color: var(--text); font-size: .74rem; font-weight: 650; }
+.brand-version { color: var(--subtle); font-size: .64rem; }
 .heading { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
 .heading strong { font-size: 1.05rem; }
 .card-status { display: flex; align-items: center; gap: 6px; }
@@ -67,6 +68,11 @@ legend { margin-bottom: 10px; font-size: .8rem; font-weight: 650; }
 .theme-options label { flex: 1; padding: 7px 4px; border: 1px solid var(--border); border-radius: 6px; color: var(--muted); font-size: .75rem; text-align: center; cursor: pointer; }
 .theme-options label:has(input:checked) { border-color: #0084d1; color: var(--text); }
 .theme-options input { position: absolute; opacity: 0; pointer-events: none; }
+.close-prompt-setting { display: flex; align-items: center; gap: 7px; margin-top: 16px; color: var(--muted); font-size: .75rem; cursor: pointer; }
+.close-prompt-setting input { margin: 0; accent-color: #0084d1; }
+.close-message { margin: 0; color: var(--muted); font-size: .78rem; line-height: 1.5; }
+.close-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 16px; }
+.close-actions button { font-size: .75rem; }
 @media (prefers-color-scheme: dark) {
   :root { color: #e8eaed; background: #202124; }
   body { color: #e8eaed; }
@@ -74,6 +80,7 @@ legend { margin-bottom: 10px; font-size: .8rem; font-weight: 650; }
   .titlebar { border-bottom-color: #3c4043; }
   button { border-color: #5f6368; background: #292a2d; color: #d2d5d8; }
   .brand-name { color: #e8eaed; }
+  .brand-version { color: #9aa0a6; }
   .window-buttons button:hover { background: #3c4043; }
   .status-dot.connected { background: #81c995; }
   .status-dot.warning { background: #fbbc04; }
@@ -95,3 +102,5 @@ legend { margin-bottom: 10px; font-size: .8rem; font-weight: 650; }
 :root[data-theme="dark"] .status-tooltip { border-color: var(--border); background: var(--surface); color: var(--muted); }
 :root[data-theme="light"] .agy-group-title { color: var(--muted); }
 :root[data-theme="dark"] .agy-group-title { color: var(--muted); }
+:root[data-theme="light"] .brand-name { color: var(--text); }
+:root[data-theme="light"] .brand-version { color: var(--subtle); }

@@ -15,6 +15,7 @@
       <div class="brand">
         <img class="app-logo" src="/icon.png" alt="AI Gauge" draggable="false" />
         <span class="brand-name">AI Gauge</span>
+        <span id="version" class="brand-version">v—</span>
       </div>
       <div class="actions">
         <span class="window-buttons">
@@ -37,6 +38,27 @@
             <label><input type="radio" name="theme" value="auto" /> Auto</label>
           </div>
         </fieldset>
+        <label class="close-prompt-setting">
+          <input type="checkbox" id="close-prompt-enabled" />
+          Ask before hiding on close
+        </label>
+      </form>
+    </dialog>
+    <dialog id="close-dialog" class="settings-dialog" aria-labelledby="close-title">
+      <form method="dialog" class="settings-form">
+        <div class="settings-header">
+          <h2 id="close-title">AI Gauge is still running</h2>
+          <button class="dialog-close" value="cancel" title="Close" aria-label="Close">×</button>
+        </div>
+        <p class="close-message">Closing this window only hides AI Gauge. To exit the application, choose <strong>Exit</strong> from the system tray menu.</p>
+        <label class="close-prompt-setting">
+          <input type="checkbox" id="close-dont-ask" />
+          Don't ask again
+        </label>
+        <div class="close-actions">
+          <button value="cancel">Keep running</button>
+          <button id="hide-to-tray" value="hide">Hide to tray</button>
+        </div>
       </form>
     </dialog>
     <section id="codex-card" class="usage-card">
@@ -243,7 +265,7 @@
     async function fetchCodex() {
       setLoading('codex-dot', true);
       try {
-        const usage = await wails.Call.ByName('main.App.GetCodexUsage');
+        const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetCodexUsage');
         clearLoadingText('codex-card');
         if (usage.error) codexFailureCount += 1;
         else codexLastSuccessAt = Date.now();
@@ -262,7 +284,7 @@
     async function fetchAntigravity() {
       setLoading('agy-dot', true);
       try {
-        const usage = await wails.Call.ByName('main.App.GetAntigravityUsage');
+        const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetAntigravityUsage');
         clearLoadingText('agy-card');
         if (usage.error) antigravityFailureCount += 1;
         else antigravityLastSuccessAt = Date.now();
@@ -279,8 +301,12 @@
     }
 
     const themeStorageKey = 'aigauge-theme';
+    const closePromptStorageKey = 'aigauge-close-prompt';
     const settingsDialog = document.getElementById('settings-dialog');
+    const closeDialog = document.getElementById('close-dialog');
     const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
+    const closePromptEnabled = document.getElementById('close-prompt-enabled');
+    const closeDontAsk = document.getElementById('close-dont-ask');
     const validThemes = new Set(['light', 'dark', 'auto']);
 
     function applyTheme(theme) {
@@ -297,9 +323,32 @@
     document.getElementById('settings').addEventListener('click', () => {
       const currentTheme = document.documentElement.dataset.theme;
       themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
+      closePromptEnabled.checked = localStorage.getItem(closePromptStorageKey) !== 'false';
       settingsDialog.showModal();
     });
+    settingsDialog.addEventListener('click', event => {
+      if (event.target === settingsDialog) settingsDialog.close();
+    });
     document.getElementById('minimise').addEventListener('click', () => wails.Window.Minimise());
+    closePromptEnabled.addEventListener('change', () => {
+      localStorage.setItem(closePromptStorageKey, String(closePromptEnabled.checked));
+    });
+    wails.Events.On('window-close-requested', () => {
+      if (localStorage.getItem(closePromptStorageKey) === 'false') {
+        wails.Window.Hide();
+        return;
+      }
+      closeDontAsk.checked = false;
+      closeDialog.showModal();
+    });
+    document.getElementById('hide-to-tray').addEventListener('click', () => {
+      if (closeDontAsk.checked) localStorage.setItem(closePromptStorageKey, 'false');
+      closeDialog.close('hide');
+      wails.Window.Hide();
+    });
+    wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetVersion').then(version => {
+      document.getElementById('version').textContent = version || 'v—';
+    });
     fetchCodex();
     fetchAntigravity();
     setInterval(() => {
