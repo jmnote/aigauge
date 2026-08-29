@@ -41,7 +41,7 @@
     </filter>
   </defs>
 
-  <g filter="url(#softShadow)" transform="translate(0 18) translate(512 512) scale(1.035) translate(-512 -512)">
+  <g filter="url(#softShadow)" transform="translate(0 18) translate(512 512) scale(1.08) translate(-512 -512)">
     <path d="M 166.46,764.50 Q 145.67,776.50 131.81,750.43 A 423,423 0 0 1 89.09,556.14 Q 90.74,526.66 114.64,528.84 L 198.30,536.45 Q 222.20,538.63 221.06,558.91 A 291,291 0 0 0 250.45,692.57 Q 259.99,710.50 239.20,722.50 L 166.46,764.50 Z" fill="url(#seg1)"/>
     <path d="M 140.00,420.71 Q 117.63,412.03 129.26,384.90 A 423,423 0 0 1 253.91,229.86 Q 277.92,212.67 291.20,232.66 L 337.68,302.63 Q 350.96,322.62 334.45,334.44 A 291,291 0 0 0 248.70,441.10 Q 240.69,459.77 218.32,451.09 L 140.00,420.71 Z" fill="url(#seg2)"/>
     <path d="M 391.35,184.68 Q 384.10,161.80 412.53,153.86 A 423,423 0 0 1 611.47,153.86 Q 639.90,161.80 632.65,184.68 L 607.25,264.74 Q 599.99,287.62 580.43,282.16 A 291,291 0 0 0 443.57,282.16 Q 424.01,287.62 416.75,264.74 L 391.35,184.68 Z" fill="url(#seg3)"/>
@@ -58,9 +58,9 @@
     Q 536,688 521,687
     Q 504,685 496,670
     Z"
-    fill="url(#needle)" filter="url(#tinyShadow)"/>
+    fill="url(#needle)" stroke="url(#needle)" stroke-width="10" stroke-linejoin="round" filter="url(#tinyShadow)"/>
 
-  <polygon transform="translate(51 55) scale(.9)"
+  <polygon
     points="512.00,504.00 554.91,590.94 650.85,604.88 581.43,672.56 597.82,768.12 512.00,723.00 426.18,768.12 442.57,672.56 373.15,604.88 469.09,590.94"
     fill="url(#star)" stroke="#ffffff" stroke-opacity=".42" stroke-width="3"
     stroke-linejoin="round" filter="url(#tinyShadow)"/>
