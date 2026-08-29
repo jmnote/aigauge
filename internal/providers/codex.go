@@ -43,6 +43,20 @@ type codexUsageResponse struct {
 
 var httpClient = &http.Client{Timeout: 10 * time.Second}
 
+func parseCodexUsage(data []byte) (CodexUsage, error) {
+	var response codexUsageResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		return CodexUsage{}, err
+	}
+	return CodexUsage{
+		Plan:       response.PlanType,
+		FiveHour:   response.RateLimit.PrimaryWindow.UsedPercent,
+		SevenDay:   response.RateLimit.SecondaryWindow.UsedPercent,
+		FiveHourIn: response.RateLimit.PrimaryWindow.ResetAfterSeconds,
+		SevenDayIn: response.RateLimit.SecondaryWindow.ResetAfterSeconds,
+	}, nil
+}
+
 func GetCodexUsage() CodexUsage {
 	usage := CodexUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 	home, err := os.UserHomeDir()
@@ -86,15 +100,20 @@ func GetCodexUsage() CodexUsage {
 		return usage
 	}
 
-	var data codexUsageResponse
-	if err := json.NewDecoder(response.Body).Decode(&data); err != nil {
+	body, err := io.ReadAll(response.Body)
+	if err != nil {
+		usage.Error = fmt.Sprintf("Unable to read Codex usage response: %v", err)
+		return usage
+	}
+	parsed, err := parseCodexUsage(body)
+	if err != nil {
 		usage.Error = fmt.Sprintf("Unable to parse Codex usage response: %v", err)
 		return usage
 	}
-	usage.Plan = data.PlanType
-	usage.FiveHour = data.RateLimit.PrimaryWindow.UsedPercent
-	usage.SevenDay = data.RateLimit.SecondaryWindow.UsedPercent
-	usage.FiveHourIn = data.RateLimit.PrimaryWindow.ResetAfterSeconds
-	usage.SevenDayIn = data.RateLimit.SecondaryWindow.ResetAfterSeconds
+	usage.Plan = parsed.Plan
+	usage.FiveHour = parsed.FiveHour
+	usage.SevenDay = parsed.SevenDay
+	usage.FiveHourIn = parsed.FiveHourIn
+	usage.SevenDayIn = parsed.SevenDayIn
 	return usage
 }

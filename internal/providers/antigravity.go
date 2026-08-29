@@ -52,6 +52,28 @@ type agyUsageResponse struct {
 // Allocate a hidden console as a workaround instead.
 const createNewConsole = 0x00000010
 
+func parseAntigravityUsage(output []byte) (AntigravityUsage, error) {
+	var response agyUsageResponse
+	if err := json.Unmarshal(output, &response); err != nil {
+		return AntigravityUsage{}, err
+	}
+
+	usage := AntigravityUsage{}
+	for _, group := range response.Command.Data.Groups {
+		parsedGroup := AntigravityUsageGroup{Name: group.Name}
+		for _, bucket := range group.Buckets {
+			parsedGroup.Buckets = append(parsedGroup.Buckets, AntigravityUsageBucket{
+				Name:      bucket.Name,
+				Window:    bucket.Window,
+				Remaining: bucket.RemainingFraction * 100,
+				ResetTime: bucket.ResetTime,
+			})
+		}
+		usage.Groups = append(usage.Groups, parsedGroup)
+	}
+	return usage, nil
+}
+
 func GetAntigravityUsage() AntigravityUsage {
 	usage := AntigravityUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
@@ -91,24 +113,12 @@ func GetAntigravityUsage() AntigravityUsage {
 		return usage
 	}
 
-	var response agyUsageResponse
-	if err := json.Unmarshal(output, &response); err != nil {
+	parsed, err := parseAntigravityUsage(output)
+	if err != nil {
 		usage.Error = fmt.Sprintf("Unable to parse agy usage response: %v", err)
 		return usage
 	}
-
-	for _, group := range response.Command.Data.Groups {
-		parsedGroup := AntigravityUsageGroup{Name: group.Name}
-		for _, bucket := range group.Buckets {
-			parsedGroup.Buckets = append(parsedGroup.Buckets, AntigravityUsageBucket{
-				Name:      bucket.Name,
-				Window:    bucket.Window,
-				Remaining: bucket.RemainingFraction * 100,
-				ResetTime: bucket.ResetTime,
-			})
-		}
-		usage.Groups = append(usage.Groups, parsedGroup)
-	}
+	usage.Groups = parsed.Groups
 	if len(usage.Groups) == 0 {
 		usage.Error = "No agy usage data found"
 	}
