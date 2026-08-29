@@ -1,0 +1,44 @@
+{
+  "version": "v0.2.1",
+  "codex": {
+    "plan": "plus",
+    "fiveHour": 14,
+    "sevenDay": 51,
+    "fiveHourResetIn": 10200,
+    "sevenDayResetIn": 432000
+  },
+  "antigravity": {
+    "groups": [
+      {
+        "name": "Gemini Models",
+        "buckets": [
+          {
+            "window": "5h",
+            "remaining": 19,
+            "resetTime": "2030-08-30T02:43:00Z"
+          },
+          {
+            "window": "weekly",
+            "remaining": 88,
+            "resetTime": "2030-09-04T03:59:00Z"
+          }
+        ]
+      },
+      {
+        "name": "Claude and GPT models",
+        "buckets": [
+          {
+            "window": "5h",
+            "remaining": 100,
+            "resetTime": "2030-08-30T02:43:00Z"
+          },
+          {
+            "window": "weekly",
+            "remaining": 100,
+            "resetTime": "2030-09-05T16:52:00Z"
+          }
+        ]
+      }
+    ]
+  }
+}

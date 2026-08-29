@@ -32,5 +32,6 @@ go.work.sum
 # .vscode/
 
 # Local MSIX staging and package output
-/build/msix/
+/dist/staging/
+/rsrc_windows_amd64.syso
 /dist/

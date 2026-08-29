@@ -26,4 +26,4 @@ jobs:
 
       - name: Build application
         shell: pwsh
-        run: .\build.ps1 -Task build
+        run: .\build.ps1 -Task build -SkipWindowsResources

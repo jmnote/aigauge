@@ -5,7 +5,7 @@
          IgnorableNamespaces="uap rescap">
   <Identity Name="jmnote.com.AIGauge"
             Publisher="CN=41BB0B33-81CF-42E8-94FD-DB09374673F6"
-            Version="0.2.0.0"
+            Version="0.2.1.0"
             ProcessorArchitecture="x64" />
 
   <Properties>

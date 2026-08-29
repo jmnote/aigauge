@@ -3,11 +3,12 @@ param(
     [string]$Architecture = "x64",
     [string]$Version = "",
     [string]$MakeAppx = "",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$SkipWindowsResources
 )
 
 $ErrorActionPreference = "Stop"
-$repo = $PSScriptRoot
+$repo = Split-Path -Parent $PSScriptRoot
 
 function Resolve-Version {
     param([string]$Requested)
@@ -65,12 +66,14 @@ if ([string]::IsNullOrWhiteSpace($appVersion)) {
 $msixVersion = Resolve-Version $appVersion
 $sourceExe = Join-Path $repo "aigauge.exe"
 if (-not $SkipBuild) {
-    & (Join-Path $repo "build.ps1") -Task build -Version $appVersion
+    $buildArguments = @{ Task = "build"; Version = $appVersion }
+    if ($SkipWindowsResources) { $buildArguments.SkipWindowsResources = $true }
+    & (Join-Path $repo "build.ps1") @buildArguments
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 if (-not (Test-Path -LiteralPath $sourceExe -PathType Leaf)) { throw "Build output not found: $sourceExe" }
 
-$staging = Join-Path $repo "build\msix\$Architecture"
+$staging = Join-Path $repo "dist\staging\$Architecture"
 $assets = Join-Path $staging "Assets"
 $dist = Join-Path $repo "dist"
 New-Item -ItemType Directory -Force -Path $assets, $dist | Out-Null
