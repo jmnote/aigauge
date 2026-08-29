@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "test", "build", "package", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
+    [ValidateSet("run", "test", "build", "package", "checks", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
     [string]$Task = "build",
     [string]$Version = "",
     [ValidateSet("x64", "x86", "arm64")]
@@ -33,6 +33,42 @@ switch ($Task) {
         if ($SkipWindowsResources) { $arguments.SkipWindowsResources = $true }
         & $packageScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
+    "checks" {
+        $formatOutput = @(gofmt -l main.go internal)
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if ($formatOutput.Count -gt 0) {
+            $formatOutput | ForEach-Object { Write-Error "gofmt required: $_" }
+            exit 1
+        }
+
+        go test ./...
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        git diff --check
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        & $PSCommandPath -Task package -Architecture $Architecture -Version $Version -MakeAppx $MakeAppx
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $checkVersion = $Version
+        if ([string]::IsNullOrWhiteSpace($checkVersion)) {
+            $checkVersion = (Get-Content -LiteralPath (Join-Path $PSScriptRoot "VERSION") -Raw).Trim()
+        }
+        $checkVersion = $checkVersion.TrimStart('v', 'V')
+        $checkParts = @($checkVersion.Split('.'))
+        while ($checkParts.Count -lt 4) { $checkParts += '0' }
+        $checkVersion = $checkParts -join '.'
+        $packagePath = Join-Path $PSScriptRoot ("dist\aigauge_{0}_{1}.msix" -f $checkVersion, $Architecture)
+        $manifestPath = Join-Path $PSScriptRoot ("dist\staging\{0}\AppxManifest.xml" -f $Architecture)
+        if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
+            throw "Expected MSIX was not created: $packagePath"
+        }
+        $stagedManifest = Get-Content -LiteralPath $manifestPath -Raw
+        if ($stagedManifest -notmatch ('Version="{0}"' -f [regex]::Escape($checkVersion))) {
+            throw "MSIX manifest version does not match VERSION: $checkVersion"
+        }
+        Write-Output "Checks passed: $packagePath"
     }
     "live-server" {
         & (Join-Path $PSScriptRoot "hack\live-server.ps1")
