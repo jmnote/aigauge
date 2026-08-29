@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="seg1" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#0b52ff"/>
+      <stop offset="1" stop-color="#19a7ff"/>
+    </linearGradient>
+    <linearGradient id="seg2" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#1466ff"/>
+      <stop offset="1" stop-color="#2bcaf2"/>
+    </linearGradient>
+    <linearGradient id="seg3" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#18abf6"/>
+      <stop offset="1" stop-color="#4bddaf"/>
+    </linearGradient>
+    <linearGradient id="seg4" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#1bbfd4"/>
+      <stop offset="1" stop-color="#85ef89"/>
+    </linearGradient>
+    <linearGradient id="seg5" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#4364ff"/>
+      <stop offset="1" stop-color="#b13af1"/>
+    </linearGradient>
+
+    <linearGradient id="needle" x1="0.10" y1="0.90" x2="0.95" y2="0.06">
+      <stop offset="0" stop-color="#5ca7ff"/>
+      <stop offset="0.46" stop-color="#d9f2ff"/>
+      <stop offset="1" stop-color="#ffffff"/>
+    </linearGradient>
+    <linearGradient id="star" x1="0.14" y1="0.08" x2="0.82" y2="0.96">
+      <stop offset="0" stop-color="#fbffff"/>
+      <stop offset="0.36" stop-color="#91e4ff"/>
+      <stop offset="0.68" stop-color="#3f86ff"/>
+      <stop offset="1" stop-color="#5c2df3"/>
+    </linearGradient>
+
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="5" stdDeviation="7" flood-color="#1844d7" flood-opacity="0.14"/>
+    </filter>
+    <filter id="tinyShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#173a96" flood-opacity="0.20"/>
+    </filter>
+  </defs>
+
+  <g filter="url(#softShadow)">
+    <path d="M 166.46,764.50 Q 145.67,776.50 131.81,750.43 A 423,423 0 0 1 89.09,556.14 Q 90.74,526.66 114.64,528.84 L 198.30,536.45 Q 222.20,538.63 221.06,558.91 A 291,291 0 0 0 250.45,692.57 Q 259.99,710.50 239.20,722.50 L 166.46,764.50 Z" fill="url(#seg1)"/>
+    <path d="M 140.00,420.71 Q 117.63,412.03 129.26,384.90 A 423,423 0 0 1 253.91,229.86 Q 277.92,212.67 291.20,232.66 L 337.68,302.63 Q 350.96,322.62 334.45,334.44 A 291,291 0 0 0 248.70,441.10 Q 240.69,459.77 218.32,451.09 L 140.00,420.71 Z" fill="url(#seg2)"/>
+    <path d="M 391.35,184.68 Q 384.10,161.80 412.53,153.86 A 423,423 0 0 1 611.47,153.86 Q 639.90,161.80 632.65,184.68 L 607.25,264.74 Q 599.99,287.62 580.43,282.16 A 291,291 0 0 0 443.57,282.16 Q 424.01,287.62 416.75,264.74 L 391.35,184.68 Z" fill="url(#seg3)"/>
+    <path d="M 732.80,232.66 Q 746.08,212.67 770.09,229.86 A 423,423 0 0 1 894.74,384.90 Q 906.37,412.03 884.00,420.71 L 805.68,451.09 Q 783.31,459.77 775.30,441.10 A 291,291 0 0 0 689.55,334.44 Q 673.04,322.62 686.32,302.63 L 732.80,232.66 Z" fill="url(#seg4)"/>
+    <path d="M 909.36,528.84 Q 933.26,526.66 934.91,556.14 A 423,423 0 0 1 892.19,750.43 Q 878.33,776.50 857.54,764.50 L 784.80,722.50 Q 764.01,710.50 773.55,692.57 A 291,291 0 0 0 802.94,558.91 Q 801.80,538.63 825.70,536.45 L 909.36,528.84 Z" fill="url(#seg5)"/>
+  </g>
+
+  <path d="
+    M 469,654
+    L 748,313
+    Q 767,290 791,305
+    Q 811,317 794,339
+    L 546,675
+    Q 536,688 521,687
+    Q 504,685 496,670
+    Z"
+    fill="url(#needle)" filter="url(#tinyShadow)"/>
+
+  <polygon points="512.00,504.00 554.91,590.94 650.85,604.88 581.43,672.56 597.82,768.12 512.00,723.00 426.18,768.12 442.57,672.56 373.15,604.88 469.09,590.94"
+    fill="url(#star)" stroke="#ffffff" stroke-opacity=".42" stroke-width="3"
+    stroke-linejoin="round" filter="url(#tinyShadow)"/>
+</svg>

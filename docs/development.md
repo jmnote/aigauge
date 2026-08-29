@@ -41,8 +41,9 @@ Before opening a PR, the combined local gate can be run with:
 This also creates a local MSIX and verifies that its package name and staged manifest version
 match `VERSION`.
 
-Windows builds also generate an ignored `rsrc_windows_amd64.syso` file from `frontend/icon.png`.
-The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
+`frontend/logo.svg` is the source logo. The checked-in `frontend/logo.png` is the raster asset used
+by Windows executable resources and MSIX package icons. Windows builds also generate an ignored
+`rsrc_windows_amd64.syso` file from `frontend/logo.png`. The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
 resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
 available.
 The executable-resource step is local-only; the CI MSIX workflow skips it because the MSIX

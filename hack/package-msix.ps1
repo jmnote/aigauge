@@ -89,7 +89,7 @@ $manifest = $manifest -replace 'ProcessorArchitecture="[^"]+"', ('ProcessorArchi
 Set-Content -LiteralPath (Join-Path $staging "AppxManifest.xml") -Value $manifest -Encoding utf8
 
 Add-Type -AssemblyName System.Drawing
-$icon = [System.Drawing.Image]::FromFile((Join-Path $repo "frontend\icon.png"))
+$icon = [System.Drawing.Image]::FromFile((Join-Path $repo "frontend\logo.png"))
 try {
     foreach ($asset in @(@("Square44x44Logo.png", 44), @("Square150x150Logo.png", 150), @("StoreLogo.png", 50), @("Square310x310Logo.png", 310))) {
         New-IconAsset -Source $icon -Path (Join-Path $assets $asset[0]) -Size $asset[1]

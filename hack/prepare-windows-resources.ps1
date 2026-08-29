@@ -24,7 +24,7 @@ if (-not $winres) {
 }
 
 & $winres.Source simply --arch amd64 --out (Join-Path $repo "rsrc") --manifest gui `
-    --icon (Join-Path $repo "frontend\icon.png") `
+    --icon (Join-Path $repo "frontend\logo.png") `
     --product-name "AI Gauge" `
     --file-description "AI Gauge" `
     --original-filename "aigauge.exe" `

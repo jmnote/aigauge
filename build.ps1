@@ -35,6 +35,13 @@ switch ($Task) {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "checks" {
+        foreach ($asset in @("frontend\logo.svg", "frontend\logo.png")) {
+            $assetPath = Join-Path $PSScriptRoot $asset
+            if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
+                throw "Required logo asset was not found: $assetPath"
+            }
+        }
+
         $formatOutput = @(gofmt -l main.go internal)
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         if ($formatOutput.Count -gt 0) {
