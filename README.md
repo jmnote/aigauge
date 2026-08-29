@@ -57,6 +57,15 @@ cd aigauge
 .\build.ps1 -Task test
 ```
 
+### Build an MSIX package
+```powershell
+.\package-msix.ps1
+```
+
+`VERSION` is the source of truth for the application version. The packaging script converts
+the `v0.2.0`-style value to the four-part MSIX version `0.2.0.0` and writes it to the staging
+manifest under `build/msix/`. The generated package is written to `dist/`, which is ignored by Git.
+
 ---
 
 ## Project Structure
@@ -65,7 +74,8 @@ cd aigauge
 aigauge/
 ├── frontend/        # Webview UI and application icon
 ├── internal/
-│   ├── app/          # Codex & Antigravity usage fetcher logic
+│   ├── app/          # Wails application bindings and services
+│   ├── providers/    # Codex & Antigravity usage providers
 │   └── ui/           # Wails window, system tray, and runtime wiring
 ├── build.ps1        # Build, run, and test script
 ├── VERSION           # Application semantic version
@@ -83,8 +93,7 @@ aigauge/
 - **Tray Left-Click**: Show and focus widget
 - **Tray Right-Click**: Context menu (Show / Exit)
 - **Titlebar Settings (`⚙`)**: Choose Light, Dark, or System theme
-- **Titlebar Minimize (`−`)**: Minimize to taskbar
-- **Window Close**: Hides to the tray; use the tray's **Exit** menu item to quit
+- **Titlebar Close (`×`)**: Prompts before hiding to the tray; use the tray's **Exit** menu item to quit
 
 ---
 
