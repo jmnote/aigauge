@@ -44,6 +44,16 @@ AI Gauge does not request or store passwords, payment information, or unrelated 
 Credentials remain managed by the local service or login tool. For the complete policy, see the
 privacy policy published with the Microsoft Store listing.
 
+## Known Issues
+
+- `agy 1.1.22` expects a Windows console/TTY when used with `-p` for usage queries. In my
+  testing, a PowerShell/console window may briefly flash during some Antigravity usage
+  refreshes. The behavior appears closely related to the upstream issue, although the exact
+  cause has not been confirmed. As of August 30, 2026, the related upstream issue is still open:
+  [agy issue #508](https://github.com/google-antigravity/antigravity-cli/issues/508). If this
+  occurs, it is a known issue rather than an indication that AI Gauge is launching an interactive
+  command.
+
 ## Troubleshooting
 
 - If Codex data is unavailable, verify that the local Codex login session is active.
