@@ -46,6 +46,8 @@ by Windows executable resources and MSIX package icons. Windows builds also gene
 `rsrc_windows_amd64.syso` file from `frontend/logo.png`. The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
 resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
 available.
+Regenerate the PNG after changing the SVG with `.\build.ps1 logo`; this requires ImageMagick
+with `magick.exe` available on `PATH`.
 The executable-resource step is local-only; the CI MSIX workflow skips it because the MSIX
 manifest supplies the Store icons and CI does not need the optional executable icon.
 

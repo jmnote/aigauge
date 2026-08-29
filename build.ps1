@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "test", "build", "package", "checks", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
+    [ValidateSet("run", "test", "build", "package", "checks", "logo", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
     [string]$Task = "build",
     [string]$Version = "",
     [ValidateSet("x64", "x86", "arm64")]
@@ -76,6 +76,10 @@ switch ($Task) {
             throw "MSIX manifest version does not match VERSION: $checkVersion"
         }
         Write-Output "Checks passed: $packagePath"
+    }
+    "logo" {
+        & (Join-Path $PSScriptRoot "hack\convert-logo.ps1")
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "live-server" {
         & (Join-Path $PSScriptRoot "hack\live-server.ps1")
