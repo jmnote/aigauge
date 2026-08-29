@@ -1,132 +1,59 @@
 # AI Gauge
 
-A lightweight Windows system tray widget for real-time OpenAI Codex and Google Antigravity usage monitoring.
+<p align="center">
+  <img src="frontend/icon.png" width="96" alt="AI Gauge logo">
+</p>
 
----
+<p align="center">A lightweight Windows tray widget for monitoring OpenAI Codex and Google Antigravity usage.</p>
+
+<p align="center">
+  <img src="docs/screenshots/aigauge-native-light.png" width="320" alt="AI Gauge Light theme">
+  <img src="docs/screenshots/aigauge-native-dark.png" width="320" alt="AI Gauge Dark theme">
+</p>
 
 ## Features
 
-- **Real-Time Tracking**: Displays remaining quotas (%) and reset countdowns for OpenAI Codex (5h, 7d) and Google Antigravity (`agy`) model groups.
-- **Background Polling**: Automatically refreshes data every 60 seconds with non-overlapping asynchronous requests.
-- **Status Indicator**: Visual indicator showing connection health (normal/warning/failed) with live tooltips.
-- **Windows Tray Resident**: Runs in the system tray, minimizes to the taskbar, clamps to screen boundaries, and supports dark mode.
+- View remaining Codex quotas and reset times for the 5-hour and 7-day windows.
+- View Google Antigravity (`agy`) model-group quotas and reset times.
+- Refresh usage automatically in the background.
+- Keep the widget in the Windows system tray.
+- Choose Light, Dark, or System appearance.
+- Configure Warning and Critical thresholds for usage bars.
 
----
+## Requirements
+
+- Windows 10 or Windows 11 (64-bit)
+- A local OpenAI Codex login session
+- The Google Antigravity `agy` command-line tool, if Antigravity usage is needed
 
 ## How it works
 
-AI Gauge runs as a lightweight Windows desktop process and keeps its small widget available from the system tray.
+AI Gauge runs locally. It reads the local Codex login session and invokes the locally installed
+`agy` command-line tool. Usage data is displayed in the widget and is not sent to an AI Gauge
+intermediary server. The connected services handle their own authentication and privacy policies.
 
-1. The widget calls the OpenAI Codex usage endpoint using the local Codex login session at `~/.codex/auth.json`.
-2. It invokes the local `agy` CLI to retrieve Google Antigravity usage data in JSON format.
-3. Both sources are queried independently and refreshed every 60 seconds without overlapping requests.
-4. The UI displays remaining quota percentages, reset countdowns, fetch status, and the time of the last successful update.
+## Usage
 
-The app does not use an AI Gauge intermediary server. Codex requests go directly to `chatgpt.com`, while Antigravity requests are handled by the locally installed `agy` CLI. Login credentials remain on the local machine and are used only for the corresponding service request.
+Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
+Use the Settings button to choose a theme or configure thresholds. Closing the widget hides it
+to the tray; choose **Exit** from the tray menu to quit completely.
 
----
+## Privacy
 
-## Prerequisites
+AI Gauge does not request or store passwords, payment information, or unrelated personal data.
+Credentials remain managed by the local service or login tool. For the complete policy, see the
+privacy policy published with the Microsoft Store listing.
 
-- Windows 10 / 11 (64-bit)
-- OpenAI Codex login session (`~/.codex/auth.json`)
-- Google Antigravity CLI (`agy`)
+## Troubleshooting
 
----
+- If Codex data is unavailable, verify that the local Codex login session is active.
+- If Antigravity data is unavailable, verify that `agy` is installed and available to the app.
+- Check the status dot tooltip for failure count, last successful fetch, last error, and next fetch.
 
-## Build & Run
+## For developers
 
-### Clone
-```powershell
-git clone https://github.com/jmnote/aigauge.git
-cd aigauge
-```
-
-### Build
-```powershell
-.\build.ps1 -Task build
-```
-
-### Run
-```powershell
-.\build.ps1 -Task run
-```
-
-### Test
-```powershell
-.\build.ps1 -Task test
-```
-
-### Build an MSIX package
-```powershell
-.\build.ps1 -Task package
-```
-
-`VERSION` is the source of truth for the application version. The packaging script converts
-the `v0.2.0`-style value to the four-part MSIX version `0.2.0.0` and writes it to the staging
-manifest under `dist/staging/`. The generated package is written to `dist/`, which is ignored by Git.
-
-### Capture listing screenshots
-To capture the actual Wails window using the locally installed services, run:
-
-```powershell
-.\build.ps1 -Task screenshot-light
-.\build.ps1 -Task screenshot-dark
-```
-
-Both themes can also be captured sequentially with `.\build.ps1 snapshot`.
-
-The native window captures are written to `docs/screenshots/aigauge-native-light.png` and
-`docs/screenshots/aigauge-native-dark.png`. The selected theme is passed to the app as
-`--theme=light|dark|system`. When omitted (or set to `none` in the build script), the app keeps
-its existing local preference and system-theme behavior.
-
-### Preview the frontend with fixture data
-To tune frontend colors without building or launching the Wails app, run the local mock server:
-
-```powershell
-.\build.ps1 -Task live-server
-```
-
-Then open `http://localhost:8080/?theme=light` or `http://localhost:8080/?theme=dark`.
-The browser preview uses the sanitized data in `frontend/fixtures/sample.json` and does not invoke
-Codex, Antigravity, or any remote service. The preview watches the entire `frontend/` directory
-and reloads the page after a file changes.
-
-Usage warning and critical thresholds can be changed from Settings. They are stored locally in
-the browser/app preference storage and apply to both Codex and Antigravity usage bars.
-
----
-
-## Project Structure
-
-```
-aigauge/
-├── frontend/        # Webview UI and application icon
-├── docs/             # Documentation assets, including screenshots
-├── internal/
-│   ├── app/          # Wails application bindings and services
-│   ├── providers/    # Codex & Antigravity usage providers
-│   └── ui/           # Wails window, system tray, and runtime wiring
-├── build.ps1        # Build, run, test, and frontend preview script
-├── VERSION           # Application semantic version
-├── go.mod           # Go module definition
-├── go.sum           # Go checksums
-├── main.go          # Application entrypoint and embedded assets
-├── wails.json       # Wails project configuration
-└── README.md        # Documentation
-```
-
----
-
-## Controls
-
-- **Tray Left-Click**: Show and focus widget
-- **Tray Right-Click**: Context menu (Show / Exit)
-- **Titlebar Settings (`⚙`)**: Choose Light, Dark, or System theme
-- **Titlebar Close (`×`)**: Prompts before hiding to the tray; use the tray's **Exit** menu item to quit
-
----
+See [docs/development.md](docs/development.md) for build, test, frontend preview, screenshot,
+and MSIX packaging instructions.
 
 ## License
 
