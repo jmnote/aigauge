@@ -5,7 +5,8 @@ param(
     [ValidateSet("x64", "x86", "arm64")]
     [string]$Architecture = "x64",
     [string]$MakeAppx = "",
-    [string]$ScreenshotPath = ""
+    [string]$ScreenshotPath = "",
+    [switch]$SkipWindowsResources
 )
 
 switch ($Task) {
@@ -18,8 +19,10 @@ switch ($Task) {
         if ([string]::IsNullOrWhiteSpace($Version)) {
             throw "VERSION must not be empty"
         }
-        & (Join-Path $PSScriptRoot "hack\prepare-windows-resources.ps1") -Version $Version
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        if (-not $SkipWindowsResources) {
+            & (Join-Path $PSScriptRoot "hack\prepare-windows-resources.ps1") -Version $Version
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
         $ldflags = "-H=windowsgui -X github.com/jmnote/aigauge/internal/app.AppVersion=$Version"
         go build -ldflags $ldflags -o aigauge.exe .
     }
@@ -27,6 +30,7 @@ switch ($Task) {
         $packageScript = Join-Path $PSScriptRoot "hack\package-msix.ps1"
         $arguments = @{ Version = $Version; Architecture = $Architecture }
         if (-not [string]::IsNullOrWhiteSpace($MakeAppx)) { $arguments.MakeAppx = $MakeAppx }
+        if ($SkipWindowsResources) { $arguments.SkipWindowsResources = $true }
         & $packageScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }

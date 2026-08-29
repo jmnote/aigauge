@@ -3,7 +3,8 @@ param(
     [string]$Architecture = "x64",
     [string]$Version = "",
     [string]$MakeAppx = "",
-    [switch]$SkipBuild
+    [switch]$SkipBuild,
+    [switch]$SkipWindowsResources
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,7 +66,9 @@ if ([string]::IsNullOrWhiteSpace($appVersion)) {
 $msixVersion = Resolve-Version $appVersion
 $sourceExe = Join-Path $repo "aigauge.exe"
 if (-not $SkipBuild) {
-    & (Join-Path $repo "build.ps1") -Task build -Version $appVersion
+    $buildArguments = @{ Task = "build"; Version = $appVersion }
+    if ($SkipWindowsResources) { $buildArguments.SkipWindowsResources = $true }
+    & (Join-Path $repo "build.ps1") @buildArguments
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
 if (-not (Test-Path -LiteralPath $sourceExe -PathType Leaf)) { throw "Build output not found: $sourceExe" }

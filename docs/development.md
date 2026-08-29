@@ -36,6 +36,8 @@ Windows builds also generate an ignored `rsrc_windows_amd64.syso` file from `fro
 The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
 resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
 available.
+The executable-resource step is local-only; the CI MSIX workflow skips it because the MSIX
+manifest supplies the Store icons and CI does not need the optional executable icon.
 
 ## Frontend preview
 
