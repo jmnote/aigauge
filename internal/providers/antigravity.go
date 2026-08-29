@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"time"
 )
 
@@ -45,12 +44,6 @@ type agyUsageResponse struct {
 		} `json:"data"`
 	} `json:"command"`
 }
-
-// Workaround: agy usage can intermittently flash a PowerShell/console window on Windows.
-// agy 1.1.22 expects a console/TTY; CREATE_NO_WINDOW can hang (see
-// https://github.com/google-antigravity/antigravity-cli/issues/508), so use a
-// hidden console and window instead.
-const createNewConsole = 0x00000010
 
 func parseAntigravityUsage(output []byte) (AntigravityUsage, error) {
 	var response agyUsageResponse
@@ -94,10 +87,6 @@ func GetAntigravityUsage() AntigravityUsage {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, agyPath, "-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
-	command.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: createNewConsole,
-		HideWindow:    true,
-	}
 	output, err := command.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {

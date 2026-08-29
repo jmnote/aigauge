@@ -32,6 +32,15 @@ go test ./...
 git diff --check
 ```
 
+Before opening a PR, the combined local gate can be run with:
+
+```powershell
+.\build.ps1 checks
+```
+
+This also creates a local MSIX and verifies that its package name and staged manifest version
+match `VERSION`.
+
 Windows builds also generate an ignored `rsrc_windows_amd64.syso` file from `frontend/icon.png`.
 The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
 resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
