@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "test", "build")]
+    [ValidateSet("run", "test", "build", "package")]
     [string]$Task = "build",
     [string]$Version = ""
 )
@@ -16,6 +16,10 @@ switch ($Task) {
         }
         $ldflags = "-H=windowsgui -X github.com/jmnote/aigauge/internal/app.AppVersion=$Version"
         go build -ldflags $ldflags -o aigauge.exe .
+    }
+    "package" {
+        & (Join-Path $PSScriptRoot "package-msix.ps1") -Version $Version
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
 }
 

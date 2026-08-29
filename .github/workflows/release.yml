@@ -29,16 +29,6 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Go
-        uses: actions/setup-go@v7
-        with:
-          go-version-file: go.mod
-          cache: true
-
-      - name: Build application
-        shell: pwsh
-        run: .\build.ps1 -Task build
-
       - name: Create tag and GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
@@ -50,7 +40,7 @@ jobs:
             echo "Release $tag already exists; skipping."
             exit 0
           fi
-          gh release create "$tag" aigauge.exe \
+          gh release create "$tag" \
             --target "$GITHUB_SHA" \
             --title "$tag" \
             --generate-notes

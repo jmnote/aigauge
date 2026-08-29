@@ -46,10 +46,10 @@ type agyUsageResponse struct {
 	} `json:"command"`
 }
 
-// Workaround: agy currently expects a Windows console/TTY during startup.
-// Verified with Antigravity CLI 1.1.22 on Windows: CREATE_NO_WINDOW can make
-// headless invocations hang (see https://github.com/google-antigravity/antigravity-cli/issues/508).
-// Allocate a hidden console as a workaround instead.
+// Workaround: agy usage can intermittently flash a PowerShell/console window on Windows.
+// agy 1.1.22 expects a console/TTY; CREATE_NO_WINDOW can hang (see
+// https://github.com/google-antigravity/antigravity-cli/issues/508), so use a
+// hidden console and window instead.
 const createNewConsole = 0x00000010
 
 func parseAntigravityUsage(output []byte) (AntigravityUsage, error) {

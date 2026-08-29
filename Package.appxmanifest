@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Package xmlns="http://schemas.microsoft.com/appx/manifest/foundation/windows10"
+         xmlns:uap="http://schemas.microsoft.com/appx/manifest/uap/windows10"
+         xmlns:rescap="http://schemas.microsoft.com/appx/manifest/foundation/windows10/restrictedcapabilities"
+         IgnorableNamespaces="uap rescap">
+  <Identity Name="jmnote.com.AIGauge"
+            Publisher="CN=41BB0B33-81CF-42E8-94FD-DB09374673F6"
+            Version="0.2.0.0"
+            ProcessorArchitecture="x64" />
+
+  <Properties>
+    <DisplayName>AI Gauge</DisplayName>
+    <PublisherDisplayName>jmnote</PublisherDisplayName>
+    <Description>AI Gauge desktop application</Description>
+    <Logo>Assets\StoreLogo.png</Logo>
+  </Properties>
+
+  <Resources>
+    <Resource Language="en-us" />
+  </Resources>
+
+  <Dependencies>
+    <TargetDeviceFamily Name="Windows.Desktop"
+                        MinVersion="10.0.17763.0"
+                        MaxVersionTested="10.0.26100.0" />
+  </Dependencies>
+
+  <Applications>
+    <Application Id="App"
+                 Executable="aigauge.exe"
+                 EntryPoint="Windows.FullTrustApplication">
+      <uap:VisualElements AppListEntry="default"
+                           DisplayName="AI Gauge"
+                           Description="AI Gauge desktop application"
+                           Square44x44Logo="Assets\Square44x44Logo.png"
+                           Square150x150Logo="Assets\Square150x150Logo.png"
+                           BackgroundColor="#202124" />
+    </Application>
+  </Applications>
+
+  <Capabilities>
+    <Capability Name="internetClient" />
+    <rescap:Capability Name="runFullTrust" />
+  </Capabilities>
+</Package>
