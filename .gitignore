@@ -33,4 +33,5 @@ go.work.sum
 
 # Local MSIX staging and package output
 /dist/staging/
+/rsrc_windows_amd64.syso
 /dist/

@@ -18,6 +18,8 @@ switch ($Task) {
         if ([string]::IsNullOrWhiteSpace($Version)) {
             throw "VERSION must not be empty"
         }
+        & (Join-Path $PSScriptRoot "hack\prepare-windows-resources.ps1") -Version $Version
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         $ldflags = "-H=windowsgui -X github.com/jmnote/aigauge/internal/app.AppVersion=$Version"
         go build -ldflags $ldflags -o aigauge.exe .
     }

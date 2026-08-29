@@ -32,6 +32,11 @@ go test ./...
 git diff --check
 ```
 
+Windows builds also generate an ignored `rsrc_windows_amd64.syso` file from `frontend/icon.png`.
+The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
+resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
+available.
+
 ## Frontend preview
 
 Start the fixture-backed browser preview:
