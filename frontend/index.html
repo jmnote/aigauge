@@ -197,7 +197,7 @@
     const refreshIntervalKey = 'aigauge-refresh-interval';
     const refreshIntervalOptions = new Set([10, 30, 60, 120, 180, 300, 600, 1800]);
     const storedRefreshInterval = Number(localStorage.getItem(refreshIntervalKey));
-    let refreshInterval = refreshIntervalOptions.has(storedRefreshInterval) ? storedRefreshInterval : 60;
+    let refreshInterval = refreshIntervalOptions.has(storedRefreshInterval) ? storedRefreshInterval : 120;
     let codexNextRefreshAt = Date.now() + refreshInterval * 1000;
     let antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
     let codexTimerId = null;
