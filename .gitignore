@@ -35,3 +35,6 @@ go.work.sum
 /dist/staging/
 /rsrc_windows_amd64.syso
 /dist/
+
+# Node.js tooling used to regenerate the checked-in logo PNG
+/hack/node_modules/

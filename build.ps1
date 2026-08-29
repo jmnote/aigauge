@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "test", "build", "package", "checks", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
+    [ValidateSet("run", "test", "logo", "build", "package", "checks", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
     [string]$Task = "build",
     [string]$Version = "",
     [ValidateSet("x64", "x86", "arm64")]
@@ -12,6 +12,10 @@ param(
 switch ($Task) {
     "run"   { Start-Process -FilePath "go" -ArgumentList "run ." -WorkingDirectory (Get-Location) -WindowStyle Hidden }
     "test"  { go test ./... }
+    "logo" {
+        & (Join-Path $PSScriptRoot "hack\convert-logo.ps1")
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
     "build" {
         if ([string]::IsNullOrWhiteSpace($Version)) {
             $Version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot "VERSION") -Raw).Trim()
@@ -20,6 +24,8 @@ switch ($Task) {
             throw "VERSION must not be empty"
         }
         if (-not $SkipWindowsResources) {
+            & $PSCommandPath -Task logo
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             & (Join-Path $PSScriptRoot "hack\prepare-windows-resources.ps1") -Version $Version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }

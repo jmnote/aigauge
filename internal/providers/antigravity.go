@@ -87,6 +87,7 @@ func GetAntigravityUsage() AntigravityUsage {
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	command := exec.CommandContext(ctx, agyPath, "-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
+	configureAntigravityCommand(command)
 	output, err := command.CombinedOutput()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
