@@ -200,6 +200,8 @@
     let refreshInterval = refreshIntervalOptions.has(storedRefreshInterval) ? storedRefreshInterval : 60;
     let codexNextRefreshAt = Date.now() + refreshInterval * 1000;
     let antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
+    let codexTimerId = null;
+    let antigravityTimerId = null;
     let codexFailureCount = 0;
     let antigravityFailureCount = 0;
     let codexLastSuccessAt = 0;
@@ -245,6 +247,18 @@
     function formatUntil(timestamp) {
       const seconds = Math.max(0, Math.ceil((timestamp - Date.now()) / 1000));
       return `in ${seconds}s`;
+    }
+
+    function scheduleCodex() {
+      clearTimeout(codexTimerId);
+      codexNextRefreshAt = Date.now() + refreshInterval * 1000;
+      codexTimerId = setTimeout(fetchCodex, refreshInterval * 1000);
+    }
+
+    function scheduleAntigravity() {
+      clearTimeout(antigravityTimerId);
+      antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
+      antigravityTimerId = setTimeout(fetchAntigravity, refreshInterval * 1000);
     }
 
     function setLoading(dotId, loading) {
@@ -344,8 +358,7 @@
         renderUsage({ error: codexLastError }, codexFailureCount);
       } finally {
         setLoading('codex-dot', false);
-        codexNextRefreshAt = Date.now() + refreshInterval * 1000;
-        setTimeout(fetchCodex, refreshInterval * 1000);
+        scheduleCodex();
       }
     }
 
@@ -369,8 +382,7 @@
         renderAntigravity({ error: antigravityLastError }, antigravityFailureCount);
       } finally {
         setLoading('agy-dot', false);
-        antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
-        setTimeout(fetchAntigravity, refreshInterval * 1000);
+        scheduleAntigravity();
       }
     }
 
@@ -442,6 +454,8 @@
       if (!refreshIntervalOptions.has(selectedInterval)) return;
       refreshInterval = selectedInterval;
       localStorage.setItem(refreshIntervalKey, String(refreshInterval));
+      scheduleCodex();
+      scheduleAntigravity();
     });
     wails.Events.On('window-close-requested', () => {
       if (!hideRequested) {
