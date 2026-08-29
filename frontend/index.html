@@ -47,6 +47,19 @@
                 class="threshold-dot critical"></span>Critical</span><span class="threshold-value"><input
                 id="critical-threshold" type="number" min="0" max="99" step="1" /><span>%</span></span></label>
         </fieldset>
+        <label class="refresh-setting">
+          <span>Refresh interval</span>
+          <select id="refresh-interval">
+            <option value="10">10s</option>
+            <option value="30">30s</option>
+            <option value="60">1m</option>
+            <option value="120">2m</option>
+            <option value="180">3m</option>
+            <option value="300">5m</option>
+            <option value="600">10m</option>
+            <option value="1800">30m</option>
+          </select>
+        </label>
         <label class="close-prompt-setting">
           <input type="checkbox" id="close-dont-ask-setting" />
           Don't ask before hiding on close
@@ -181,9 +194,14 @@
       return formatTimeRemaining(seconds, targetDate);
     };
 
-    const refreshInterval = 60;
+    const refreshIntervalKey = 'aigauge-refresh-interval';
+    const refreshIntervalOptions = new Set([10, 30, 60, 120, 180, 300, 600, 1800]);
+    const storedRefreshInterval = Number(localStorage.getItem(refreshIntervalKey));
+    let refreshInterval = refreshIntervalOptions.has(storedRefreshInterval) ? storedRefreshInterval : 120;
     let codexNextRefreshAt = Date.now() + refreshInterval * 1000;
     let antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
+    let codexTimerId = null;
+    let antigravityTimerId = null;
     let codexFailureCount = 0;
     let antigravityFailureCount = 0;
     let codexLastSuccessAt = 0;
@@ -229,6 +247,18 @@
     function formatUntil(timestamp) {
       const seconds = Math.max(0, Math.ceil((timestamp - Date.now()) / 1000));
       return `in ${seconds}s`;
+    }
+
+    function scheduleCodex() {
+      clearTimeout(codexTimerId);
+      codexNextRefreshAt = Date.now() + refreshInterval * 1000;
+      codexTimerId = setTimeout(fetchCodex, refreshInterval * 1000);
+    }
+
+    function scheduleAntigravity() {
+      clearTimeout(antigravityTimerId);
+      antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
+      antigravityTimerId = setTimeout(fetchAntigravity, refreshInterval * 1000);
     }
 
     function setLoading(dotId, loading) {
@@ -328,8 +358,7 @@
         renderUsage({ error: codexLastError }, codexFailureCount);
       } finally {
         setLoading('codex-dot', false);
-        codexNextRefreshAt = Date.now() + refreshInterval * 1000;
-        setTimeout(fetchCodex, refreshInterval * 1000);
+        scheduleCodex();
       }
     }
 
@@ -353,8 +382,7 @@
         renderAntigravity({ error: antigravityLastError }, antigravityFailureCount);
       } finally {
         setLoading('agy-dot', false);
-        antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
-        setTimeout(fetchAntigravity, refreshInterval * 1000);
+        scheduleAntigravity();
       }
     }
 
@@ -365,6 +393,7 @@
     const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
     const closeDontAskSetting = document.getElementById('close-dont-ask-setting');
     const closeDontAsk = document.getElementById('close-dont-ask');
+    const refreshIntervalInput = document.getElementById('refresh-interval');
     const warningThresholdInput = document.getElementById('warning-threshold');
     const criticalThresholdInput = document.getElementById('critical-threshold');
     const validThemes = new Set(['light', 'dark', 'system']);
@@ -386,6 +415,7 @@
       const currentTheme = document.documentElement.dataset.theme;
       themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
       closeDontAskSetting.checked = localStorage.getItem(closePromptStorageKey) === 'false';
+      refreshIntervalInput.value = String(refreshInterval);
       warningThresholdInput.value = warningThreshold;
       criticalThresholdInput.value = criticalThreshold;
       settingsDialog.showModal();
@@ -419,6 +449,14 @@
     criticalThresholdInput.addEventListener('change', saveThresholds);
     warningThresholdInput.addEventListener('input', saveThresholds);
     criticalThresholdInput.addEventListener('input', saveThresholds);
+    refreshIntervalInput.addEventListener('change', () => {
+      const selectedInterval = Number(refreshIntervalInput.value);
+      if (!refreshIntervalOptions.has(selectedInterval)) return;
+      refreshInterval = selectedInterval;
+      localStorage.setItem(refreshIntervalKey, String(refreshInterval));
+      scheduleCodex();
+      scheduleAntigravity();
+    });
     wails.Events.On('window-close-requested', () => {
       if (!hideRequested) {
         wails.Application.Quit();
