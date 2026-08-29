@@ -488,6 +488,25 @@ legend {
   text-align: right;
 }
 
+.refresh-setting {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.refresh-setting select {
+  min-width: 76px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: .75rem;
+}
+
 .close-prompt-setting {
   display: flex;
   align-items: center;
