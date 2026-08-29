@@ -20,7 +20,7 @@
       <div class="actions">
         <span class="window-buttons">
           <button id="settings" title="Settings" aria-label="Settings">⚙</button>
-          <button id="minimise" title="Minimize" aria-label="Minimize">−</button>
+          <button id="hide-window" title="Hide" aria-label="Hide">×</button>
         </span>
       </div>
     </div>
@@ -35,29 +35,29 @@
           <div class="theme-options">
             <label><input type="radio" name="theme" value="light" /> Light</label>
             <label><input type="radio" name="theme" value="dark" /> Dark</label>
-            <label><input type="radio" name="theme" value="auto" /> Auto</label>
+            <label><input type="radio" name="theme" value="system" /> System</label>
           </div>
         </fieldset>
         <label class="close-prompt-setting">
-          <input type="checkbox" id="close-prompt-enabled" />
-          Ask before hiding on close
+          <input type="checkbox" id="close-dont-ask-setting" />
+          Don't ask before hiding on close
         </label>
       </form>
     </dialog>
     <dialog id="close-dialog" class="settings-dialog" aria-labelledby="close-title">
       <form method="dialog" class="settings-form">
         <div class="settings-header">
-          <h2 id="close-title">AI Gauge is still running</h2>
+          <h2 id="close-title">Hide AI Gauge?</h2>
           <button class="dialog-close" value="cancel" title="Close" aria-label="Close">×</button>
         </div>
-        <p class="close-message">Closing this window only hides AI Gauge. To exit the application, choose <strong>Exit</strong> from the system tray menu.</p>
+        <p class="close-message">AI Gauge will keep running in the system tray.</p>
         <label class="close-prompt-setting">
           <input type="checkbox" id="close-dont-ask" />
           Don't ask again
         </label>
         <div class="close-actions">
-          <button value="cancel">Keep running</button>
-          <button id="hide-to-tray" value="hide">Hide to tray</button>
+          <button value="cancel">Cancel</button>
+          <button id="hide-to-tray" value="hide">Hide</button>
         </div>
       </form>
     </dialog>
@@ -305,9 +305,9 @@
     const settingsDialog = document.getElementById('settings-dialog');
     const closeDialog = document.getElementById('close-dialog');
     const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
-    const closePromptEnabled = document.getElementById('close-prompt-enabled');
+    const closeDontAskSetting = document.getElementById('close-dont-ask-setting');
     const closeDontAsk = document.getElementById('close-dont-ask');
-    const validThemes = new Set(['light', 'dark', 'auto']);
+    const validThemes = new Set(['light', 'dark', 'system']);
 
     function applyTheme(theme) {
       document.documentElement.dataset.theme = theme;
@@ -315,7 +315,8 @@
     }
 
     const savedTheme = localStorage.getItem(themeStorageKey);
-    applyTheme(validThemes.has(savedTheme) ? savedTheme : 'auto');
+    const migratedTheme = savedTheme === 'auto' ? 'system' : savedTheme;
+    applyTheme(validThemes.has(migratedTheme) ? migratedTheme : 'system');
     themeInputs.forEach(input => {
       input.addEventListener('change', () => applyTheme(input.value));
     });
@@ -323,17 +324,26 @@
     document.getElementById('settings').addEventListener('click', () => {
       const currentTheme = document.documentElement.dataset.theme;
       themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
-      closePromptEnabled.checked = localStorage.getItem(closePromptStorageKey) !== 'false';
+      closeDontAskSetting.checked = localStorage.getItem(closePromptStorageKey) === 'false';
       settingsDialog.showModal();
     });
     settingsDialog.addEventListener('click', event => {
       if (event.target === settingsDialog) settingsDialog.close();
     });
-    document.getElementById('minimise').addEventListener('click', () => wails.Window.Minimise());
-    closePromptEnabled.addEventListener('change', () => {
-      localStorage.setItem(closePromptStorageKey, String(closePromptEnabled.checked));
+    let hideRequested = false;
+    document.getElementById('hide-window').addEventListener('click', () => {
+      hideRequested = true;
+      wails.Window.Close();
+    });
+    closeDontAskSetting.addEventListener('change', () => {
+      localStorage.setItem(closePromptStorageKey, String(!closeDontAskSetting.checked));
     });
     wails.Events.On('window-close-requested', () => {
+      if (!hideRequested) {
+        wails.Application.Quit();
+        return;
+      }
+      hideRequested = false;
       if (localStorage.getItem(closePromptStorageKey) === 'false') {
         wails.Window.Hide();
         return;
