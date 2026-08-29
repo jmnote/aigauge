@@ -13,6 +13,19 @@ A lightweight Windows system tray widget for real-time OpenAI Codex and Google A
 
 ---
 
+## How it works
+
+AI Gauge runs as a lightweight Windows desktop process and keeps its small widget available from the system tray.
+
+1. The widget calls the OpenAI Codex usage endpoint using the local Codex login session at `~/.codex/auth.json`.
+2. It invokes the local `agy` CLI to retrieve Google Antigravity usage data in JSON format.
+3. Both sources are queried independently and refreshed every 60 seconds without overlapping requests.
+4. The UI displays remaining quota percentages, reset countdowns, fetch status, and the time of the last successful update.
+
+The app does not use an AI Gauge intermediary server. Codex requests go directly to `chatgpt.com`, while Antigravity requests are handled by the locally installed `agy` CLI. Login credentials remain on the local machine and are used only for the corresponding service request.
+
+---
+
 ## Prerequisites
 
 - Windows 10 / 11 (64-bit)
@@ -69,7 +82,7 @@ aigauge/
 
 - **Tray Left-Click**: Show and focus widget
 - **Tray Right-Click**: Context menu (Show / Exit)
-- **Titlebar Settings (`⚙`)**: Choose Light, Dark, or Auto theme
+- **Titlebar Settings (`⚙`)**: Choose Light, Dark, or System theme
 - **Titlebar Minimize (`−`)**: Minimize to taskbar
 - **Window Close**: Hides to the tray; use the tray's **Exit** menu item to quit
 
@@ -77,4 +90,4 @@ aigauge/
 
 ## License
 
-Personal and internal use.
+Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text.
