@@ -7,7 +7,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$repo = $PSScriptRoot
+$repo = Split-Path -Parent $PSScriptRoot
 
 function Resolve-Version {
     param([string]$Requested)
@@ -70,7 +70,7 @@ if (-not $SkipBuild) {
 }
 if (-not (Test-Path -LiteralPath $sourceExe -PathType Leaf)) { throw "Build output not found: $sourceExe" }
 
-$staging = Join-Path $repo "build\msix\$Architecture"
+$staging = Join-Path $repo "dist\staging\$Architecture"
 $assets = Join-Path $staging "Assets"
 $dist = Join-Path $repo "dist"
 New-Item -ItemType Directory -Force -Path $assets, $dist | Out-Null

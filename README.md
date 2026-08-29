@@ -59,12 +59,42 @@ cd aigauge
 
 ### Build an MSIX package
 ```powershell
-.\package-msix.ps1
+.\build.ps1 -Task package
 ```
 
 `VERSION` is the source of truth for the application version. The packaging script converts
 the `v0.2.0`-style value to the four-part MSIX version `0.2.0.0` and writes it to the staging
-manifest under `build/msix/`. The generated package is written to `dist/`, which is ignored by Git.
+manifest under `dist/staging/`. The generated package is written to `dist/`, which is ignored by Git.
+
+### Capture listing screenshots
+To capture the actual Wails window using the locally installed services, run:
+
+```powershell
+.\build.ps1 -Task screenshot-light
+.\build.ps1 -Task screenshot-dark
+```
+
+Both themes can also be captured sequentially with `.\build.ps1 snapshot`.
+
+The native window captures are written to `docs/screenshots/aigauge-native-light.png` and
+`docs/screenshots/aigauge-native-dark.png`. The selected theme is passed to the app as
+`--theme=light|dark|system`. When omitted (or set to `none` in the build script), the app keeps
+its existing local preference and system-theme behavior.
+
+### Preview the frontend with fixture data
+To tune frontend colors without building or launching the Wails app, run the local mock server:
+
+```powershell
+.\build.ps1 -Task live-server
+```
+
+Then open `http://localhost:8080/?theme=light` or `http://localhost:8080/?theme=dark`.
+The browser preview uses the sanitized data in `frontend/fixtures/sample.json` and does not invoke
+Codex, Antigravity, or any remote service. The preview watches the entire `frontend/` directory
+and reloads the page after a file changes.
+
+Usage warning and critical thresholds can be changed from Settings. They are stored locally in
+the browser/app preference storage and apply to both Codex and Antigravity usage bars.
 
 ---
 
@@ -73,11 +103,12 @@ manifest under `build/msix/`. The generated package is written to `dist/`, which
 ```
 aigauge/
 ├── frontend/        # Webview UI and application icon
+├── docs/             # Documentation assets, including screenshots
 ├── internal/
 │   ├── app/          # Wails application bindings and services
 │   ├── providers/    # Codex & Antigravity usage providers
 │   └── ui/           # Wails window, system tray, and runtime wiring
-├── build.ps1        # Build, run, and test script
+├── build.ps1        # Build, run, test, and frontend preview script
 ├── VERSION           # Application semantic version
 ├── go.mod           # Go module definition
 ├── go.sum           # Go checksums

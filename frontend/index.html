@@ -38,6 +38,11 @@
             <label><input type="radio" name="theme" value="system" /> System</label>
           </div>
         </fieldset>
+        <fieldset class="threshold-settings">
+          <legend>Thresholds</legend>
+          <label class="threshold-setting"><span class="threshold-label"><span class="threshold-dot warning"></span>Warning</span><span class="threshold-value"><input id="warning-threshold" type="number" min="1" max="100" step="1" /><span>%</span></span></label>
+          <label class="threshold-setting"><span class="threshold-label"><span class="threshold-dot critical"></span>Critical</span><span class="threshold-value"><input id="critical-threshold" type="number" min="0" max="99" step="1" /><span>%</span></span></label>
+        </fieldset>
         <label class="close-prompt-setting">
           <input type="checkbox" id="close-dont-ask-setting" />
           Don't ask before hiding on close
@@ -64,7 +69,7 @@
     <section id="codex-card" class="usage-card">
       <div class="heading">
         <strong>Codex</strong>
-        <span class="card-status"><span id="plan" class="plan">-</span><span class="status-wrap"><span id="codex-dot"
+        <span class="card-status"><span id="plan" class="plan"></span><span class="status-wrap"><span id="codex-dot"
               class="status-dot"></span><span id="codex-tooltip" class="status-tooltip"></span></span></span>
       </div>
       <div class="limit">
@@ -81,22 +86,56 @@
           <div id="seven-day-bar" class="fill" style="width: 0%"></div>
         </div>
       </div>
-      <div id="error" class="error"></div>
     </section>
     <section id="agy-card" class="usage-card">
       <div class="heading">
         <strong>Antigravity</strong>
-        <span class="card-status"><span id="agy-plan" class="plan">-</span><span class="status-wrap"><span id="agy-dot"
+        <span class="card-status"><span id="agy-plan" class="plan"></span><span class="status-wrap"><span id="agy-dot"
               class="status-dot"></span><span id="agy-tooltip" class="status-tooltip"></span></span></span>
       </div>
       <div id="agy-groups">
         <div id="agy-loading" class="plan loading-text">Loading usage...</div>
       </div>
-      <div id="agy-error" class="error"></div>
     </section>
   </main>
   <script type="module">
-    import * as wails from '/wails/runtime.js';
+    const wails = await import('/wails/runtime.js');
+    if (globalThis.__AIGAUGE_LIVE__) {
+      const watchLiveResource = url => {
+        let snapshot = '';
+        setInterval(async () => {
+          const response = await fetch(url, { cache: 'no-store' });
+          const current = await response.text();
+          if (snapshot && current !== snapshot) location.reload();
+          snapshot = current;
+        }, 1000);
+      };
+      watchLiveResource('/__live-version');
+    }
+    const warningThresholdKey = 'aigauge-warning-threshold';
+    const criticalThresholdKey = 'aigauge-critical-threshold';
+    const storedWarningThreshold = localStorage.getItem(warningThresholdKey);
+    const storedCriticalThreshold = localStorage.getItem(criticalThresholdKey);
+    let warningThreshold = storedWarningThreshold === null ? 50 : Number(storedWarningThreshold);
+    let criticalThreshold = storedCriticalThreshold === null ? 20 : Number(storedCriticalThreshold);
+    warningThreshold = Number.isFinite(warningThreshold) ? Math.max(1, Math.min(100, warningThreshold)) : 50;
+    criticalThreshold = Number.isFinite(criticalThreshold) ? Math.max(0, Math.min(99, criticalThreshold)) : 20;
+    if (criticalThreshold >= warningThreshold) criticalThreshold = Math.max(0, warningThreshold - 1);
+
+    function applyLimitState(barElement, remaining) {
+      const state = remaining <= criticalThreshold ? 'critical'
+        : remaining <= warningThreshold ? 'warning' : '';
+      barElement.classList.remove('warning', 'critical');
+      if (state) barElement.classList.add(state);
+    }
+
+    function refreshLimitStates() {
+      document.querySelectorAll('.limit').forEach(limit => {
+        const value = limit.querySelector('.limit-value');
+        const bar = limit.querySelector('.fill');
+        if (value && bar) applyLimitState(bar, Number.parseFloat(value.textContent));
+      });
+    }
 
     const formatTimeRemaining = (seconds, targetDate) => {
       if (!seconds || seconds <= 0 || !targetDate || Number.isNaN(targetDate.getTime())) return '';
@@ -145,6 +184,8 @@
     let antigravityFailureCount = 0;
     let codexLastSuccessAt = 0;
     let antigravityLastSuccessAt = 0;
+    let codexLastError = '';
+    let antigravityLastError = '';
 
     function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefreshAt) {
       const dot = document.getElementById(dotId);
@@ -155,9 +196,11 @@
       const tooltip = document.getElementById(tooltipId);
       const successValue = lastSuccessAt ? formatAgo(lastSuccessAt) : 'None';
       const nextRefreshText = formatUntil(nextRefreshAt);
+      const lastError = dotId === 'codex-dot' ? codexLastError : antigravityLastError;
       tooltip.replaceChildren(
         createTooltipRow('Fails', `${failureCount}`),
         createTooltipRow('Last fetch', successValue),
+        ...(lastError ? [createTooltipRow('Last error', lastError)] : []),
         createTooltipRow('Next fetch', nextRefreshText),
       );
     }
@@ -195,7 +238,6 @@
     function renderUsage(usage, failureCount) {
       if (usage.error) {
         updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt);
-        document.getElementById('error').textContent = `Usage fetch failed: ${usage.error} (cumulative failures: ${failureCount})`;
         return;
       }
       const fiveHourRemaining = Math.max(0, 100 - usage.fiveHour);
@@ -206,21 +248,20 @@
       document.getElementById('seven-day-value').textContent = `${sevenDayRemaining.toFixed(0)}%`;
       document.getElementById('five-hour-bar').style.width = `${fiveHourRemaining}%`;
       document.getElementById('seven-day-bar').style.width = `${sevenDayRemaining}%`;
+      applyLimitState(document.getElementById('five-hour-bar'), fiveHourRemaining);
+      applyLimitState(document.getElementById('seven-day-bar'), sevenDayRemaining);
       document.getElementById('five-hour-reset').textContent = formatReset(usage.fiveHourResetIn);
       document.getElementById('seven-day-reset').textContent = formatReset(usage.sevenDayResetIn);
-      document.getElementById('error').textContent = usage.error || '';
     }
 
     function renderAntigravity(usage, failureCount) {
       const groups = document.getElementById('agy-groups');
       if (usage.error) {
         updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt);
-        document.getElementById('agy-error').textContent = `Usage fetch failed: ${usage.error} (cumulative failures: ${failureCount})`;
         return;
       }
       updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt);
       document.getElementById('agy-plan').textContent = 'agy';
-      document.getElementById('agy-error').textContent = '';
       groups.replaceChildren();
       if (!usage.groups?.length) return;
       for (const group of usage.groups) {
@@ -243,13 +284,15 @@
           name.textContent = bucket.window === '5h' ? '5h' : bucket.window === 'weekly' ? '7d' : bucket.name;
           const value = document.createElement('span');
           value.className = 'limit-value';
-          value.textContent = `${Math.round(bucket.remaining)}%`;
+          const remaining = Math.max(0, Math.min(100, bucket.remaining));
+          value.textContent = `${Math.round(remaining)}%`;
           label.append(name, value);
           const bar = document.createElement('div');
           bar.className = 'bar';
           const fill = document.createElement('div');
           fill.className = 'fill';
-          fill.style.width = `${Math.max(0, Math.min(100, bucket.remaining))}%`;
+          fill.style.width = `${remaining}%`;
+          applyLimitState(fill, remaining);
           bar.append(fill);
           const reset = document.createElement('span');
           reset.className = 'inline-reset';
@@ -268,12 +311,17 @@
         const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetCodexUsage');
         clearLoadingText('codex-card');
         if (usage.error) codexFailureCount += 1;
-        else codexLastSuccessAt = Date.now();
+        if (usage.error) codexLastError = String(usage.error).slice(0, 120);
+        else {
+          codexLastSuccessAt = Date.now();
+          codexLastError = '';
+        }
         renderUsage(usage, codexFailureCount);
       } catch (error) {
         clearLoadingText('codex-card');
         codexFailureCount += 1;
-        renderUsage({ error: `Frontend call failed: ${error}` }, codexFailureCount);
+        codexLastError = `Frontend call failed: ${error}`.slice(0, 120);
+        renderUsage({ error: codexLastError }, codexFailureCount);
       } finally {
         setLoading('codex-dot', false);
         codexNextRefreshAt = Date.now() + refreshInterval * 1000;
@@ -286,13 +334,19 @@
       try {
         const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetAntigravityUsage');
         clearLoadingText('agy-card');
-        if (usage.error) antigravityFailureCount += 1;
-        else antigravityLastSuccessAt = Date.now();
+        if (usage.error) {
+          antigravityFailureCount += 1;
+          antigravityLastError = String(usage.error).slice(0, 120);
+        } else {
+          antigravityLastSuccessAt = Date.now();
+          antigravityLastError = '';
+        }
         renderAntigravity(usage, antigravityFailureCount);
       } catch (error) {
         clearLoadingText('agy-card');
         antigravityFailureCount += 1;
-        renderAntigravity({ error: `Frontend call failed: ${error}` }, antigravityFailureCount);
+        antigravityLastError = `Frontend call failed: ${error}`.slice(0, 120);
+        renderAntigravity({ error: antigravityLastError }, antigravityFailureCount);
       } finally {
         setLoading('agy-dot', false);
         antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
@@ -307,16 +361,19 @@
     const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
     const closeDontAskSetting = document.getElementById('close-dont-ask-setting');
     const closeDontAsk = document.getElementById('close-dont-ask');
+    const warningThresholdInput = document.getElementById('warning-threshold');
+    const criticalThresholdInput = document.getElementById('critical-threshold');
     const validThemes = new Set(['light', 'dark', 'system']);
 
-    function applyTheme(theme) {
+    function applyTheme(theme, persist = true) {
       document.documentElement.dataset.theme = theme;
-      localStorage.setItem(themeStorageKey, theme);
+      if (persist) localStorage.setItem(themeStorageKey, theme);
     }
 
-    const savedTheme = localStorage.getItem(themeStorageKey);
+    const forcedTheme = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetThemeOverride');
+    const savedTheme = forcedTheme || localStorage.getItem(themeStorageKey);
     const migratedTheme = savedTheme === 'auto' ? 'system' : savedTheme;
-    applyTheme(validThemes.has(migratedTheme) ? migratedTheme : 'system');
+    applyTheme(validThemes.has(migratedTheme) ? migratedTheme : 'system', !forcedTheme);
     themeInputs.forEach(input => {
       input.addEventListener('change', () => applyTheme(input.value));
     });
@@ -325,6 +382,8 @@
       const currentTheme = document.documentElement.dataset.theme;
       themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
       closeDontAskSetting.checked = localStorage.getItem(closePromptStorageKey) === 'false';
+      warningThresholdInput.value = warningThreshold;
+      criticalThresholdInput.value = criticalThreshold;
       settingsDialog.showModal();
     });
     settingsDialog.addEventListener('click', event => {
@@ -338,6 +397,24 @@
     closeDontAskSetting.addEventListener('change', () => {
       localStorage.setItem(closePromptStorageKey, String(!closeDontAskSetting.checked));
     });
+    function saveThresholds() {
+      const warningValue = Number(warningThresholdInput.value);
+      const criticalValue = Number(criticalThresholdInput.value);
+      warningThreshold = Number.isFinite(warningValue) ? Math.max(1, Math.min(100, warningValue)) : 50;
+      criticalThreshold = Number.isFinite(criticalValue) ? Math.max(0, Math.min(99, criticalValue)) : 20;
+      if (criticalThreshold >= warningThreshold) {
+        criticalThreshold = Math.max(0, warningThreshold - 1);
+      }
+      warningThresholdInput.value = warningThreshold;
+      criticalThresholdInput.value = criticalThreshold;
+      localStorage.setItem(warningThresholdKey, String(warningThreshold));
+      localStorage.setItem(criticalThresholdKey, String(criticalThreshold));
+      refreshLimitStates();
+    }
+    warningThresholdInput.addEventListener('change', saveThresholds);
+    criticalThresholdInput.addEventListener('change', saveThresholds);
+    warningThresholdInput.addEventListener('input', saveThresholds);
+    criticalThresholdInput.addEventListener('input', saveThresholds);
     wails.Events.On('window-close-requested', () => {
       if (!hideRequested) {
         wails.Application.Quit();
