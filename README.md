@@ -15,7 +15,7 @@
 
 - View remaining Codex quotas and reset times for the 5-hour and 7-day windows.
 - View Google Antigravity (`agy`) model-group quotas and reset times.
-- Refresh usage automatically in the background.
+- Refresh usage automatically in the background at a configurable interval.
 - Keep the widget in the Windows system tray.
 - Choose Light, Dark, or System appearance.
 - Configure Warning and Critical thresholds for usage bars.
@@ -23,8 +23,8 @@
 ## Usage
 
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
-Use the Settings button to choose a theme or configure thresholds. Closing the widget hides it
-to the tray; choose **Exit** from the tray menu to quit completely.
+Use the Settings button to choose a theme, configure thresholds, or change the refresh interval.
+Closing the widget hides it to the tray; choose **Exit** from the tray menu to quit completely.
 
 ## Requirements
 
@@ -41,9 +41,9 @@ the retrieved usage information in the widget.
 ## Privacy
 
 AI Gauge is a standalone local application. Usage data is processed and displayed on your
-Windows device; AI Gauge does not collect or transmit it to an AI Gauge service. It does not
-request or store passwords, payment information, or unrelated personal data. Credentials remain
-managed by the local service or login tool.
+Windows device and is not stored by AI Gauge. AI Gauge does not request or store passwords,
+payment information, or unrelated personal data. It uses the existing local Codex login session
+and the authentication managed by `agy` without storing a separate copy of their credentials.
 
 Any network communication and data handling by connected services are governed by their own
 authentication and privacy policies.
