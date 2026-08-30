@@ -20,6 +20,12 @@
 - Choose Light, Dark, or System appearance.
 - Configure Warning and Critical thresholds for usage bars.
 
+## Usage
+
+Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
+Use the Settings button to choose a theme or configure thresholds. Closing the widget hides it
+to the tray; choose **Exit** from the tray menu to quit completely.
+
 ## Requirements
 
 - Windows 10 or Windows 11 (64-bit)
@@ -28,21 +34,19 @@
 
 ## How it works
 
-AI Gauge runs locally. It reads the local Codex login session and invokes the locally installed
-`agy` command-line tool. Usage data is displayed in the widget and is not sent to an AI Gauge
-intermediary server. The connected services handle their own authentication and privacy policies.
-
-## Usage
-
-Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
-Use the Settings button to choose a theme or configure thresholds. Closing the widget hides it
-to the tray; choose **Exit** from the tray menu to quit completely.
+AI Gauge is a standalone Windows application. It reads the local Codex login session and invokes
+the locally installed `agy` command-line tool when Antigravity usage is enabled. It then displays
+the retrieved usage information in the widget.
 
 ## Privacy
 
-AI Gauge does not request or store passwords, payment information, or unrelated personal data.
-Credentials remain managed by the local service or login tool. For the complete policy, see the
-privacy policy published with the Microsoft Store listing.
+AI Gauge is a standalone local application. Usage data is processed and displayed on your
+Windows device; AI Gauge does not collect or transmit it to an AI Gauge service. It does not
+request or store passwords, payment information, or unrelated personal data. Credentials remain
+managed by the local service or login tool.
+
+Any network communication and data handling by connected services are governed by their own
+authentication and privacy policies.
 
 ## Troubleshooting
 
