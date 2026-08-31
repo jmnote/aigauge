@@ -1,6 +1,8 @@
 $Port = 8080
 
 $root = Split-Path -Parent $PSScriptRoot
+$frontendRoot = (Resolve-Path -LiteralPath (Join-Path $root 'frontend')).Path.TrimEnd([IO.Path]::DirectorySeparatorChar)
+$frontendPrefix = $frontendRoot + [IO.Path]::DirectorySeparatorChar
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://localhost:$Port/")
 
@@ -78,7 +80,7 @@ try {
         $contextTask = $listener.GetContextAsync()
         while (-not $contextTask.Wait(250)) { }
         $context = $contextTask.Result
-            $path = [Uri]::UnescapeDataString($context.Request.Url.AbsolutePath)
+        $path = [Uri]::UnescapeDataString($context.Request.Url.AbsolutePath)
         if ($path -eq '/__live-version') {
             $content = Get-FrontendSnapshot
             $contentType = 'text/plain; charset=utf-8'
@@ -93,12 +95,19 @@ try {
                 $context.Response.Close()
                 continue
             }
-            $content = [IO.File]::ReadAllBytes((Resolve-Path -LiteralPath $file))
+            $resolvedFile = (Resolve-Path -LiteralPath $file).Path
+            if (-not $resolvedFile.StartsWith($frontendPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                $context.Response.StatusCode = 404
+                $context.Response.Close()
+                continue
+            }
+            $content = [IO.File]::ReadAllBytes($resolvedFile)
             $contentType = switch ([IO.Path]::GetExtension($file).ToLowerInvariant()) {
                 '.html' { 'text/html; charset=utf-8' }
                 '.css' { 'text/css; charset=utf-8' }
                 '.json' { 'application/json; charset=utf-8' }
                 '.png' { 'image/png' }
+                '.svg' { 'image/svg+xml' }
                 default { 'application/octet-stream' }
             }
         }

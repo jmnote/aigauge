@@ -58,6 +58,9 @@ switch ($Task) {
         go test ./...
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+        go vet ./...
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
         git diff --check
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 

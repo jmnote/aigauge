@@ -1,17 +1,22 @@
 package providers
 
-import "testing"
+import (
+	"os"
+	"path/filepath"
+	"testing"
+)
+
+func readFixture(t *testing.T, name string) []byte {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join("testdata", name))
+	if err != nil {
+		t.Fatalf("read fixture %q: %v", name, err)
+	}
+	return data
+}
 
 func TestParseCodexUsage(t *testing.T) {
-	data := []byte(`{
-      "plan_type": "pro",
-      "rate_limit": {
-        "primary_window": {"used_percent": 37.5, "reset_after_seconds": 3600},
-        "secondary_window": {"used_percent": 62.25, "reset_after_seconds": 86400}
-      }
-    }`)
-
-	usage, err := parseCodexUsage(data)
+	usage, err := parseCodexUsage(readFixture(t, "codex-usage.json"))
 	if err != nil {
 		t.Fatalf("parseCodexUsage() error = %v", err)
 	}
@@ -27,23 +32,7 @@ func TestParseCodexUsage(t *testing.T) {
 }
 
 func TestParseAntigravityUsage(t *testing.T) {
-	data := []byte(`{
-      "command": {
-        "data": {
-          "groups": [{
-            "name": "Gemini",
-            "buckets": [{
-              "name": "daily",
-              "window": "24h",
-              "remaining_fraction": 0.875,
-              "reset_time": "2026-08-30T00:00:00Z"
-            }]
-          }]
-        }
-      }
-    }`)
-
-	usage, err := parseAntigravityUsage(data)
+	usage, err := parseAntigravityUsage(readFixture(t, "antigravity-usage.json"))
 	if err != nil {
 		t.Fatalf("parseAntigravityUsage() error = %v", err)
 	}
@@ -71,5 +60,27 @@ func TestParseUsageRejectsInvalidJSON(t *testing.T) {
 	}
 	if _, err := parseAntigravityUsage([]byte(`{`)); err == nil {
 		t.Error("parseAntigravityUsage() error = nil, want invalid JSON error")
+	}
+}
+
+func TestParseCodexUsageRejectsMissingAndOutOfRangeFields(t *testing.T) {
+	for _, data := range [][]byte{
+		[]byte(`{}`),
+		[]byte(`{"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":-1,"reset_after_seconds":1},"secondary_window":{"used_percent":1,"reset_after_seconds":1}}}`),
+	} {
+		if _, err := parseCodexUsage(data); err == nil {
+			t.Errorf("parseCodexUsage(%s) error = nil, want validation error", data)
+		}
+	}
+}
+
+func TestParseCodexUsageAllowsMissingPlan(t *testing.T) {
+	data := []byte(`{"rate_limit":{"primary_window":{"used_percent":1,"reset_after_seconds":1},"secondary_window":{"used_percent":2,"reset_after_seconds":2}}}`)
+	usage, err := parseCodexUsage(data)
+	if err != nil {
+		t.Fatalf("parseCodexUsage() error = %v", err)
+	}
+	if usage.Plan != "" {
+		t.Errorf("Plan = %q, want empty", usage.Plan)
 	}
 }

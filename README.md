@@ -24,7 +24,8 @@
 
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
 Use the Settings button to choose a theme, configure thresholds, or change the refresh interval.
-Closing the widget hides it to the tray; choose **Exit** from the tray menu to quit completely.
+The widget's `×` button hides it to the tray. Closing it from the taskbar, pressing Alt+F4, or
+choosing **Exit** from the tray menu quits the application.
 
 ## Requirements
 
@@ -51,6 +52,8 @@ authentication and privacy policies.
 ## Troubleshooting
 
 - If Codex data is unavailable, verify that the local Codex login session is active.
+- AI Gauge uses the access token maintained by Codex and does not refresh it itself. If the token
+  has expired, sign in again with Codex so that `~/.codex/auth.json` is updated.
 - If Antigravity data is unavailable, verify that `agy` is installed and available to the app.
 - Check the status dot tooltip for failure count, last successful fetch, last error, and next fetch.
 

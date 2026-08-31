@@ -7,8 +7,8 @@ import (
 
 func (rt *runtime) configureWindow() {
 	rt.window.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
-		rt.window.EmitEvent("window-close-requested")
 		event.Cancel()
+		rt.application.Quit()
 	})
 
 	initialPlacement := true

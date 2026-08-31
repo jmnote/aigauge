@@ -24,6 +24,20 @@ jobs:
         shell: pwsh
         run: .\build.ps1 -Task test
 
+      - name: Check formatting
+        shell: pwsh
+        run: |
+          $files = @(gofmt -l main.go internal)
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ($files.Count -gt 0) {
+            $files | ForEach-Object { Write-Error "gofmt required: $_" }
+            exit 1
+          }
+
+      - name: Run go vet
+        shell: pwsh
+        run: go vet ./...
+
       - name: Build application
         shell: pwsh
         run: .\build.ps1 -Task build -SkipWindowsResources
