@@ -31,12 +31,12 @@ type codexUsageResponse struct {
 	PlanType  string `json:"plan_type"`
 	RateLimit struct {
 		PrimaryWindow struct {
-			UsedPercent       float64 `json:"used_percent"`
-			ResetAfterSeconds int     `json:"reset_after_seconds"`
+			UsedPercent       *float64 `json:"used_percent"`
+			ResetAfterSeconds *int     `json:"reset_after_seconds"`
 		} `json:"primary_window"`
 		SecondaryWindow struct {
-			UsedPercent       float64 `json:"used_percent"`
-			ResetAfterSeconds int     `json:"reset_after_seconds"`
+			UsedPercent       *float64 `json:"used_percent"`
+			ResetAfterSeconds *int     `json:"reset_after_seconds"`
 		} `json:"secondary_window"`
 	} `json:"rate_limit"`
 }
@@ -48,12 +48,26 @@ func parseCodexUsage(data []byte) (CodexUsage, error) {
 	if err := json.Unmarshal(data, &response); err != nil {
 		return CodexUsage{}, err
 	}
+	if response.RateLimit.PrimaryWindow.UsedPercent == nil ||
+		response.RateLimit.PrimaryWindow.ResetAfterSeconds == nil ||
+		response.RateLimit.SecondaryWindow.UsedPercent == nil ||
+		response.RateLimit.SecondaryWindow.ResetAfterSeconds == nil {
+		return CodexUsage{}, fmt.Errorf("response is missing required usage fields")
+	}
+	primaryUsed := *response.RateLimit.PrimaryWindow.UsedPercent
+	secondaryUsed := *response.RateLimit.SecondaryWindow.UsedPercent
+	primaryReset := *response.RateLimit.PrimaryWindow.ResetAfterSeconds
+	secondaryReset := *response.RateLimit.SecondaryWindow.ResetAfterSeconds
+	if primaryUsed < 0 || primaryUsed > 100 || secondaryUsed < 0 || secondaryUsed > 100 ||
+		primaryReset < 0 || secondaryReset < 0 {
+		return CodexUsage{}, fmt.Errorf("response contains out-of-range usage fields")
+	}
 	return CodexUsage{
 		Plan:       response.PlanType,
-		FiveHour:   response.RateLimit.PrimaryWindow.UsedPercent,
-		SevenDay:   response.RateLimit.SecondaryWindow.UsedPercent,
-		FiveHourIn: response.RateLimit.PrimaryWindow.ResetAfterSeconds,
-		SevenDayIn: response.RateLimit.SecondaryWindow.ResetAfterSeconds,
+		FiveHour:   primaryUsed,
+		SevenDay:   secondaryUsed,
+		FiveHourIn: primaryReset,
+		SevenDayIn: secondaryReset,
 	}, nil
 }
 
@@ -110,10 +124,6 @@ func GetCodexUsage() CodexUsage {
 		usage.Error = fmt.Sprintf("Unable to parse Codex usage response: %v", err)
 		return usage
 	}
-	usage.Plan = parsed.Plan
-	usage.FiveHour = parsed.FiveHour
-	usage.SevenDay = parsed.SevenDay
-	usage.FiveHourIn = parsed.FiveHourIn
-	usage.SevenDayIn = parsed.SevenDayIn
-	return usage
+	parsed.FetchedAt = usage.FetchedAt
+	return parsed
 }

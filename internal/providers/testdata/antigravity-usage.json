@@ -1,0 +1,19 @@
+{
+  "command": {
+    "data": {
+      "groups": [
+        {
+          "name": "Gemini",
+          "buckets": [
+            {
+              "name": "daily",
+              "window": "24h",
+              "remaining_fraction": 0.875,
+              "reset_time": "2026-08-30T00:00:00Z"
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

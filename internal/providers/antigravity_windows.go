@@ -4,6 +4,7 @@ package providers
 
 import (
 	"os/exec"
+	"path/filepath"
 	"syscall"
 )
 
@@ -14,4 +15,8 @@ const createNoWindow = 0x08000000
 
 func configureAntigravityCommand(command *exec.Cmd) {
 	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow}
+}
+
+func antigravityFallbackPath(home string) (string, bool) {
+	return filepath.Join(home, "AppData", "Local", "agy", "bin", "agy.exe"), true
 }

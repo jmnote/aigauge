@@ -74,8 +74,12 @@ This runs the Light and Dark captures sequentially and writes:
 - `docs/screenshots/aigauge-native-light.png`
 - `docs/screenshots/aigauge-native-dark.png`
 
-Individual captures can be run with `screenshot-light` or `screenshot-dark`. Use
-`-RenderWaitSeconds` to adjust the render wait when needed.
+Individual captures can be run with `screenshot-light` or `screenshot-dark`. To adjust the render
+wait, invoke the capture helper directly, for example:
+
+```powershell
+.\hack\capture-window.ps1 -Theme light -RenderWaitSeconds 5
+```
 
 ## MSIX packaging
 

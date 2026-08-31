@@ -5,7 +5,6 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>AI Gauge</title>
-  <script src="/wails/runtime.js" type="module"></script>
   <link rel="stylesheet" href="/style.css" />
 </head>
 
@@ -28,7 +27,7 @@
       <form method="dialog" class="settings-form">
         <div class="settings-header">
           <h2 id="settings-title">Settings</h2>
-          <button class="dialog-close" value="cancel" title="Close" aria-label="Close">×</button>
+          <button class="dialog-close" type="button" title="Close" aria-label="Close">×</button>
         </div>
         <fieldset>
           <legend>Theme</legend>
@@ -70,7 +69,7 @@
       <form method="dialog" class="settings-form">
         <div class="settings-header">
           <h2 id="close-title">Hide AI Gauge?</h2>
-          <button class="dialog-close" value="cancel" title="Close" aria-label="Close">×</button>
+          <button class="dialog-close" type="button" title="Close" aria-label="Close">×</button>
         </div>
         <p class="close-message">AI Gauge will keep running in the system tray.</p>
         <label class="close-prompt-setting">
@@ -86,8 +85,9 @@
     <section id="codex-card" class="usage-card">
       <div class="heading">
         <strong>Codex</strong>
-        <span class="card-status"><span id="plan" class="plan"></span><span class="status-wrap"><span id="codex-dot"
-              class="status-dot"></span><span id="codex-tooltip" class="status-tooltip"></span></span></span>
+        <span class="card-status"><span id="plan" class="plan"></span><span class="status-wrap" tabindex="0"
+            aria-label="Codex connection status"><span id="codex-dot" class="status-dot"></span><span
+              id="codex-tooltip" class="status-tooltip"></span></span></span>
       </div>
       <div class="limit">
         <div class="limit-label"><span>5h</span><span id="five-hour-reset" class="inline-reset"></span><span
@@ -103,16 +103,19 @@
           <div id="seven-day-bar" class="fill" style="width: 0%"></div>
         </div>
       </div>
+      <div id="codex-error" class="provider-error" role="status" hidden></div>
     </section>
     <section id="agy-card" class="usage-card">
       <div class="heading">
         <strong>Antigravity</strong>
-        <span class="card-status"><span id="agy-plan" class="plan"></span><span class="status-wrap"><span id="agy-dot"
-              class="status-dot"></span><span id="agy-tooltip" class="status-tooltip"></span></span></span>
+        <span class="card-status"><span id="agy-plan" class="plan"></span><span class="status-wrap" tabindex="0"
+            aria-label="Antigravity connection status"><span id="agy-dot" class="status-dot"></span><span
+              id="agy-tooltip" class="status-tooltip"></span></span></span>
       </div>
       <div id="agy-groups">
         <div id="agy-loading" class="plan loading-text">Loading usage...</div>
       </div>
+      <div id="agy-error" class="provider-error" role="status" hidden></div>
     </section>
   </main>
   <script type="module">
@@ -147,10 +150,8 @@
     }
 
     function refreshLimitStates() {
-      document.querySelectorAll('.limit').forEach(limit => {
-        const value = limit.querySelector('.limit-value');
-        const bar = limit.querySelector('.fill');
-        if (value && bar) applyLimitState(bar, Number.parseFloat(value.textContent));
+      document.querySelectorAll('.fill[data-remaining]').forEach(bar => {
+        applyLimitState(bar, Number(bar.dataset.remaining));
       });
     }
 
@@ -164,20 +165,19 @@
         .map(value => String(value).padStart(2, '0'))
         .join('-');
       const time = targetDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-      const days = Math.floor(seconds / 86400);
+      let days = Math.floor(seconds / 86400);
       let hours = Math.floor((seconds % 86400) / 3600);
       const minutes = Math.floor((seconds % 3600) / 60);
-      let roundedDays = days;
-      if (minutes >= 30) {
+      if (days > 0 && minutes >= 30) {
         hours += 1;
         if (hours === 24) {
-          roundedDays += 1;
+          days += 1;
           hours = 0;
         }
       }
-      const duration = roundedDays > 0
-        ? `${roundedDays}d${hours ? `${hours}h` : ''}`
-        : `${hours ? `${hours}h` : ''}${minutes ? `${minutes}m` : ''}`;
+      const duration = days > 0
+        ? `${days}d${hours ? `${hours}h` : ''}`
+        : (hours || minutes ? `${hours ? `${hours}h` : ''}${minutes ? `${minutes}m` : ''}` : '<1m');
       return `${duration} (${sameDay ? time : `${date} ${time}`})`;
     };
 
@@ -209,7 +209,7 @@
     let codexLastError = '';
     let antigravityLastError = '';
 
-    function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefreshAt) {
+    function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefreshAt, lastError) {
       const dot = document.getElementById(dotId);
       dot.classList.remove('connected', 'warning');
       if (lastSuccessAt && failureCount < 3) dot.classList.add('connected');
@@ -218,7 +218,6 @@
       const tooltip = document.getElementById(tooltipId);
       const successValue = lastSuccessAt ? formatAgo(lastSuccessAt) : 'None';
       const nextRefreshText = formatUntil(nextRefreshAt);
-      const lastError = dotId === 'codex-dot' ? codexLastError : antigravityLastError;
       tooltip.replaceChildren(
         createTooltipRow('Fails', `${failureCount}`),
         createTooltipRow('Last fetch', successValue),
@@ -249,16 +248,22 @@
       return `in ${seconds}s`;
     }
 
+    function retryDelay(failureCount) {
+      return Math.min(refreshInterval * (2 ** Math.min(failureCount, 4)), 1800);
+    }
+
     function scheduleCodex() {
       clearTimeout(codexTimerId);
-      codexNextRefreshAt = Date.now() + refreshInterval * 1000;
-      codexTimerId = setTimeout(fetchCodex, refreshInterval * 1000);
+      const delay = retryDelay(codexFailureCount);
+      codexNextRefreshAt = Date.now() + delay * 1000;
+      codexTimerId = setTimeout(fetchCodex, delay * 1000);
     }
 
     function scheduleAntigravity() {
       clearTimeout(antigravityTimerId);
-      antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
-      antigravityTimerId = setTimeout(fetchAntigravity, refreshInterval * 1000);
+      const delay = retryDelay(antigravityFailureCount);
+      antigravityNextRefreshAt = Date.now() + delay * 1000;
+      antigravityTimerId = setTimeout(fetchAntigravity, delay * 1000);
     }
 
     function setLoading(dotId, loading) {
@@ -269,19 +274,29 @@
       document.querySelectorAll(`#${cardId} .loading-text`).forEach(element => element.classList.remove('loading-text'));
     }
 
+    function showProviderError(providerId, message) {
+      const element = document.getElementById(`${providerId}-error`);
+      element.textContent = message;
+      element.hidden = !message;
+    }
+
     function renderUsage(usage, failureCount) {
       if (usage.error) {
-        updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt);
+        showProviderError('codex', usage.error);
+        updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
         return;
       }
-      const fiveHourRemaining = Math.max(0, 100 - usage.fiveHour);
-      const sevenDayRemaining = Math.max(0, 100 - usage.sevenDay);
+      showProviderError('codex', '');
+      const fiveHourRemaining = Math.max(0, Math.min(100, 100 - usage.fiveHour));
+      const sevenDayRemaining = Math.max(0, Math.min(100, 100 - usage.sevenDay));
       document.getElementById('plan').textContent = usage.plan || 'Codex';
-      updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt);
+      updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
       document.getElementById('five-hour-value').textContent = `${fiveHourRemaining.toFixed(0)}%`;
       document.getElementById('seven-day-value').textContent = `${sevenDayRemaining.toFixed(0)}%`;
       document.getElementById('five-hour-bar').style.width = `${fiveHourRemaining}%`;
       document.getElementById('seven-day-bar').style.width = `${sevenDayRemaining}%`;
+      document.getElementById('five-hour-bar').dataset.remaining = fiveHourRemaining;
+      document.getElementById('seven-day-bar').dataset.remaining = sevenDayRemaining;
       applyLimitState(document.getElementById('five-hour-bar'), fiveHourRemaining);
       applyLimitState(document.getElementById('seven-day-bar'), sevenDayRemaining);
       document.getElementById('five-hour-reset').textContent = formatReset(usage.fiveHourResetIn);
@@ -291,10 +306,13 @@
     function renderAntigravity(usage, failureCount) {
       const groups = document.getElementById('agy-groups');
       if (usage.error) {
-        updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt);
+        groups.replaceChildren();
+        showProviderError('agy', usage.error);
+        updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
         return;
       }
-      updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt);
+      showProviderError('agy', '');
+      updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
       document.getElementById('agy-plan').textContent = 'agy';
       groups.replaceChildren();
       if (!usage.groups?.length) return;
@@ -326,6 +344,7 @@
           const fill = document.createElement('div');
           fill.className = 'fill';
           fill.style.width = `${remaining}%`;
+          fill.dataset.remaining = remaining;
           applyLimitState(fill, remaining);
           bar.append(fill);
           const reset = document.createElement('span');
@@ -347,6 +366,7 @@
         if (usage.error) codexFailureCount += 1;
         if (usage.error) codexLastError = String(usage.error).slice(0, 120);
         else {
+          codexFailureCount = 0;
           codexLastSuccessAt = Date.now();
           codexLastError = '';
         }
@@ -371,6 +391,7 @@
           antigravityFailureCount += 1;
           antigravityLastError = String(usage.error).slice(0, 120);
         } else {
+          antigravityFailureCount = 0;
           antigravityLastSuccessAt = Date.now();
           antigravityLastError = '';
         }
@@ -397,18 +418,30 @@
     const warningThresholdInput = document.getElementById('warning-threshold');
     const criticalThresholdInput = document.getElementById('critical-threshold');
     const validThemes = new Set(['light', 'dark', 'system']);
+    const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 
     function applyTheme(theme, persist = true) {
       document.documentElement.dataset.theme = theme;
+      document.documentElement.dataset.resolvedTheme = theme === 'system'
+        ? (systemTheme.matches ? 'dark' : 'light')
+        : theme;
       if (persist) localStorage.setItem(themeStorageKey, theme);
     }
 
-    const forcedTheme = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetThemeOverride');
+    let forcedTheme = '';
+    try {
+      forcedTheme = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetThemeOverride');
+    } catch (error) {
+      console.warn('Unable to read the theme override:', error);
+    }
     const savedTheme = forcedTheme || localStorage.getItem(themeStorageKey);
     const migratedTheme = savedTheme === 'auto' ? 'system' : savedTheme;
     applyTheme(validThemes.has(migratedTheme) ? migratedTheme : 'system', !forcedTheme);
     themeInputs.forEach(input => {
       input.addEventListener('change', () => applyTheme(input.value));
+    });
+    systemTheme.addEventListener('change', () => {
+      if (document.documentElement.dataset.theme === 'system') applyTheme('system', false);
     });
 
     document.getElementById('settings').addEventListener('click', () => {
@@ -423,19 +456,27 @@
     settingsDialog.addEventListener('click', event => {
       if (event.target === settingsDialog) settingsDialog.close();
     });
-    let hideRequested = false;
     document.getElementById('hide-window').addEventListener('click', () => {
-      hideRequested = true;
-      wails.Window.Close();
+      if (localStorage.getItem(closePromptStorageKey) === 'false') {
+        wails.Window.Hide();
+        return;
+      }
+      closeDontAsk.checked = false;
+      closeDialog.showModal();
+    });
+    document.querySelectorAll('.dialog-close').forEach(button => {
+      button.addEventListener('click', () => button.closest('dialog').close('cancel'));
     });
     closeDontAskSetting.addEventListener('change', () => {
       localStorage.setItem(closePromptStorageKey, String(!closeDontAskSetting.checked));
     });
     function saveThresholds() {
+      if (warningThresholdInput.value === '' || criticalThresholdInput.value === '') return;
       const warningValue = Number(warningThresholdInput.value);
       const criticalValue = Number(criticalThresholdInput.value);
-      warningThreshold = Number.isFinite(warningValue) ? Math.max(1, Math.min(100, warningValue)) : 50;
-      criticalThreshold = Number.isFinite(criticalValue) ? Math.max(0, Math.min(99, criticalValue)) : 20;
+      if (!Number.isFinite(warningValue) || !Number.isFinite(criticalValue)) return;
+      warningThreshold = Math.max(1, Math.min(100, warningValue));
+      criticalThreshold = Math.max(0, Math.min(99, criticalValue));
       if (criticalThreshold >= warningThreshold) {
         criticalThreshold = Math.max(0, warningThreshold - 1);
       }
@@ -447,8 +488,6 @@
     }
     warningThresholdInput.addEventListener('change', saveThresholds);
     criticalThresholdInput.addEventListener('change', saveThresholds);
-    warningThresholdInput.addEventListener('input', saveThresholds);
-    criticalThresholdInput.addEventListener('input', saveThresholds);
     refreshIntervalInput.addEventListener('change', () => {
       const selectedInterval = Number(refreshIntervalInput.value);
       if (!refreshIntervalOptions.has(selectedInterval)) return;
@@ -456,19 +495,6 @@
       localStorage.setItem(refreshIntervalKey, String(refreshInterval));
       scheduleCodex();
       scheduleAntigravity();
-    });
-    wails.Events.On('window-close-requested', () => {
-      if (!hideRequested) {
-        wails.Application.Quit();
-        return;
-      }
-      hideRequested = false;
-      if (localStorage.getItem(closePromptStorageKey) === 'false') {
-        wails.Window.Hide();
-        return;
-      }
-      closeDontAsk.checked = false;
-      closeDialog.showModal();
     });
     document.getElementById('hide-to-tray').addEventListener('click', () => {
       if (closeDontAsk.checked) localStorage.setItem(closePromptStorageKey, 'false');
@@ -480,9 +506,18 @@
     });
     fetchCodex();
     fetchAntigravity();
+    function refreshStatusTooltips() {
+      updateStatus('codex-dot', 'codex-tooltip', codexFailureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
+      updateStatus('agy-dot', 'agy-tooltip', antigravityFailureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
+    }
+    document.querySelectorAll('.status-wrap').forEach(element => {
+      element.addEventListener('mouseenter', refreshStatusTooltips);
+      element.addEventListener('focus', refreshStatusTooltips);
+    });
     setInterval(() => {
-      updateStatus('codex-dot', 'codex-tooltip', codexFailureCount, codexLastSuccessAt, codexNextRefreshAt);
-      updateStatus('agy-dot', 'agy-tooltip', antigravityFailureCount, antigravityLastSuccessAt, antigravityNextRefreshAt);
+      if (document.visibilityState === 'visible' && document.querySelector('.status-wrap:hover, .status-wrap:focus')) {
+        refreshStatusTooltips();
+      }
     }, 1000);
   </script>
 </body>

@@ -80,7 +80,8 @@ h1 {
   height: 100%;
   box-sizing: border-box;
   padding: 12px;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .titlebar {
@@ -194,8 +195,15 @@ h1 {
   flex: 0 0 90px;
 }
 
-.heading:hover .status-tooltip {
+.heading:hover .status-tooltip,
+.status-wrap:focus .status-tooltip {
   display: block;
+}
+
+.status-wrap:focus-visible {
+  outline: 2px solid var(--base-accent);
+  outline-offset: 3px;
+  border-radius: 50%;
 }
 
 .actions {
@@ -282,6 +290,14 @@ button {
 
 .loading-text {
   animation: text-blink .9s ease-in-out infinite;
+}
+
+.provider-error {
+  margin-top: 10px;
+  color: var(--muted);
+  font-size: .72rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 @keyframes text-blink {
@@ -570,7 +586,7 @@ legend {
   }
 }
 
-:root[data-theme="light"] {
+:root[data-resolved-theme="light"] {
   --text: var(--light-text);
   --surface: var(--light-surface);
   --muted: var(--light-muted);
@@ -649,7 +665,7 @@ legend {
   }
 }
 
-:root[data-theme="dark"] {
+:root[data-resolved-theme="dark"] {
   --text: var(--dark-text);
   --surface: var(--dark-surface);
   --muted: var(--dark-muted);
@@ -705,4 +721,11 @@ legend {
     color: var(--muted);
   }
 
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .status-dot.loading,
+  .loading-text {
+    animation: none;
+  }
 }

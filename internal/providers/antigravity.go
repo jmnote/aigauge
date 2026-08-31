@@ -3,10 +3,10 @@ package providers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
-	"path/filepath"
 	"strings"
 	"time"
 )
@@ -77,9 +77,13 @@ func GetAntigravityUsage() AntigravityUsage {
 			usage.Error = "agy command not found"
 			return usage
 		}
-		agyPath = filepath.Join(home, "AppData", "Local", "agy", "bin", "agy.exe")
+		agyPath, ok := antigravityFallbackPath(home)
+		if !ok {
+			usage.Error = "agy command not found in PATH"
+			return usage
+		}
 		if _, statErr := os.Stat(agyPath); statErr != nil {
-			usage.Error = "agy command not found in PATH or AppData"
+			usage.Error = "agy command not found in PATH or the default installation directory"
 			return usage
 		}
 	}
@@ -88,12 +92,16 @@ func GetAntigravityUsage() AntigravityUsage {
 	defer cancel()
 	command := exec.CommandContext(ctx, agyPath, "-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
 	configureAntigravityCommand(command)
-	output, err := command.CombinedOutput()
+	output, err := command.Output()
 	if err != nil {
 		if ctx.Err() == context.DeadlineExceeded {
 			usage.Error = "agy usage request timed out (45s)"
 		} else {
-			errMsg := strings.TrimSpace(string(output))
+			errMsg := ""
+			var exitError *exec.ExitError
+			if errors.As(err, &exitError) {
+				errMsg = strings.TrimSpace(string(exitError.Stderr))
+			}
 			if errMsg != "" {
 				usage.Error = fmt.Sprintf("agy failed: %s", errMsg)
 			} else {
