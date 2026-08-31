@@ -1,12 +1,13 @@
 param(
-    [ValidateSet("run", "test", "logo", "build", "package", "checks", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
+    [ValidateSet("run", "test", "logo", "build", "package", "checks", "clean", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
     [string]$Task = "build",
     [string]$Version = "",
     [ValidateSet("x64", "x86", "arm64")]
     [string]$Architecture = "x64",
     [string]$MakeAppx = "",
     [string]$ScreenshotPath = "",
-    [switch]$SkipWindowsResources
+    [switch]$SkipWindowsResources,
+    [switch]$ReleaseArtifact
 )
 
 switch ($Task) {
@@ -37,6 +38,7 @@ switch ($Task) {
         $arguments = @{ Version = $Version; Architecture = $Architecture }
         if (-not [string]::IsNullOrWhiteSpace($MakeAppx)) { $arguments.MakeAppx = $MakeAppx }
         if ($SkipWindowsResources) { $arguments.SkipWindowsResources = $true }
+        if ($ReleaseArtifact) { $arguments.ReleaseArtifact = $true }
         & $packageScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
@@ -64,7 +66,15 @@ switch ($Task) {
         git diff --check
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-        & $PSCommandPath -Task package -Architecture $Architecture -Version $Version -MakeAppx $MakeAppx
+        $packageArguments = @{
+            Task = "package"
+            Architecture = $Architecture
+            Version = $Version
+            MakeAppx = $MakeAppx
+        }
+        if ($SkipWindowsResources) { $packageArguments.SkipWindowsResources = $true }
+        if ($ReleaseArtifact) { $packageArguments.ReleaseArtifact = $true }
+        & $PSCommandPath @packageArguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         $checkVersion = $Version
@@ -75,7 +85,8 @@ switch ($Task) {
         $checkParts = @($checkVersion.Split('.'))
         while ($checkParts.Count -lt 4) { $checkParts += '0' }
         $checkVersion = $checkParts -join '.'
-        $packagePath = Join-Path $PSScriptRoot ("dist\aigauge_{0}_{1}.msix" -f $checkVersion, $Architecture)
+        $artifactSuffix = if ($ReleaseArtifact) { "" } else { "_local" }
+        $packagePath = Join-Path $PSScriptRoot ("dist\aigauge_{0}_{1}{2}.msix" -f $checkVersion, $Architecture, $artifactSuffix)
         $manifestPath = Join-Path $PSScriptRoot ("dist\staging\{0}\AppxManifest.xml" -f $Architecture)
         if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
             throw "Expected MSIX was not created: $packagePath"
@@ -85,6 +96,20 @@ switch ($Task) {
             throw "MSIX manifest version does not match VERSION: $checkVersion"
         }
         Write-Output "Checks passed: $packagePath"
+    }
+    "clean" {
+        $repoRoot = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
+        $distPath = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot "dist"))
+        $expectedPrefix = $repoRoot + [System.IO.Path]::DirectorySeparatorChar
+        if (-not $distPath.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Refusing to clean dist outside the repository: $distPath"
+        }
+        if (Test-Path -LiteralPath $distPath) {
+            Remove-Item -LiteralPath $distPath -Recurse -Force
+            Write-Output "Cleaned build artifacts: $distPath"
+        } else {
+            Write-Output "No build artifacts to clean: $distPath"
+        }
     }
     "live-server" {
         & (Join-Path $PSScriptRoot "hack\live-server.ps1")

@@ -44,13 +44,28 @@ jobs:
 
       - name: Build MSIX
         shell: pwsh
-        run: .\build.ps1 -Task package -Architecture x64 -SkipWindowsResources
+        run: .\build.ps1 -Task package -Architecture x64 -SkipWindowsResources -ReleaseArtifact
 
-      - name: Upload MSIX
+      - name: Create checksums
+        shell: pwsh
+        run: |
+          $packages = @(Get-ChildItem -LiteralPath dist -Filter *.msix -File)
+          if ($packages.Count -eq 0) {
+            throw "No MSIX packages were produced."
+          }
+          $checksums = $packages | Sort-Object Name | ForEach-Object {
+            $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            "$hash  $($_.Name)"
+          }
+          $checksums | Set-Content -LiteralPath dist\SHA256SUMS.txt -Encoding ascii
+
+      - name: Upload MSIX and checksums
         uses: actions/upload-artifact@v4
         with:
           name: release-msix
-          path: dist/*.msix
+          path: |
+            dist/*.msix
+            dist/SHA256SUMS.txt
           if-no-files-found: error
 
   release:
@@ -60,7 +75,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Read version
+      - name: Read VERSION
         id: version
         shell: bash
         run: |
@@ -92,4 +107,5 @@ jobs:
             --target "$GITHUB_SHA" \
             --title "$tag" \
             --generate-notes \
-            dist/*.msix
+            dist/*.msix \
+            dist/SHA256SUMS.txt

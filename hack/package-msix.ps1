@@ -4,7 +4,8 @@ param(
     [string]$Version = "",
     [string]$MakeAppx = "",
     [switch]$SkipBuild,
-    [switch]$SkipWindowsResources
+    [switch]$SkipWindowsResources,
+    [switch]$ReleaseArtifact
 )
 
 $ErrorActionPreference = "Stop"
@@ -97,7 +98,8 @@ try {
 } finally { $icon.Dispose() }
 
 $makeAppxPath = Find-MakeAppx $MakeAppx
-$output = Join-Path $dist ("aigauge_{0}_{1}.msix" -f $msixVersion, $Architecture)
+$artifactSuffix = if ($ReleaseArtifact) { "" } else { "_local" }
+$output = Join-Path $dist ("aigauge_{0}_{1}{2}.msix" -f $msixVersion, $Architecture, $artifactSuffix)
 if (Test-Path $output) { Remove-Item -LiteralPath $output -Force }
 & $makeAppxPath pack /d $staging /p $output /o
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
