@@ -18,8 +18,13 @@
       </div>
       <div class="actions">
         <span class="window-buttons">
+          <button id="pin-window" class="pin-btn" title="Always on top" aria-label="Always on top" aria-pressed="false">
+            <svg viewBox="0 0 16 16" width="12" height="12" fill="currentColor">
+              <path d="M4.146.146A.5.5 0 0 1 4.5 0h7a.5.5 0 0 1 .5.5c0 .68-.342 1.174-.646 1.479-.283.282-.63.53-1.004.743v3.593a2.5 2.5 0 0 1 .52 1.344l.43 3.44A.5.5 0 0 1 10.8 11.2H8.5v4.3a.5.5 0 0 1-1 0V11.2H5.2a.5.5 0 0 1-.5-.544l.43-3.44a2.5 2.5 0 0 1 .52-1.344V2.222c-.374-.213-.721-.461-1.004-.743C4.342 1.174 4 0.68 4 .5a.5.5 0 0 1 .146-.354z"/>
+            </svg>
+          </button>
           <button id="settings" title="Settings" aria-label="Settings">⚙</button>
-          <button id="hide-window" title="Hide" aria-label="Hide">×</button>
+          <button id="hide-window" title="Hide to system tray" aria-label="Hide to system tray">×</button>
         </span>
       </div>
     </div>
@@ -37,6 +42,13 @@
             <label><input type="radio" name="theme" value="system" /> System</label>
           </div>
         </fieldset>
+        <fieldset>
+          <legend>Providers</legend>
+          <div class="provider-options">
+            <label class="provider-setting"><input type="checkbox" id="provider-codex" /> Codex</label>
+            <label class="provider-setting"><input type="checkbox" id="provider-antigravity" /> Antigravity</label>
+          </div>
+        </fieldset>
         <fieldset class="threshold-settings">
           <legend>Thresholds</legend>
           <label class="threshold-setting"><span class="threshold-label"><span
@@ -46,9 +58,9 @@
                 class="threshold-dot critical"></span>Critical</span><span class="threshold-value"><input
                 id="critical-threshold" type="number" min="0" max="99" step="1" /><span>%</span></span></label>
         </fieldset>
-        <label class="refresh-setting">
-          <span>Refresh interval</span>
-          <select id="refresh-interval">
+        <div class="refresh-setting-row">
+          <span class="refresh-label">Refresh</span>
+          <select id="refresh-preset-select">
             <option value="10">10s</option>
             <option value="30">30s</option>
             <option value="60">1m</option>
@@ -57,37 +69,23 @@
             <option value="300">5m</option>
             <option value="600">10m</option>
             <option value="1800">30m</option>
+            <option value="custom">Custom</option>
           </select>
-        </label>
-        <label class="close-prompt-setting">
-          <input type="checkbox" id="close-dont-ask-setting" />
-          Don't ask before hiding on close
-        </label>
-      </form>
-    </dialog>
-    <dialog id="close-dialog" class="settings-dialog" aria-labelledby="close-title">
-      <form method="dialog" class="settings-form">
-        <div class="settings-header">
-          <h2 id="close-title">Hide AI Gauge?</h2>
-          <button class="dialog-close" type="button" title="Close" aria-label="Close">×</button>
-        </div>
-        <p class="close-message">AI Gauge will keep running in the system tray.</p>
-        <label class="close-prompt-setting">
-          <input type="checkbox" id="close-dont-ask" />
-          Don't ask again
-        </label>
-        <div class="close-actions">
-          <button value="cancel">Cancel</button>
-          <button id="hide-to-tray" value="hide">Hide</button>
+          <span class="threshold-input-wrap"><input
+              id="refresh-interval-input" type="number" min="1" max="3600" step="1" /><span>s</span></span>
         </div>
       </form>
     </dialog>
+    <div id="no-providers" class="no-providers" style="display: none;">
+      <p>No providers enabled</p>
+      <button id="open-settings-btn" class="open-settings-btn">Open Settings</button>
+    </div>
     <section id="codex-card" class="usage-card">
       <div class="heading">
         <strong>Codex</strong>
         <span class="card-status"><span id="plan" class="plan"></span><span class="status-wrap" tabindex="0"
-            aria-label="Codex connection status"><span id="codex-dot" class="status-dot"></span><span
-              id="codex-tooltip" class="status-tooltip"></span></span></span>
+            aria-label="Codex connection status"><span id="codex-dot"
+              class="status-dot"></span><span id="codex-tooltip" class="status-tooltip"></span></span></span>
       </div>
       <div class="limit">
         <div class="limit-label"><span>5h</span><span id="five-hour-reset" class="inline-reset"></span><span
@@ -109,8 +107,8 @@
       <div class="heading">
         <strong>Antigravity</strong>
         <span class="card-status"><span id="agy-plan" class="plan"></span><span class="status-wrap" tabindex="0"
-            aria-label="Antigravity connection status"><span id="agy-dot" class="status-dot"></span><span
-              id="agy-tooltip" class="status-tooltip"></span></span></span>
+            aria-label="Antigravity connection status"><span id="agy-dot"
+              class="status-dot"></span><span id="agy-tooltip" class="status-tooltip"></span></span></span>
       </div>
       <div id="agy-groups">
         <div id="agy-loading" class="plan loading-text">Loading usage...</div>
@@ -132,15 +130,121 @@
       };
       watchLiveResource('/__live-version');
     }
-    const warningThresholdKey = 'aigauge-warning-threshold';
-    const criticalThresholdKey = 'aigauge-critical-threshold';
-    const storedWarningThreshold = localStorage.getItem(warningThresholdKey);
-    const storedCriticalThreshold = localStorage.getItem(criticalThresholdKey);
-    let warningThreshold = storedWarningThreshold === null ? 50 : Number(storedWarningThreshold);
-    let criticalThreshold = storedCriticalThreshold === null ? 20 : Number(storedCriticalThreshold);
-    warningThreshold = Number.isFinite(warningThreshold) ? Math.max(1, Math.min(100, warningThreshold)) : 50;
-    criticalThreshold = Number.isFinite(criticalThreshold) ? Math.max(0, Math.min(99, criticalThreshold)) : 20;
-    if (criticalThreshold >= warningThreshold) criticalThreshold = Math.max(0, warningThreshold - 1);
+
+    const validThemes = new Set(['light', 'dark', 'system']);
+    const settingsStorageKey = 'aigauge-settings-v1';
+
+    function parseIntervalToSeconds(val) {
+      if (typeof val === 'number') {
+        return Number.isFinite(val) ? Math.max(1, Math.min(3600, Math.round(val))) : 120;
+      }
+      if (typeof val === 'string') {
+        const str = val.trim().toLowerCase();
+        let total = 0;
+        let matched = false;
+        const mMatch = str.match(/(\d+)\s*m/);
+        const sMatch = str.match(/(\d+)\s*s/);
+        if (mMatch) { total += parseInt(mMatch[1], 10) * 60; matched = true; }
+        if (sMatch) { total += parseInt(sMatch[1], 10); matched = true; }
+        if (matched) return Math.max(1, Math.min(3600, total));
+        const rawNum = parseInt(str, 10);
+        if (Number.isFinite(rawNum)) return Math.max(1, Math.min(3600, rawNum));
+      }
+      return 120;
+    }
+
+    function saveCurrentConfig() {
+      try {
+        localStorage.setItem(settingsStorageKey, JSON.stringify(config));
+      } catch (e) {
+        console.warn('Failed to save settings:', e);
+      }
+    }
+
+    const defaultConfig = {
+      providers: {
+        codex: { enabled: true },
+        antigravity: { enabled: true }
+      },
+      theme: 'system',
+      refreshInterval: 120,
+      thresholds: {
+        warning: 50,
+        critical: 20
+      }
+    };
+
+    function normalizeConfig(value) {
+      const warningValue = Number(value?.thresholds?.warning);
+      const criticalValue = Number(value?.thresholds?.critical);
+      const warning = Number.isFinite(warningValue) && warningValue >= 1 && warningValue <= 100
+        ? warningValue : defaultConfig.thresholds.warning;
+      let critical = Number.isFinite(criticalValue) && criticalValue >= 0 && criticalValue <= 99
+        ? criticalValue : defaultConfig.thresholds.critical;
+      if (critical >= warning) critical = Math.max(0, warning - 1);
+
+      const theme = value?.theme === 'auto' ? 'system' : value?.theme;
+      return {
+        providers: {
+          codex: { enabled: value?.providers?.codex?.enabled !== false },
+          antigravity: { enabled: value?.providers?.antigravity?.enabled !== false }
+        },
+        theme: validThemes.has(theme) ? theme : defaultConfig.theme,
+        refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
+        thresholds: { warning, critical }
+      };
+    }
+
+    let config = normalizeConfig(defaultConfig);
+
+    try {
+      const storedSettings = localStorage.getItem(settingsStorageKey);
+      if (storedSettings !== null) {
+        config = normalizeConfig(JSON.parse(storedSettings));
+      } else {
+        const legacyTheme = localStorage.getItem('aigauge-theme');
+        const legacyInterval = localStorage.getItem('aigauge-refresh-interval');
+        const legacyWarning = localStorage.getItem('aigauge-warning-threshold');
+        const legacyCritical = localStorage.getItem('aigauge-critical-threshold');
+
+        let migrated = false;
+        if (legacyTheme && ['light', 'dark', 'system', 'auto'].includes(legacyTheme)) {
+          config.theme = legacyTheme === 'auto' ? 'system' : legacyTheme;
+          migrated = true;
+        }
+        if (legacyInterval) {
+          config.refreshInterval = parseIntervalToSeconds(legacyInterval);
+          migrated = true;
+        }
+        if (legacyWarning !== null) {
+          const parsedWarning = Number(legacyWarning);
+          if (Number.isFinite(parsedWarning)) {
+            config.thresholds.warning = Math.max(1, Math.min(100, parsedWarning));
+            migrated = true;
+          }
+        }
+        if (legacyCritical !== null) {
+          const parsedCritical = Number(legacyCritical);
+          if (Number.isFinite(parsedCritical)) {
+            config.thresholds.critical = Math.max(0, Math.min(99, parsedCritical));
+            migrated = true;
+          }
+        }
+        if (config.thresholds.critical >= config.thresholds.warning) {
+          config.thresholds.critical = Math.max(0, config.thresholds.warning - 1);
+        }
+        if (migrated) {
+          config = normalizeConfig(config);
+          saveCurrentConfig();
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load or migrate settings:', e);
+      config = normalizeConfig(defaultConfig);
+    }
+
+    let warningThreshold = config.thresholds.warning;
+    let criticalThreshold = config.thresholds.critical;
 
     function applyLimitState(barElement, remaining) {
       const state = remaining <= criticalThreshold ? 'critical'
@@ -194,10 +298,7 @@
       return formatTimeRemaining(seconds, targetDate);
     };
 
-    const refreshIntervalKey = 'aigauge-refresh-interval';
-    const refreshIntervalOptions = new Set([10, 30, 60, 120, 180, 300, 600, 1800]);
-    const storedRefreshInterval = Number(localStorage.getItem(refreshIntervalKey));
-    let refreshInterval = refreshIntervalOptions.has(storedRefreshInterval) ? storedRefreshInterval : 120;
+    let refreshInterval = parseIntervalToSeconds(config.refreshInterval);
     let codexNextRefreshAt = Date.now() + refreshInterval * 1000;
     let antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
     let codexTimerId = null;
@@ -254,6 +355,7 @@
 
     function scheduleCodex() {
       clearTimeout(codexTimerId);
+      if (!config.providers.codex.enabled) return;
       const delay = retryDelay(codexFailureCount);
       codexNextRefreshAt = Date.now() + delay * 1000;
       codexTimerId = setTimeout(fetchCodex, delay * 1000);
@@ -261,6 +363,7 @@
 
     function scheduleAntigravity() {
       clearTimeout(antigravityTimerId);
+      if (!config.providers.antigravity.enabled) return;
       const delay = retryDelay(antigravityFailureCount);
       antigravityNextRefreshAt = Date.now() + delay * 1000;
       antigravityTimerId = setTimeout(fetchAntigravity, delay * 1000);
@@ -284,6 +387,7 @@
       if (usage.error) {
         showProviderError('codex', usage.error);
         updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
+        requestWindowResize();
         return;
       }
       showProviderError('codex', '');
@@ -301,6 +405,7 @@
       applyLimitState(document.getElementById('seven-day-bar'), sevenDayRemaining);
       document.getElementById('five-hour-reset').textContent = formatReset(usage.fiveHourResetIn);
       document.getElementById('seven-day-reset').textContent = formatReset(usage.sevenDayResetIn);
+      requestWindowResize();
     }
 
     function renderAntigravity(usage, failureCount) {
@@ -309,13 +414,17 @@
         groups.replaceChildren();
         showProviderError('agy', usage.error);
         updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
+        requestWindowResize();
         return;
       }
       showProviderError('agy', '');
       updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
       document.getElementById('agy-plan').textContent = 'agy';
       groups.replaceChildren();
-      if (!usage.groups?.length) return;
+      if (!usage.groups?.length) {
+        requestWindowResize();
+        return;
+      }
       for (const group of usage.groups) {
         const groupElement = document.createElement('div');
         groupElement.className = 'agy-group';
@@ -356,16 +465,19 @@
         }
         groups.append(groupElement);
       }
+      requestWindowResize();
     }
 
     async function fetchCodex() {
+      if (!config.providers.codex.enabled) return;
       setLoading('codex-dot', true);
       try {
         const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetCodexUsage');
         clearLoadingText('codex-card');
-        if (usage.error) codexFailureCount += 1;
-        if (usage.error) codexLastError = String(usage.error).slice(0, 120);
-        else {
+        if (usage.error) {
+          codexFailureCount += 1;
+          codexLastError = String(usage.error).slice(0, 120);
+        } else {
           codexFailureCount = 0;
           codexLastSuccessAt = Date.now();
           codexLastError = '';
@@ -383,6 +495,7 @@
     }
 
     async function fetchAntigravity() {
+      if (!config.providers.antigravity.enabled) return;
       setLoading('agy-dot', true);
       try {
         const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetAntigravityUsage');
@@ -407,25 +520,77 @@
       }
     }
 
-    const themeStorageKey = 'aigauge-theme';
-    const closePromptStorageKey = 'aigauge-close-prompt';
     const settingsDialog = document.getElementById('settings-dialog');
-    const closeDialog = document.getElementById('close-dialog');
+    const providerCodexInput = document.getElementById('provider-codex');
+    const providerAntigravityInput = document.getElementById('provider-antigravity');
     const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
-    const closeDontAskSetting = document.getElementById('close-dont-ask-setting');
-    const closeDontAsk = document.getElementById('close-dont-ask');
-    const refreshIntervalInput = document.getElementById('refresh-interval');
+    const pinWindowBtn = document.getElementById('pin-window');
+    const refreshPresetSelect = document.getElementById('refresh-preset-select');
+    const refreshIntervalInput = document.getElementById('refresh-interval-input');
     const warningThresholdInput = document.getElementById('warning-threshold');
     const criticalThresholdInput = document.getElementById('critical-threshold');
-    const validThemes = new Set(['light', 'dark', 'system']);
     const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+
+    let isAlwaysOnTop = false;
+
+    function updateAlwaysOnTopUI(isTop) {
+      pinWindowBtn.classList.toggle('active', isTop);
+      pinWindowBtn.title = isTop ? 'Always on top (Enabled)' : 'Always on top (Disabled)';
+      pinWindowBtn.setAttribute('aria-pressed', isTop ? 'true' : 'false');
+    }
+
+    function toggleAlwaysOnTop() {
+      isAlwaysOnTop = !isAlwaysOnTop;
+      updateAlwaysOnTopUI(isAlwaysOnTop);
+      wails.Window.SetAlwaysOnTop(isAlwaysOnTop);
+      wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetAlwaysOnTop', isAlwaysOnTop).catch(() => {});
+    }
+
+    pinWindowBtn.addEventListener('click', toggleAlwaysOnTop);
+    updateAlwaysOnTopUI(isAlwaysOnTop);
+
+    function updateProvidersVisibility() {
+      const codexEnabled = config.providers?.codex?.enabled !== false;
+      const agyEnabled = config.providers?.antigravity?.enabled !== false;
+      const codexCard = document.getElementById('codex-card');
+      const agyCard = document.getElementById('agy-card');
+      const noProviders = document.getElementById('no-providers');
+
+      codexCard.style.display = codexEnabled ? '' : 'none';
+      agyCard.style.display = agyEnabled ? '' : 'none';
+      noProviders.style.display = (!codexEnabled && !agyEnabled) ? 'flex' : 'none';
+
+      const visibleCards = [codexCard, agyCard].filter(card => card.style.display !== 'none');
+      visibleCards.forEach((card, index) => {
+        card.classList.toggle('card-divider', index > 0);
+      });
+
+      if (codexEnabled) {
+        if (!codexTimerId) fetchCodex();
+      } else {
+        clearTimeout(codexTimerId);
+        codexTimerId = null;
+      }
+
+      if (agyEnabled) {
+        if (!antigravityTimerId) fetchAntigravity();
+      } else {
+        clearTimeout(antigravityTimerId);
+        antigravityTimerId = null;
+      }
+
+      requestWindowResize();
+    }
 
     function applyTheme(theme, persist = true) {
       document.documentElement.dataset.theme = theme;
       document.documentElement.dataset.resolvedTheme = theme === 'system'
         ? (systemTheme.matches ? 'dark' : 'light')
         : theme;
-      if (persist) localStorage.setItem(themeStorageKey, theme);
+      if (persist) {
+        config.theme = theme;
+        saveCurrentConfig();
+      }
     }
 
     let forcedTheme = '';
@@ -434,42 +599,75 @@
     } catch (error) {
       console.warn('Unable to read the theme override:', error);
     }
-    const savedTheme = forcedTheme || localStorage.getItem(themeStorageKey);
-    const migratedTheme = savedTheme === 'auto' ? 'system' : savedTheme;
-    applyTheme(validThemes.has(migratedTheme) ? migratedTheme : 'system', !forcedTheme);
+    const activeTheme = forcedTheme || config.theme || 'system';
+    applyTheme(validThemes.has(activeTheme) ? activeTheme : 'system', !forcedTheme);
+
     themeInputs.forEach(input => {
       input.addEventListener('change', () => applyTheme(input.value));
     });
+
     systemTheme.addEventListener('change', () => {
       if (document.documentElement.dataset.theme === 'system') applyTheme('system', false);
     });
 
-    document.getElementById('settings').addEventListener('click', () => {
-      const currentTheme = document.documentElement.dataset.theme;
+    providerCodexInput.addEventListener('change', () => {
+      config.providers.codex.enabled = providerCodexInput.checked;
+      updateProvidersVisibility();
+      saveCurrentConfig();
+    });
+
+    providerAntigravityInput.addEventListener('change', () => {
+      config.providers.antigravity.enabled = providerAntigravityInput.checked;
+      updateProvidersVisibility();
+      saveCurrentConfig();
+    });
+
+    function updateRefreshPresetSelect(seconds) {
+      const matchingOption = refreshPresetSelect.querySelector(`option[value="${seconds}"]`);
+      refreshPresetSelect.value = matchingOption ? String(seconds) : 'custom';
+    }
+
+    function setRefreshInterval(val) {
+      let seconds = Number(val);
+      seconds = Number.isFinite(seconds) ? Math.max(1, Math.min(3600, Math.round(seconds))) : 120;
+      refreshInterval = seconds;
+      config.refreshInterval = refreshInterval;
+      refreshIntervalInput.value = refreshInterval;
+      updateRefreshPresetSelect(refreshInterval);
+      saveCurrentConfig();
+      scheduleCodex();
+      scheduleAntigravity();
+    }
+
+    function openSettings() {
+      const currentTheme = forcedTheme || config.theme || 'system';
       themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
-      closeDontAskSetting.checked = localStorage.getItem(closePromptStorageKey) === 'false';
-      refreshIntervalInput.value = String(refreshInterval);
+      providerCodexInput.checked = config.providers.codex.enabled;
+      providerAntigravityInput.checked = config.providers.antigravity.enabled;
+      refreshIntervalInput.value = refreshInterval;
+      updateRefreshPresetSelect(refreshInterval);
       warningThresholdInput.value = warningThreshold;
       criticalThresholdInput.value = criticalThreshold;
       settingsDialog.showModal();
-    });
-    settingsDialog.addEventListener('click', event => {
-      if (event.target === settingsDialog) settingsDialog.close();
-    });
-    document.getElementById('hide-window').addEventListener('click', () => {
-      if (localStorage.getItem(closePromptStorageKey) === 'false') {
-        wails.Window.Hide();
-        return;
-      }
-      closeDontAsk.checked = false;
-      closeDialog.showModal();
-    });
+      requestWindowResize();
+    }
+
+    document.getElementById('settings').addEventListener('click', openSettings);
+    document.getElementById('open-settings-btn').addEventListener('click', openSettings);
+
     document.querySelectorAll('.dialog-close').forEach(button => {
       button.addEventListener('click', () => button.closest('dialog').close('cancel'));
     });
-    closeDontAskSetting.addEventListener('change', () => {
-      localStorage.setItem(closePromptStorageKey, String(!closeDontAskSetting.checked));
+
+    settingsDialog.addEventListener('click', event => {
+      if (event.target === settingsDialog) settingsDialog.close();
     });
+    settingsDialog.addEventListener('close', () => requestWindowResize());
+
+    document.getElementById('hide-window').addEventListener('click', () => {
+      wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.HideToTray').catch(() => wails.Window.Hide());
+    });
+
     function saveThresholds() {
       if (warningThresholdInput.value === '' || criticalThresholdInput.value === '') return;
       const warningValue = Number(warningThresholdInput.value);
@@ -482,38 +680,73 @@
       }
       warningThresholdInput.value = warningThreshold;
       criticalThresholdInput.value = criticalThreshold;
-      localStorage.setItem(warningThresholdKey, String(warningThreshold));
-      localStorage.setItem(criticalThresholdKey, String(criticalThreshold));
+      config.thresholds.warning = warningThreshold;
+      config.thresholds.critical = criticalThreshold;
+      saveCurrentConfig();
       refreshLimitStates();
     }
+
     warningThresholdInput.addEventListener('change', saveThresholds);
     criticalThresholdInput.addEventListener('change', saveThresholds);
-    refreshIntervalInput.addEventListener('change', () => {
-      const selectedInterval = Number(refreshIntervalInput.value);
-      if (!refreshIntervalOptions.has(selectedInterval)) return;
-      refreshInterval = selectedInterval;
-      localStorage.setItem(refreshIntervalKey, String(refreshInterval));
-      scheduleCodex();
-      scheduleAntigravity();
+
+    refreshPresetSelect.addEventListener('change', () => {
+      if (refreshPresetSelect.value === 'custom') {
+        refreshIntervalInput.focus();
+        refreshIntervalInput.select();
+        return;
+      }
+      setRefreshInterval(Number(refreshPresetSelect.value));
     });
-    document.getElementById('hide-to-tray').addEventListener('click', () => {
-      if (closeDontAsk.checked) localStorage.setItem(closePromptStorageKey, 'false');
-      closeDialog.close('hide');
-      wails.Window.Hide();
-    });
+
+    refreshIntervalInput.addEventListener('change', () => setRefreshInterval(refreshIntervalInput.value));
+
     wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetVersion').then(version => {
       document.getElementById('version').textContent = version || 'v—';
     });
-    fetchCodex();
-    fetchAntigravity();
-    function refreshStatusTooltips() {
-      updateStatus('codex-dot', 'codex-tooltip', codexFailureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
-      updateStatus('agy-dot', 'agy-tooltip', antigravityFailureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
+
+    let lastReportedHeight = 0;
+    let resizeTimer = null;
+    function requestWindowResize() {
+      if (resizeTimer) cancelAnimationFrame(resizeTimer);
+      resizeTimer = requestAnimationFrame(() => {
+        const shell = document.querySelector('.shell');
+        if (!shell) return;
+        let height = Math.ceil(shell.scrollHeight);
+        if (settingsDialog?.open) {
+          const form = settingsDialog.querySelector('.settings-form') || settingsDialog;
+          const formHeight = form.scrollHeight || form.offsetHeight;
+          const dialogHeight = Math.ceil(formHeight) + 32;
+          if (dialogHeight > height) height = dialogHeight;
+        }
+        if (height > 0 && Math.abs(height - lastReportedHeight) >= 2) {
+          lastReportedHeight = height;
+          wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetContentHeight', height).catch(() => {});
+        }
+      });
     }
+
+    const resizeObserver = new ResizeObserver(() => {
+      requestWindowResize();
+    });
+    resizeObserver.observe(document.querySelector('.shell'));
+
+    updateProvidersVisibility();
+    requestWindowResize();
+
+    function refreshStatusTooltips() {
+      if (config.providers.codex.enabled) {
+        updateStatus('codex-dot', 'codex-tooltip', codexFailureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
+      }
+      if (config.providers.antigravity.enabled) {
+        updateStatus('agy-dot', 'agy-tooltip', antigravityFailureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
+      }
+    }
+
     document.querySelectorAll('.status-wrap').forEach(element => {
       element.addEventListener('mouseenter', refreshStatusTooltips);
       element.addEventListener('focus', refreshStatusTooltips);
     });
+
     setInterval(() => {
       if (document.visibilityState === 'visible' && document.querySelector('.status-wrap:hover, .status-wrap:focus')) {
         refreshStatusTooltips();

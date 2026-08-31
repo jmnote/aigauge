@@ -23,11 +23,14 @@ export const Call = {
     if (name.endsWith('GetAntigravityUsage')) return fixture.antigravity;
     if (name.endsWith('GetThemeOverride')) return ['light', 'dark', 'system'].includes(theme) ? theme : '';
     if (name.endsWith('GetVersion')) return fixture.version;
+    if (name.endsWith('SetContentHeight')) return null;
+    if (name.endsWith('SetAlwaysOnTop')) return null;
+    if (name.endsWith('HideToTray')) return null;
     return null;
   }
 };
 export const Events = { On: () => () => {} };
-export const Window = { Close: () => {}, Hide: () => {} };
+export const Window = { Close: () => {}, Hide: () => {}, SetAlwaysOnTop: () => {} };
 export const Application = { Quit: () => {} };
 '@
 

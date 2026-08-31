@@ -15,15 +15,19 @@
 
 - View remaining Codex quotas and reset times for the 5-hour and 7-day windows.
 - View Google Antigravity (`agy`) model-group quotas and reset times.
+- Enable or disable Codex and Antigravity monitoring independently.
+- Automatically adjusts window size to fit active content.
+- Keep the widget always on top with the title bar pin button.
 - Refresh usage automatically in the background at a configurable interval.
 - Keep the widget in the Windows system tray.
 - Choose Light, Dark, or System appearance.
 - Configure Warning and Critical thresholds for usage bars.
+- Persist settings locally between sessions.
 
 ## Usage
 
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
-Use the Settings button to choose a theme, configure thresholds, or change the refresh interval.
+Click the pin button on the title bar to toggle **Always on top**. Use the Settings button to enable/disable providers, configure thresholds, change the refresh interval, or choose a theme.
 The widget's `×` button hides it to the tray. Closing it from the taskbar, pressing Alt+F4, or
 choosing **Exit** from the tray menu quits the application.
 

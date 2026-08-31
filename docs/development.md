@@ -39,7 +39,14 @@ Before opening a PR, the combined local gate can be run with:
 ```
 
 This also creates a local MSIX and verifies that its package name and staged manifest version
-match `VERSION`.
+match `VERSION`. Local packages use an explicit suffix such as
+`dist/aigauge_0.2.4.0_x64_local.msix`; the release workflow alone produces the canonical
+`aigauge_0.2.4.0_x64.msix` asset. The versioned local package remains in `dist/` for inspection.
+Remove generated packaging output explicitly when it is no longer needed:
+
+```powershell
+.\build.ps1 clean
+```
 
 `frontend/logo.svg` is the source logo. The checked-in `frontend/logo.png` is the raster asset used
 by Windows executable resources and MSIX package icons. Windows builds also generate an ignored

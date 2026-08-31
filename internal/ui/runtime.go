@@ -22,11 +22,13 @@ type runtime struct {
 
 func Run(frontendAssets fs.FS, icon []byte) error {
 	rt := &runtime{icon: icon}
+	appService := usageapp.NewApp(rt.setWindowSize, rt.setAlwaysOnTop, rt.hideToTray)
+
 	rt.application = application.New(application.Options{
 		Name: "AI Gauge",
 		Icon: icon,
 		Services: []application.Service{
-			application.NewService(&usageapp.App{}),
+			application.NewService(appService),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.BundledAssetFileServer(frontendAssets),
@@ -51,6 +53,21 @@ func Run(frontendAssets fs.FS, icon []byte) error {
 	rt.configureWindow()
 	rt.configureTray()
 	return rt.application.Run()
+}
+
+func (rt *runtime) setWindowSize(width, height int) {
+	if rt.window == nil {
+		return
+	}
+	rt.window.SetSize(width, height)
+	rt.clampWindow()
+}
+
+func (rt *runtime) setAlwaysOnTop(alwaysOnTop bool) {
+	if rt.window == nil {
+		return
+	}
+	rt.window.SetAlwaysOnTop(alwaysOnTop)
 }
 
 func (rt *runtime) showWindow() {
