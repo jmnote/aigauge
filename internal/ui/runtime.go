@@ -78,3 +78,10 @@ func (rt *runtime) showWindow() {
 	rt.window.Show()
 	rt.window.Focus()
 }
+
+func (rt *runtime) hideToTray() {
+	if rt.window == nil {
+		return
+	}
+	rt.window.Hide()
+}
