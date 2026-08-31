@@ -3,6 +3,7 @@
 package ui
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
@@ -11,16 +12,13 @@ import (
 
 const (
 	spiGetClientAreaAnimation = 0x1042
-	awHide                    = 0x00010000
-	awSlide                   = 0x00040000
-	awHorizontalPositive      = 0x00000001
-	awVerticalPositive        = 0x00000004
-	hideAnimationDurationMS   = 180
+	swMinimize                = 6
+	minimizeAnimationDuration = 200 * time.Millisecond
 )
 
 var (
 	user32                = windows.NewLazySystemDLL("user32.dll")
-	animateWindow         = user32.NewProc("AnimateWindow")
+	showWindowProc        = user32.NewProc("ShowWindow")
 	systemParametersInfoW = user32.NewProc("SystemParametersInfoW")
 )
 
@@ -30,6 +28,12 @@ func (rt *runtime) hideToTray() {
 	}
 
 	application.InvokeSync(func() {
+		hwnd := uintptr(rt.window.NativeWindow())
+		if hwnd == 0 {
+			rt.window.Hide()
+			return
+		}
+
 		var animationsEnabled int32
 		systemParametersInfoW.Call(
 			spiGetClientAreaAnimation,
@@ -38,17 +42,18 @@ func (rt *runtime) hideToTray() {
 			0,
 		)
 
-		if animationsEnabled != 0 {
-			hwnd := uintptr(rt.window.NativeWindow())
-			if hwnd != 0 {
-				animateWindow.Call(
-					hwnd,
-					hideAnimationDurationMS,
-					awHide|awSlide|awHorizontalPositive|awVerticalPositive,
-				)
-			}
+		if animationsEnabled == 0 {
+			rt.window.Hide()
+			return
 		}
 
-		rt.window.Hide()
+		showWindowProc.Call(hwnd, uintptr(swMinimize))
+		time.AfterFunc(minimizeAnimationDuration, func() {
+			application.InvokeSync(func() {
+				if rt.window != nil {
+					rt.window.Hide()
+				}
+			})
+		})
 	})
 }
