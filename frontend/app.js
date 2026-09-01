@@ -28,8 +28,8 @@ function parseIntervalToSeconds(val) {
     if (mMatch) { total += parseInt(mMatch[1], 10) * 60; matched = true; }
     if (sMatch) { total += parseInt(sMatch[1], 10); matched = true; }
     if (matched) return Math.max(1, Math.min(3600, total));
-    const rawNum = parseInt(str, 10);
-    if (Number.isFinite(rawNum)) return Math.max(1, Math.min(3600, rawNum));
+    const rawNum = Number(str);
+    if (str !== '' && Number.isFinite(rawNum)) return Math.max(1, Math.min(3600, Math.round(rawNum)));
   }
   return 120;
 }
@@ -91,9 +91,11 @@ function normalizeProviderOrder(value) {
 
 function normalizeThreshold(raw, defaultThreshold, min, max) {
   const isObj = typeof raw === 'object' && raw !== null;
-  const rawValue = Number(isObj ? raw.value : raw);
-  const value = Number.isFinite(rawValue) && rawValue >= min && rawValue <= max
-    ? Math.round(rawValue) : defaultThreshold.value;
+  const rawInput = isObj ? raw.value : raw;
+  const num = typeof rawInput === 'string' && rawInput.trim() === '' ? NaN : Number(rawInput);
+  const rounded = Number.isFinite(num) ? Math.round(num) : NaN;
+  const value = Number.isFinite(rounded) && rounded >= min && rounded <= max
+    ? rounded : defaultThreshold.value;
   const enabled = isObj && typeof raw.enabled === 'boolean' ? raw.enabled : true;
   return { enabled, value };
 }
