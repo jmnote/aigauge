@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "test", "logo", "build", "package", "checks", "clean", "live-server", "snapshot", "screenshot-light", "screenshot-dark")]
+    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures")]
     [string]$Task = "build",
     [string]$Version = "",
     [ValidateSet("x64", "x86", "arm64")]
@@ -10,8 +10,33 @@ param(
     [switch]$ReleaseArtifact
 )
 
+# Screenshots render whatever's in frontend/fixtures/sample-*.json (the same
+# files `.\build.ps1 fixtures` writes and hack/live-server.ps1 serves) rather
+# than calling the real provider APIs, so capturing doesn't need a logged-in
+# Codex/Claude/Antigravity account or the tens of seconds a live fetch takes.
+function Get-ScreenshotFixturesDir {
+    $fixturesDir = Join-Path $PSScriptRoot "frontend\fixtures"
+    $missing = @("sample-codex.json", "sample-claude.json", "sample-antigravity.json") |
+        Where-Object { -not (Test-Path -LiteralPath (Join-Path $fixturesDir $_) -PathType Leaf) }
+    if ($missing.Count -gt 0) {
+        throw "Missing fixture(s) for screenshots: $($missing -join ', '). Run '.\build.ps1 fixtures' first."
+    }
+    return $fixturesDir
+}
+
 switch ($Task) {
     "run"   { Start-Process -FilePath "go" -ArgumentList "run ." -WorkingDirectory (Get-Location) -WindowStyle Hidden }
+    "kill"  {
+        # The app enforces a single running instance, so a leftover one from
+        # a previous run/build silently blocks a new one from starting.
+        $processes = @(Get-Process -Name "aigauge" -ErrorAction SilentlyContinue)
+        if ($processes.Count -gt 0) {
+            $processes | Stop-Process -Force
+            Write-Output ("Killed {0} aigauge.exe process(es)" -f $processes.Count)
+        } else {
+            Write-Output "No running aigauge.exe process found"
+        }
+    }
     "test"  { go test ./... }
     "logo" {
         & (Join-Path $PSScriptRoot "hack\convert-logo.ps1")
@@ -115,17 +140,26 @@ switch ($Task) {
         & (Join-Path $PSScriptRoot "hack\live-server.ps1")
         exit $LASTEXITCODE
     }
-    "snapshot" {
-        foreach ($snapshotTask in @("screenshot-light", "screenshot-dark")) {
-            & $PSCommandPath -Task $snapshotTask
+    "fixtures" {
+        Push-Location $PSScriptRoot
+        try {
+            go run ./hack/gensample
+        } finally {
+            Pop-Location
+        }
+        exit $LASTEXITCODE
+    }
+    "screenshot" {
+        foreach ($screenshotTask in @("screenshot-light", "screenshot-dark")) {
+            & $PSCommandPath -Task $screenshotTask
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
     }
     "screenshot-light" {
         & $PSCommandPath -Task build -Version $Version
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        $screenshotScript = Join-Path $PSScriptRoot "hack\capture-window.ps1"
-        $arguments = @{ Theme = "light" }
+        $screenshotScript = Join-Path $PSScriptRoot "hack\screenshot.ps1"
+        $arguments = @{ Theme = "light"; FixturesDir = (Get-ScreenshotFixturesDir); RenderWaitSeconds = 3 }
         if (-not [string]::IsNullOrWhiteSpace($ScreenshotPath)) { $arguments.OutputPath = $ScreenshotPath }
         & $screenshotScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -133,8 +167,8 @@ switch ($Task) {
     "screenshot-dark" {
         & $PSCommandPath -Task build -Version $Version
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        $screenshotScript = Join-Path $PSScriptRoot "hack\capture-window.ps1"
-        $arguments = @{ Theme = "dark" }
+        $screenshotScript = Join-Path $PSScriptRoot "hack\screenshot.ps1"
+        $arguments = @{ Theme = "dark"; FixturesDir = (Get-ScreenshotFixturesDir); RenderWaitSeconds = 3 }
         if (-not [string]::IsNullOrWhiteSpace($ScreenshotPath)) { $arguments.OutputPath = $ScreenshotPath }
         & $screenshotScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

@@ -41,8 +41,8 @@ func TestAppSetContentHeight(t *testing.T) {
 
 	app := NewApp(onResize, nil, nil)
 	app.SetContentHeight(350)
-	if capturedWidth != 300 || capturedHeight != 350 {
-		t.Errorf("Resize captured (%d, %d), want (300, 350)", capturedWidth, capturedHeight)
+	if capturedWidth != 250 || capturedHeight != 350 {
+		t.Errorf("Resize captured (%d, %d), want (250, 350)", capturedWidth, capturedHeight)
 	}
 
 	app.SetContentHeight(10) // below min

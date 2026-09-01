@@ -14,16 +14,25 @@ function Get-FrontendSnapshot {
 
 $runtime = @'
 globalThis.__AIGAUGE_LIVE__ = true;
-const getFixture = () => fetch('/fixtures/sample.json', { cache: 'no-store' }).then(response => response.json());
+// Each provider's fixture file holds exactly what its Wails RPC method
+// returns - no combined/wrapper file - so it doubles as a raw per-provider
+// snapshot (see hack/gensample) and the live-server fixture with no
+// conversion step between the two.
+const fixtureFiles = {
+  GetCodexUsage: 'sample-codex.json',
+  GetAntigravityUsage: 'sample-antigravity.json',
+  GetClaudeUsage: 'sample-claude.json',
+};
 const theme = new URLSearchParams(location.search).get('theme');
 export const Call = {
   ByName: async name => {
-    const fixture = await getFixture();
-    if (name.endsWith('GetCodexUsage')) return fixture.codex;
-    if (name.endsWith('GetAntigravityUsage')) return fixture.antigravity;
-    if (name.endsWith('GetClaudeUsage')) return fixture.claude;
+    const fixtureFile = Object.entries(fixtureFiles).find(([method]) => name.endsWith(method))?.[1];
+    if (fixtureFile) {
+      const response = await fetch(`/fixtures/${fixtureFile}`, { cache: 'no-store' });
+      return response.json();
+    }
     if (name.endsWith('GetThemeOverride')) return ['light', 'dark', 'system'].includes(theme) ? theme : '';
-    if (name.endsWith('GetVersion')) return fixture.version;
+    if (name.endsWith('GetVersion')) return 'vDEV';
     if (name.endsWith('SetContentHeight')) return null;
     if (name.endsWith('SetAlwaysOnTop')) return null;
     if (name.endsWith('HideToTray')) return null;
@@ -108,6 +117,7 @@ try {
             $content = [IO.File]::ReadAllBytes($resolvedFile)
             $contentType = switch ([IO.Path]::GetExtension($file).ToLowerInvariant()) {
                 '.html' { 'text/html; charset=utf-8' }
+                '.js' { 'text/javascript; charset=utf-8' }
                 '.css' { 'text/css; charset=utf-8' }
                 '.json' { 'application/json; charset=utf-8' }
                 '.png' { 'image/png' }

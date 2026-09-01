@@ -42,10 +42,11 @@ func Run(frontendAssets fs.FS, icon []byte) error {
 		},
 	})
 	rt.window = rt.application.Window.NewWithOptions(application.WebviewWindowOptions{
-		Title:     "AI Gauge",
-		Width:     300,
-		Height:    500,
-		Frameless: true,
+		Title:         "AI Gauge",
+		Width:         250,
+		Height:        250,
+		DisableResize: true,
+		Frameless:     true,
 		Windows: application.WindowsWindow{
 			NonClientRegionSupport: true,
 		},
