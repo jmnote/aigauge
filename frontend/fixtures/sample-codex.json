@@ -1,7 +1,7 @@
 {
   "plan": "plus",
-  "fiveHour": 80,
-  "sevenDay": 20,
+  "fiveHour": 33,
+  "sevenDay": 16,
   "fiveHourResetIn": 18000,
   "sevenDayResetIn": 508961,
   "fetchedAt": "2026-09-02T00:14:07+09:00"

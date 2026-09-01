@@ -3,12 +3,12 @@
   "buckets": [
     {
       "name": "5h",
-      "remaining": 50,
+      "remaining": 75,
       "resetTime": "2026-09-01T16:09:59.639605+00:00"
     },
     {
       "name": "7d",
-      "remaining": 84,
+      "remaining": 63,
       "resetTime": "2026-09-07T01:59:59.639631+00:00"
     }
   ],

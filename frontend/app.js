@@ -75,8 +75,8 @@ const defaultConfig = {
   theme: 'system',
   refreshInterval: 120,
   thresholds: {
-    warning: 50,
-    critical: 20
+    warning: { enabled: true, value: 50 },
+    critical: { enabled: true, value: 20 }
   }
 };
 
@@ -89,14 +89,21 @@ function normalizeProviderOrder(value) {
   return order;
 }
 
+function normalizeThreshold(raw, defaultThreshold, min, max) {
+  const isObj = typeof raw === 'object' && raw !== null;
+  const rawValue = Number(isObj ? raw.value : raw);
+  const value = Number.isFinite(rawValue) && rawValue >= min && rawValue <= max
+    ? Math.round(rawValue) : defaultThreshold.value;
+  const enabled = isObj && typeof raw.enabled === 'boolean' ? raw.enabled : true;
+  return { enabled, value };
+}
+
 function normalizeConfig(value) {
-  const warningValue = Number(value?.thresholds?.warning);
-  const criticalValue = Number(value?.thresholds?.critical);
-  const warning = Number.isFinite(warningValue) && warningValue >= 1 && warningValue <= 100
-    ? warningValue : defaultConfig.thresholds.warning;
-  let critical = Number.isFinite(criticalValue) && criticalValue >= 0 && criticalValue <= 99
-    ? criticalValue : defaultConfig.thresholds.critical;
-  if (critical >= warning) critical = Math.max(0, warning - 1);
+  const warning = normalizeThreshold(value?.thresholds?.warning, defaultConfig.thresholds.warning, 1, 100);
+  const critical = normalizeThreshold(value?.thresholds?.critical, defaultConfig.thresholds.critical, 0, 99);
+  if (warning.enabled && critical.enabled && critical.value >= warning.value) {
+    critical.value = Math.max(0, warning.value - 1);
+  }
 
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
   return {
@@ -120,12 +127,10 @@ try {
   config = normalizeConfig(defaultConfig);
 }
 
-let warningThreshold = config.thresholds.warning;
-let criticalThreshold = config.thresholds.critical;
-
 function applyLimitState(barElement, remaining) {
-  const state = remaining <= criticalThreshold ? 'critical'
-    : remaining <= warningThreshold ? 'warning' : '';
+  const { warning, critical } = config.thresholds;
+  const state = (critical.enabled && remaining <= critical.value) ? 'critical'
+    : (warning.enabled && remaining <= warning.value) ? 'warning' : '';
   barElement.classList.remove('warning', 'critical');
   if (state) barElement.classList.add(state);
 }
@@ -470,7 +475,9 @@ const pinWindowBtn = document.getElementById('pin-window');
 const themeButtonGroup = document.querySelector('.theme-button-group');
 const refreshPresetSelect = document.getElementById('refresh-preset-select');
 const refreshIntervalInput = document.getElementById('refresh-interval-input');
+const warningEnabledInput = document.getElementById('warning-enabled');
 const warningThresholdInput = document.getElementById('warning-threshold');
+const criticalEnabledInput = document.getElementById('critical-enabled');
 const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 
@@ -659,8 +666,12 @@ function openSettings() {
   renderProviderList();
   refreshIntervalInput.value = refreshInterval;
   updateRefreshPresetSelect(refreshInterval);
-  warningThresholdInput.value = warningThreshold;
-  criticalThresholdInput.value = criticalThreshold;
+  warningEnabledInput.checked = config.thresholds.warning.enabled;
+  warningThresholdInput.value = config.thresholds.warning.value;
+  warningThresholdInput.disabled = !config.thresholds.warning.enabled;
+  criticalEnabledInput.checked = config.thresholds.critical.enabled;
+  criticalThresholdInput.value = config.thresholds.critical.value;
+  criticalThresholdInput.disabled = !config.thresholds.critical.enabled;
   settingsDialog.showModal();
   requestWindowResize();
 }
@@ -682,23 +693,35 @@ document.getElementById('hide-window').addEventListener('click', () => {
 });
 
 function saveThresholds() {
-  if (warningThresholdInput.value === '' || criticalThresholdInput.value === '') return;
-  const warningValue = Number(warningThresholdInput.value);
-  const criticalValue = Number(criticalThresholdInput.value);
-  if (!Number.isFinite(warningValue) || !Number.isFinite(criticalValue)) return;
-  warningThreshold = Math.max(1, Math.min(100, warningValue));
-  criticalThreshold = Math.max(0, Math.min(99, criticalValue));
-  if (criticalThreshold >= warningThreshold) {
-    criticalThreshold = Math.max(0, warningThreshold - 1);
+  const warningEnabled = warningEnabledInput.checked;
+  const criticalEnabled = criticalEnabledInput.checked;
+
+  warningThresholdInput.disabled = !warningEnabled;
+  criticalThresholdInput.disabled = !criticalEnabled;
+
+  const warningVal = Number(warningThresholdInput.value);
+  const criticalVal = Number(criticalThresholdInput.value);
+
+  let warningValue = Number.isFinite(warningVal) ? Math.max(1, Math.min(100, Math.round(warningVal))) : config.thresholds.warning.value;
+  let criticalValue = Number.isFinite(criticalVal) ? Math.max(0, Math.min(99, Math.round(criticalVal))) : config.thresholds.critical.value;
+
+  if (warningEnabled && criticalEnabled && criticalValue >= warningValue) {
+    criticalValue = Math.max(0, warningValue - 1);
   }
-  warningThresholdInput.value = warningThreshold;
-  criticalThresholdInput.value = criticalThreshold;
-  config.thresholds.warning = warningThreshold;
-  config.thresholds.critical = criticalThreshold;
+
+  warningThresholdInput.value = warningValue;
+  criticalThresholdInput.value = criticalValue;
+
+  config.thresholds = {
+    warning: { enabled: warningEnabled, value: warningValue },
+    critical: { enabled: criticalEnabled, value: criticalValue }
+  };
   saveCurrentConfig();
   refreshLimitStates();
 }
 
+warningEnabledInput.addEventListener('change', saveThresholds);
+criticalEnabledInput.addEventListener('change', saveThresholds);
 warningThresholdInput.addEventListener('change', saveThresholds);
 criticalThresholdInput.addEventListener('change', saveThresholds);
 
