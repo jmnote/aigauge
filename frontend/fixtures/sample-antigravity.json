@@ -6,13 +6,13 @@
         {
           "name": "Weekly Limit Remaining",
           "window": "weekly",
-          "remaining": 72.96077609062195,
+          "remaining": 97,
           "resetTime": "2026-09-03T18:59:37Z"
         },
         {
           "name": "Five Hour Limit Remaining",
           "window": "5h",
-          "remaining": 80,
+          "remaining": 100,
           "resetTime": "2026-09-01T20:14:17Z"
         }
       ]

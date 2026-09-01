@@ -674,31 +674,57 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
+  cursor: pointer;
+  user-select: none;
 }
 
-.threshold-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
+.threshold-label input[type="checkbox"] {
+  margin: 0;
+  accent-color: var(--base-accent);
+  cursor: pointer;
 }
 
-.threshold-dot.warning {
-  background: var(--base-warning);
+.threshold-text {
+  font-weight: 500;
+  transition: color .15s ease;
 }
 
-.threshold-dot.critical {
-  background: var(--base-critical);
+.threshold-text.warning {
+  color: var(--base-warning);
 }
 
-.threshold-setting input {
-  width: 52px;
+.threshold-text.critical {
+  color: var(--base-critical);
+}
+
+.threshold-setting:has(input[type="checkbox"]:not(:checked)) .threshold-label {
+  opacity: .5;
+}
+
+.threshold-setting:has(input[type="checkbox"]:not(:checked)) .threshold-text {
+  color: var(--muted);
+}
+
+.threshold-setting:has(input[type="checkbox"]:not(:checked)) .threshold-value {
+  opacity: .35;
+}
+
+.threshold-value input {
+  width: 48px;
+  height: 24px;
   box-sizing: border-box;
-  padding: 4px;
+  padding: 2px 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--surface);
   color: var(--text);
-  text-align: right;
+  font-family: inherit;
+  font-size: .75rem;
+  text-align: center;
+}
+
+.threshold-value input:disabled {
+  cursor: not-allowed;
 }
 
 .refresh-setting-row {
@@ -717,13 +743,17 @@ button {
 .refresh-setting-row select {
   flex: 1;
   min-width: 65px;
-  padding: 4px 6px;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 2px 6px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--surface);
   color: var(--text);
   font-family: inherit;
   font-size: .75rem;
+  text-align: center;
+  text-align-last: center;
 }
 
 .refresh-setting-row .threshold-input-wrap {
@@ -736,15 +766,32 @@ button {
 
 .refresh-setting-row input {
   width: 48px;
+  height: 24px;
   box-sizing: border-box;
-  padding: 4px;
+  padding: 2px 4px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--surface);
   color: var(--text);
   font-family: inherit;
   font-size: .75rem;
-  text-align: right;
+  text-align: center;
+}
+
+.threshold-value input:focus,
+.refresh-setting-row select:focus,
+.refresh-setting-row input:focus {
+  outline: none;
+  border-color: var(--base-accent);
+  box-shadow: 0 0 0 1px var(--base-accent);
+}
+
+.threshold-value input:user-invalid,
+.threshold-value input:invalid,
+.refresh-setting-row input:user-invalid,
+.refresh-setting-row input:invalid {
+  outline: none;
+  box-shadow: none;
 }
 
 .theme-setting-row {
@@ -765,7 +812,12 @@ button {
 }
 
 .theme-option-btn {
-  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 24px;
+  padding: 0;
   border: 0;
   border-left: 1px solid var(--border);
   /* The group's own border-radius + overflow:hidden rounds the outer
@@ -776,9 +828,11 @@ button {
   border-radius: 0;
   background: var(--surface);
   color: var(--muted);
-  font-family: inherit;
-  font-size: .72rem;
   cursor: pointer;
+}
+
+.theme-option-btn svg {
+  display: block;
 }
 
 .theme-option-btn:first-child {

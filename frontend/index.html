@@ -65,12 +65,24 @@
       <form method="dialog" class="settings-form">
         <div id="provider-list" class="provider-options"></div>
         <div class="threshold-settings">
-          <label class="threshold-setting"><span class="threshold-label"><span
-                class="threshold-dot warning"></span>Warning</span><span class="threshold-value"><input
-                id="warning-threshold" type="number" min="1" max="100" step="1" /><span>%</span></span></label>
-          <label class="threshold-setting"><span class="threshold-label"><span
-                class="threshold-dot critical"></span>Critical</span><span class="threshold-value"><input
-                id="critical-threshold" type="number" min="0" max="99" step="1" /><span>%</span></span></label>
+          <div class="threshold-setting">
+            <label class="threshold-label">
+              <input id="warning-enabled" type="checkbox" />
+              <span class="threshold-text warning">Warning</span>
+            </label>
+            <span class="threshold-value">
+              <input id="warning-threshold" type="number" min="1" max="100" step="1" /><span>%</span>
+            </span>
+          </div>
+          <div class="threshold-setting">
+            <label class="threshold-label">
+              <input id="critical-enabled" type="checkbox" />
+              <span class="threshold-text critical">Critical</span>
+            </label>
+            <span class="threshold-value">
+              <input id="critical-threshold" type="number" min="0" max="99" step="1" /><span>%</span>
+            </span>
+          </div>
         </div>
         <div class="refresh-setting-row">
           <span class="refresh-label">Refresh</span>
@@ -91,9 +103,34 @@
         <div class="theme-setting-row">
           <span class="theme-label">Theme</span>
           <span class="theme-button-group" role="group" aria-label="Theme">
-            <button type="button" class="theme-option-btn" data-theme="light">Light</button>
-            <button type="button" class="theme-option-btn" data-theme="dark">Dark</button>
-            <button type="button" class="theme-option-btn" data-theme="system">System</button>
+            <button type="button" class="theme-option-btn" data-theme="light" title="Light" aria-label="Light">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <circle cx="12" cy="12" r="5"></circle>
+                <line x1="12" y1="1" x2="12" y2="3"></line>
+                <line x1="12" y1="21" x2="12" y2="23"></line>
+                <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+                <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+                <line x1="1" y1="12" x2="3" y2="12"></line>
+                <line x1="21" y1="12" x2="23" y2="12"></line>
+                <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+                <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+              </svg>
+            </button>
+            <button type="button" class="theme-option-btn" data-theme="dark" title="Dark" aria-label="Dark">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+              </svg>
+            </button>
+            <button type="button" class="theme-option-btn" data-theme="system" title="System" aria-label="System">
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                <line x1="8" y1="21" x2="16" y2="21"></line>
+                <line x1="12" y1="17" x2="12" y2="21"></line>
+              </svg>
+            </button>
           </span>
         </div>
         <div class="settings-version">
