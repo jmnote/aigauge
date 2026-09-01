@@ -4,7 +4,13 @@ param(
     [int]$WaitSeconds = 15,
     [int]$RenderWaitSeconds = 20,
     [ValidateSet("light", "dark", "system")]
-    [string]$Theme = "light"
+    [string]$Theme = "light",
+    # When set, launches the app with --fixtures=<dir> so it renders the given
+    # directory's saved sample-*.json fixtures (see hack/gensample) instead of
+    # calling the real Codex/Claude/Antigravity APIs - no live accounts or
+    # network round-trips needed, and $RenderWaitSeconds can be turned way
+    # down since there's no real fetch to wait on.
+    [string]$FixturesDir = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -108,7 +114,9 @@ function Add-RoundedShadow {
     } finally { $source.Dispose() }
 }
 
-$process = Start-Process -FilePath $Executable -ArgumentList "--theme=$Theme" -PassThru
+$processArgs = @("--theme=$Theme")
+if (-not [string]::IsNullOrWhiteSpace($FixturesDir)) { $processArgs += "--fixtures=$FixturesDir" }
+$process = Start-Process -FilePath $Executable -ArgumentList $processArgs -PassThru
 try {
     $deadline = (Get-Date).AddSeconds($WaitSeconds)
     do {

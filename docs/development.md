@@ -24,6 +24,9 @@ aigauge/
 .\build.ps1 test
 ```
 
+The app enforces a single running instance, so a leftover one from a previous `run` or `build`
+silently blocks a new one from starting. `.\build.ps1 kill` stops any running `aigauge.exe`.
+
 Before submitting changes, run:
 
 ```powershell
@@ -65,16 +68,33 @@ Start the fixture-backed browser preview:
 ```
 
 Open `http://localhost:8080/?theme=light` or `http://localhost:8080/?theme=dark`.
-The preview uses `frontend/fixtures/sample.json`, does not call Codex or Antigravity, and watches
-the entire `frontend/` directory. Saving any frontend file causes the browser preview to reload.
+The preview uses `frontend/fixtures/sample-codex.json`, `sample-claude.json`, and
+`sample-antigravity.json` - one fixture per provider, each holding exactly what that provider's
+Wails RPC method returns - does not call Codex or Antigravity, and watches the entire `frontend/`
+directory. Saving any frontend file (including a fixture) causes the browser preview to reload.
+
+To refresh those fixtures with real data (using your own local Codex/Claude session and the local
+`agy` CLI), run:
+
+```powershell
+.\build.ps1 fixtures
+```
+
+Because the output reflects your own account (plan tier, usage percentages, reset times), review
+the diff before committing `frontend/fixtures/sample-*.json`.
 
 ## Listing screenshots
 
 Capture the native Wails window in both themes:
 
 ```powershell
-.\build.ps1 snapshot
+.\build.ps1 screenshot
 ```
+
+`screenshot-light`/`screenshot-dark` launch the app with `--fixtures=frontend\fixtures`, so the
+window renders the same `sample-*.json` fixtures the frontend preview uses instead of calling the
+real provider APIs - no logged-in Codex/Claude/Antigravity account needed on the capturing machine,
+and no waiting on a live fetch. Run `.\build.ps1 fixtures` first if those fixtures don't exist yet.
 
 This runs the Light and Dark captures sequentially and writes:
 
@@ -82,11 +102,14 @@ This runs the Light and Dark captures sequentially and writes:
 - `docs/screenshots/aigauge-native-dark.png`
 
 Individual captures can be run with `screenshot-light` or `screenshot-dark`. To adjust the render
-wait, invoke the capture helper directly, for example:
+wait or point at a different fixture set, invoke the capture helper directly, for example:
 
 ```powershell
-.\hack\capture-window.ps1 -Theme light -RenderWaitSeconds 5
+.\hack\screenshot.ps1 -Theme light -RenderWaitSeconds 5 -FixturesDir frontend\fixtures
 ```
+
+Omit `-FixturesDir` to capture against live provider data instead (needs real logged-in accounts,
+and a longer `-RenderWaitSeconds` to give the real fetch time to finish).
 
 ## MSIX packaging
 

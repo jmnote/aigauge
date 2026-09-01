@@ -3,19 +3,13 @@
   height: 100%;
   font-family: system-ui, sans-serif;
 
+  /* Theme-invariant: same value in light and dark, so "base" (not a
+     --light-.../--dark-... pair) is the meaningful signal here. */
   --base-accent: #0084d1;
-  --base-on-accent: #fff;
-  --base-warning: hsl(36, 80%, 51%);
-  --base-critical: hsl(8, 80%, 51%);
+  --base-warning: #d90;
+  --base-critical: #c42;
   --base-status: #999;
-  --base-connected: #20a464;
-  --base-connected-light: #008f5a;
-  --base-connected-dark: #81c995;
-  --base-warning-dark: #fbbc04;
-  --base-button-hover-light: #ccc;
-  --base-button-hover-dark: #444;
-  --base-shadow-light: #0000001c;
-  --base-shadow-dark: #00000060;
+  --base-connected: #3b6;
   --base-dialog-shadow: #00000030;
   --base-backdrop: #00000040;
 
@@ -26,11 +20,10 @@
   --light-subtle: #777;
   --light-border: #ddd;
   --light-divider: #eee;
-  --light-group-divider: #eee;
   --light-bar-background: #ccc;
   --light-strong-divider: #ccc;
-  --light-selected-background: #ccc;
-  --light-selected-text: #222;
+  --light-button-hover: #ccc;
+  --light-shadow: #0000001c;
 
   --dark-background: #222;
   --dark-text: #eee;
@@ -39,10 +32,9 @@
   --dark-subtle: #999;
   --dark-border: #666;
   --dark-divider: #333;
-  --dark-group-divider: #333;
   --dark-bar-background: #444;
-  --dark-selected-background: #444;
-  --dark-selected-text: #eee;
+  --dark-button-hover: #444;
+  --dark-shadow: #00000060;
 
   --text: var(--light-text);
   --surface: var(--light-surface);
@@ -50,10 +42,7 @@
   --subtle: var(--light-subtle);
   --border: var(--light-border);
   --divider: var(--light-divider);
-  --group-divider: var(--light-group-divider);
   --bar-background: var(--light-bar-background);
-  --selected-background: var(--light-selected-background);
-  --selected-text: var(--light-selected-text);
 
   color: var(--text);
   background: var(--light-background);
@@ -79,9 +68,19 @@ h1 {
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  padding: 12px;
+  padding: 12px 12px 18px;
   overflow-x: hidden;
   overflow-y: auto;
+  /* The window is kept sized to fit content (SetContentHeight), so this
+     scrollbar only exists as a fallback for content taller than the 1600px
+     cap - it should never visibly appear otherwise, e.g. as a momentary
+     flash before the initial resize lands. Hide it but keep scrolling
+     itself (wheel/keyboard/programmatic) working for that fallback case. */
+  scrollbar-width: none;
+}
+
+.shell::-webkit-scrollbar {
+  display: none;
 }
 
 .titlebar {
@@ -89,7 +88,7 @@ h1 {
   flex: 0 0 30px;
   align-items: center;
   justify-content: space-between;
-  margin: -12px -12px 14px;
+  margin: -12px -12px 10px;
   padding: 0 0 0 8px;
   border-bottom: 1px solid var(--divider);
   background: transparent;
@@ -115,32 +114,33 @@ h1 {
   font-weight: 650;
 }
 
-.brand-version {
-  color: var(--subtle);
-  font-size: .64rem;
-}
-
 .heading {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 14px;
-}
-
-.heading strong {
-  font-size: 1.05rem;
-}
-
-.card-status {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.status-wrap {
   position: relative;
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  /* Negative margin compensates the padding so the title/dot still line up
+     with the card content below - only the hover/highlight box (which
+     includes padding) gets wider. 16px reaches the window's actual left/
+     right edges (.shell's 12px padding + .usage-card's 4px margin), for a
+     flush, square-cornered highlight rather than one inset within the card. */
+  margin: 0 -16px 14px;
+  padding: 0 16px;
+}
+
+.heading strong {
+  font-size: .78rem;
+}
+
+
+.status-area,
+.status-wrap {
+  display: flex;
+  align-items: center;
+}
+
+.status-area {
+  gap: 6px;
 }
 
 .status-dot {
@@ -170,34 +170,95 @@ h1 {
 
 .status-tooltip {
   position: absolute;
-  top: 16px;
-  right: 0;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 10;
   display: none;
-  width: 190px;
+  width: max-content;
+  max-width: 190px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
-  background: var(--surface);
-  box-shadow: 0 4px 14px var(--base-shadow-light);
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  box-shadow: 0 4px 14px var(--light-shadow);
   color: var(--muted);
   font-size: .7rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
+  pointer-events: none;
   white-space: pre-line;
-}
-
-.status-tooltip-row {
-  display: flex;
-}
-
-.status-tooltip-label {
-  flex: 0 0 90px;
+  /* Grid (not flex) so the label column is one `max-content` track shared
+     via subgrid across every row - it sizes to that tooltip instance's own
+     widest label ("Last error" vs. just "Plan") instead of a fixed width
+     sized for the longest label anywhere. */
+  grid-template-columns: max-content 1fr;
+  column-gap: 8px;
 }
 
 .heading:hover .status-tooltip,
-.status-wrap:focus .status-tooltip {
-  display: block;
+.heading:has(.status-area :focus-visible) .status-tooltip {
+  display: grid;
+}
+
+/* Set by app.js (setActiveTooltip) on every tooltip except the one just
+   entered, so a mouse-hover tooltip and a Tab-focused tooltip elsewhere
+   can't both show at once. Needs to outrank the rules above (each is one
+   more class than they have) since it must win regardless of which of them
+   would otherwise apply. */
+.heading:hover .status-tooltip.tooltip-suppressed,
+.heading:has(.status-area :focus-visible) .status-tooltip.tooltip-suppressed {
+  display: none;
+}
+
+.status-tooltip-row {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+}
+
+.status-tooltip-value {
+  grid-column: 2;
+}
+
+.provider-refresh-btn {
+  order: -1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  font-size: .75rem;
+  line-height: 1;
+  opacity: 0;
+  pointer-events: none;
+  visibility: hidden;
+  cursor: pointer;
+}
+
+.heading:hover .provider-refresh-btn,
+.heading:has(.status-area :focus-visible) .provider-refresh-btn {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+}
+
+.provider-refresh-btn:hover {
+  color: var(--text);
+}
+
+.provider-refresh-btn:focus-visible {
+  color: var(--text);
+  outline: 2px solid var(--base-accent);
+  outline-offset: 1px;
 }
 
 .status-wrap:focus-visible {
@@ -244,20 +305,24 @@ button {
 }
 
 .window-buttons button:hover {
-  background: var(--base-button-hover-light);
+  background: var(--light-button-hover);
   color: var(--text);
 }
 
 .window-buttons button:last-child:hover {
-  background: var(--base-button-hover-light);
+  background: var(--light-button-hover);
   color: var(--muted);
 }
 
-.window-buttons .pin-btn {
-  font-size: .85rem;
+.window-buttons svg,
+.settings-titlebar svg {
+  width: 13px;
+  height: 13px;
 }
 
 .window-buttons .pin-btn svg {
+  width: 12px;
+  height: 12px;
   transition: transform .15s ease, color .15s ease;
 }
 
@@ -269,33 +334,68 @@ button {
   transform: rotate(45deg);
 }
 
+.usage-sections {
+  display: flex;
+  flex-direction: column;
+}
+
 .usage-card {
+  display: flex;
+  flex-direction: column;
   margin: 0 4px;
   padding-top: 2px;
   background: transparent;
 }
 
+.usage-card>.heading,
+.usage-card>.provider-error {
+  width: 100%;
+}
+
+.usage-card>.heading {
+  margin-bottom: 12px;
+}
+
+#codex-groups>.limit:first-child,
+#claude-groups>.limit:first-child {
+  margin-top: 0;
+}
+
 .usage-card.card-divider {
-  margin: 16px 4px 0;
-  padding-top: 14px;
-  border-top: 1px solid var(--divider);
+  margin: 20px 4px 0;
+  padding-top: 0;
+}
+
+#codex-groups,
+#claude-groups,
+#agy-groups {
+  display: flex;
+  flex-direction: column;
+}
+
+#codex-loading,
+#claude-loading,
+#agy-loading {
+  width: 100%;
 }
 
 .agy-group {
+  display: flex;
+  flex-direction: column;
   background: transparent;
 }
 
 .agy-group+.agy-group {
-  margin-top: 12px;
-  padding-top: 10px;
-  border-top: 1px solid var(--group-divider);
+  margin-top: 16px;
+  padding-top: 0;
 }
 
 .agy-group-title {
-  margin-bottom: 7px;
+  margin-bottom: 2px;
   color: var(--muted);
-  font-size: .78rem;
-  font-weight: 650;
+  font-size: .66rem;
+  font-weight: 400;
+  line-height: 1.2;
 }
 
 .plan,
@@ -327,34 +427,73 @@ button {
 }
 
 .limit {
-  margin-top: 12px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin-top: 8px;
 }
 
-.limit-label {
+#codex-groups>.limit:first-child,
+#claude-groups>.limit:first-child,
+.agy-group>.limit:first-child {
+  margin-top: 0;
+}
+
+.limit-info {
   display: flex;
-  justify-content: flex-start;
-  margin-bottom: 7px;
-  font-size: .75rem;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.limit-meta {
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.limit-label-text {
+  color: var(--text);
+  font-size: .68rem;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
 .inline-reset {
-  margin-left: 8px;
   overflow: hidden;
   color: var(--subtle);
+  font-size: .62rem;
   font-weight: 400;
+  line-height: 1.2;
+  opacity: .8;
+  text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
+  border-radius: 3px;
+  cursor: default;
+}
+
+.inline-reset:empty {
+  display: none;
 }
 
 .limit-value {
-  margin-left: auto;
+  flex-shrink: 0;
+  min-width: 3ch;
+  color: var(--text);
+  font-size: .68rem;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
 }
 
 .bar {
-  height: 8px;
+  width: 100%;
+  height: 5px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 5px;
   background: var(--bar-background);
 }
 
@@ -381,6 +520,20 @@ button {
 }
 
 .settings-dialog {
+  /* A modal <dialog> centers itself in the full viewport by default
+     (UA `inset: 0; margin: auto`), which - when the window is short
+     because few providers are enabled - can center it flush against the
+     top .titlebar (drag region, pin/theme/settings/close buttons) or the
+     window's bottom edge. Reserving space on both sides here keeps it
+     clear of both; margin:auto (still from the UA stylesheet, untouched
+     here) then centers it within what's left. requestWindowResize() adds
+     the same 31px + 12px when sizing the window for an open dialog, so the
+     dialog is never clipped. 31px, not .titlebar's 30px flex-basis - its
+     own border-bottom adds a 31st pixel. 12px (not 31px) at the bottom -
+     there's no titlebar-like element to clear there, just a little
+     breathing room to match .shell's own edge padding. */
+  top: 31px;
+  bottom: 12px;
   width: 220px;
   padding: 0;
   border: 1px solid var(--border);
@@ -388,101 +541,67 @@ button {
   background: var(--surface);
   color: var(--text);
   box-shadow: 0 8px 30px var(--base-dialog-shadow);
+  overflow: hidden;
 }
 
 .settings-dialog::backdrop {
   background: var(--base-backdrop);
 }
 
-.settings-form {
-  padding: 16px;
-}
-
-.settings-header {
+.settings-titlebar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 16px;
+  height: 32px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  user-select: none;
 }
 
-.settings-header h2 {
-  margin: 0;
-  font-size: 1rem;
+.settings-brand {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+}
+
+.settings-icon {
+  color: var(--muted);
+}
+
+.settings-title {
+  color: var(--text);
+  font-size: .8rem;
+  font-weight: 600;
 }
 
 .dialog-close {
-  padding: 0 6px;
-  border: 0;
-  background: transparent;
-  font-size: 1.2rem;
-}
-
-.dialog-close:hover {
-  background: var(--bar-background);
-}
-
-fieldset {
-  margin: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 100%;
   padding: 0;
   border: 0;
-}
-
-legend {
-  margin-bottom: 10px;
-  font-size: .8rem;
-  font-weight: 650;
-}
-
-.theme-options {
-  display: flex;
-}
-
-.theme-options label {
-  flex: 1;
-  padding: 7px 4px;
-  border: 1px solid var(--border);
+  border-radius: 0;
+  background: transparent;
   color: var(--muted);
-  font-size: .75rem;
-  text-align: center;
   cursor: pointer;
 }
 
-.theme-options label+label {
-  margin-left: -1px;
+.dialog-close:hover {
+  background: var(--light-button-hover);
+  color: var(--muted);
 }
 
-.theme-options label:first-of-type {
-  border-radius: 6px 0 0 6px;
-}
-
-.theme-options label:last-of-type {
-  border-radius: 0 6px 6px 0;
-}
-
-.theme-options label:has(input:checked) {
-  border-color: var(--border);
-  background: var(--selected-background);
-  color: var(--selected-text);
-}
-
-.theme-options label:focus-within {
-  position: relative;
-  z-index: 1;
-  outline: 2px solid var(--base-accent);
-  outline-offset: -2px;
-}
-
-.theme-options input {
-  position: absolute;
-  opacity: 0;
-  pointer-events: none;
+.settings-form {
+  padding: 14px 16px 16px;
 }
 
 .provider-options {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  margin-top: 16px;
 }
 
 .provider-row {
@@ -529,16 +648,19 @@ legend {
 }
 
 .threshold-settings {
-  margin-top: 16px;
+  padding-top: 20px;
 }
 
 .threshold-setting {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-top: 8px;
   color: var(--muted);
   font-size: .75rem;
+}
+
+.threshold-setting+.threshold-setting {
+  margin-top: 8px;
 }
 
 .threshold-value {
@@ -560,8 +682,13 @@ legend {
   border-radius: 50%;
 }
 
-.threshold-dot.warning { background: var(--base-warning); }
-.threshold-dot.critical { background: var(--base-critical); }
+.threshold-dot.warning {
+  background: var(--base-warning);
+}
+
+.threshold-dot.critical {
+  background: var(--base-critical);
+}
 
 .threshold-setting input {
   width: 52px;
@@ -578,7 +705,7 @@ legend {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 16px;
+  padding-top: 20px;
   color: var(--muted);
   font-size: .75rem;
 }
@@ -620,6 +747,66 @@ legend {
   text-align: right;
 }
 
+.theme-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 20px;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.theme-button-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.theme-option-btn {
+  padding: 4px 8px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  /* The group's own border-radius + overflow:hidden rounds the outer
+     corners of the whole pill - each button must stay square itself
+     (overriding the global `button { border-radius: 6px }` reset), or the
+     dividers between them show as rounded notches instead of straight
+     lines. */
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: .72rem;
+  cursor: pointer;
+}
+
+.theme-option-btn:first-child {
+  border-left: 0;
+}
+
+/* Ancestor-scoped (not just .theme-option-btn.active) to safely outrank the
+   theme-scoped `button { background; color }` reset nested under
+   :root[data-resolved-theme] below - that rule's specificity (an attribute
+   selector plus a type selector) otherwise ties or beats a plain two-class
+   selector here, and wins on source order. */
+.theme-button-group .theme-option-btn.active {
+  background: var(--base-accent);
+  color: #fff;
+}
+
+.settings-version {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding-top: 20px;
+  color: var(--subtle);
+  font-size: .68rem;
+  letter-spacing: .02em;
+  user-select: none;
+}
+
 .no-providers {
   display: flex;
   flex-direction: column;
@@ -657,16 +844,18 @@ legend {
     --subtle: var(--dark-subtle);
     --border: var(--dark-border);
     --divider: var(--dark-divider);
-    --group-divider: var(--dark-group-divider);
     --bar-background: var(--dark-bar-background);
-    --selected-background: var(--dark-selected-background);
-    --selected-text: var(--dark-selected-text);
     color: var(--text);
     background: var(--dark-background);
   }
 
   :root[data-theme="system"] body {
     color: var(--text);
+  }
+
+  :root[data-theme="system"] .reset,
+  :root[data-theme="system"] .inline-reset {
+    color: var(--muted);
   }
 }
 
@@ -677,7 +866,6 @@ legend {
   --subtle: var(--light-subtle);
   --border: var(--light-border);
   --divider: var(--light-divider);
-  --group-divider: var(--light-group-divider);
   --bar-background: var(--light-bar-background);
   color: var(--text);
   background: var(--light-background);
@@ -697,17 +885,35 @@ legend {
   }
 
   .window-buttons button:hover {
-    background: var(--base-button-hover-light);
+    background: var(--light-button-hover);
   }
 
   .window-buttons button:last-child:hover {
-    background: var(--base-button-hover-light);
+    background: var(--light-button-hover);
     color: var(--muted);
+  }
+
+  .provider-refresh-btn {
+    border-color: transparent;
+    background: transparent;
+  }
+
+  .provider-refresh-btn:hover,
+  .provider-refresh-btn:focus-visible {
+    background: var(--light-button-hover);
+  }
+
+  .theme-option-btn:not(.active):hover {
+    background: var(--light-button-hover);
+  }
+
+  .heading:hover,
+  .heading:has(.status-area :focus-visible) {
+    background: color-mix(in srgb, var(--light-button-hover) 50%, transparent);
   }
 
   .status-tooltip {
     border-color: var(--border);
-    background: var(--surface);
     color: var(--muted);
   }
 
@@ -719,25 +925,10 @@ legend {
     color: var(--text);
   }
 
-  .brand-version {
-    color: var(--subtle);
-  }
-
-  .status-dot.connected {
-    background: var(--base-connected-light);
-  }
-
   .titlebar {
     border-bottom-color: var(--light-strong-divider);
   }
 
-  .usage-card.card-divider {
-    border-top-color: var(--light-strong-divider);
-  }
-
-  .agy-group+.agy-group {
-    border-top-color: var(--light-strong-divider);
-  }
 
   .plan {
     color: var(--subtle);
@@ -756,10 +947,7 @@ legend {
   --subtle: var(--dark-subtle);
   --border: var(--dark-border);
   --divider: var(--dark-divider);
-  --group-divider: var(--dark-group-divider);
   --bar-background: var(--dark-bar-background);
-  --selected-background: var(--dark-selected-background);
-  --selected-text: var(--dark-selected-text);
   color: var(--text);
   background: var(--dark-background);
 
@@ -777,37 +965,54 @@ legend {
     background: transparent;
   }
 
-  .window-buttons button:last-child:hover {
-    background: var(--base-button-hover-dark);
+  .window-buttons button:last-child:hover,
+  .dialog-close:hover {
+    background: var(--dark-button-hover);
     color: var(--muted);
   }
 
   .window-buttons button:hover {
-    background: var(--base-button-hover-dark);
+    background: var(--dark-button-hover);
   }
 
-  .status-dot.connected {
-    background: var(--base-connected-dark);
+  .provider-refresh-btn {
+    border-color: transparent;
+    background: transparent;
   }
 
-  .status-dot.warning {
-    background: var(--base-warning-dark);
+  .provider-refresh-btn:hover,
+  .provider-refresh-btn:focus-visible {
+    background: var(--dark-button-hover);
+  }
+
+  .theme-option-btn:not(.active):hover {
+    background: var(--dark-button-hover);
+  }
+
+  .heading:hover,
+  .heading:has(.status-area :focus-visible) {
+    background: color-mix(in srgb, var(--dark-button-hover) 50%, transparent);
   }
 
   .status-tooltip {
     border-color: var(--border);
-    background: var(--surface);
     color: var(--muted);
-    box-shadow: 0 4px 14px var(--base-shadow-dark);
+    box-shadow: 0 4px 14px var(--dark-shadow);
   }
 
   .agy-group-title {
     color: var(--muted);
   }
 
+  .reset,
+  .inline-reset {
+    color: var(--muted);
+  }
+
 }
 
 @media (prefers-reduced-motion: reduce) {
+
   .status-dot.loading,
   .loading-text {
     animation: none;
