@@ -21,6 +21,7 @@ export const Call = {
     const fixture = await getFixture();
     if (name.endsWith('GetCodexUsage')) return fixture.codex;
     if (name.endsWith('GetAntigravityUsage')) return fixture.antigravity;
+    if (name.endsWith('GetClaudeUsage')) return fixture.claude;
     if (name.endsWith('GetThemeOverride')) return ['light', 'dark', 'system'].includes(theme) ? theme : '';
     if (name.endsWith('GetVersion')) return fixture.version;
     if (name.endsWith('SetContentHeight')) return null;
