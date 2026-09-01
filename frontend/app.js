@@ -652,8 +652,7 @@ function updateRefreshPresetSelect(seconds) {
 }
 
 function setRefreshInterval(val) {
-  let seconds = Number(val);
-  seconds = Number.isFinite(seconds) ? Math.max(1, Math.min(3600, Math.round(seconds))) : 120;
+  const seconds = typeof val === 'string' && val.trim() === '' ? config.refreshInterval : parseIntervalToSeconds(val);
   refreshInterval = seconds;
   config.refreshInterval = refreshInterval;
   refreshIntervalInput.value = refreshInterval;
@@ -692,6 +691,14 @@ document.getElementById('hide-window').addEventListener('click', () => {
   wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.HideToTray').catch(() => wails.Window.Hide());
 });
 
+function parseThresholdInput(inputEl, fallback, min, max) {
+  const str = inputEl.value.trim();
+  if (str === '') return fallback;
+  const num = Number(str);
+  if (!Number.isFinite(num)) return fallback;
+  return Math.max(min, Math.min(max, Math.round(num)));
+}
+
 function saveThresholds() {
   const warningEnabled = warningEnabledInput.checked;
   const criticalEnabled = criticalEnabledInput.checked;
@@ -699,11 +706,8 @@ function saveThresholds() {
   warningThresholdInput.disabled = !warningEnabled;
   criticalThresholdInput.disabled = !criticalEnabled;
 
-  const warningVal = Number(warningThresholdInput.value);
-  const criticalVal = Number(criticalThresholdInput.value);
-
-  let warningValue = Number.isFinite(warningVal) ? Math.max(1, Math.min(100, Math.round(warningVal))) : config.thresholds.warning.value;
-  let criticalValue = Number.isFinite(criticalVal) ? Math.max(0, Math.min(99, Math.round(criticalVal))) : config.thresholds.critical.value;
+  let warningValue = parseThresholdInput(warningThresholdInput, config.thresholds.warning.value, 1, 100);
+  let criticalValue = parseThresholdInput(criticalThresholdInput, config.thresholds.critical.value, 0, 99);
 
   if (warningEnabled && criticalEnabled && criticalValue >= warningValue) {
     criticalValue = Math.max(0, warningValue - 1);
