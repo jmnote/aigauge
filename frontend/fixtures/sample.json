@@ -40,5 +40,25 @@
         ]
       }
     ]
+  },
+  "claude": {
+    "plan": "pro",
+    "buckets": [
+      {
+        "name": "5h",
+        "remaining": 62,
+        "resetTime": "2030-08-30T05:00:00Z"
+      },
+      {
+        "name": "7d",
+        "remaining": 38,
+        "resetTime": "2030-09-05T00:00:00Z"
+      },
+      {
+        "name": "7d (Opus)",
+        "remaining": 90,
+        "resetTime": "2030-09-05T00:00:00Z"
+      }
+    ]
   }
 }

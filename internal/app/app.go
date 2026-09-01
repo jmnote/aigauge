@@ -56,3 +56,7 @@ func (a *App) GetCodexUsage() providers.CodexUsage {
 func (a *App) GetAntigravityUsage() providers.AntigravityUsage {
 	return providers.GetAntigravityUsage()
 }
+
+func (a *App) GetClaudeUsage() providers.ClaudeUsage {
+	return providers.GetClaudeUsage()
+}

@@ -4,7 +4,7 @@
   <img src="frontend/logo.svg" width="96" alt="AI Gauge logo">
 </p>
 
-<p align="center">A lightweight Windows tray widget for monitoring OpenAI Codex and Google Antigravity usage.</p>
+<p align="center">A lightweight Windows tray widget for monitoring OpenAI Codex, Google Antigravity, and Claude Code usage.</p>
 
 <p align="center">
   <img src="docs/screenshots/aigauge-native-light.png" width="320" alt="AI Gauge Light theme">
@@ -15,7 +15,9 @@
 
 - View remaining Codex quotas and reset times for the 5-hour and 7-day windows.
 - View Google Antigravity (`agy`) model-group quotas and reset times.
-- Enable or disable Codex and Antigravity monitoring independently.
+- View remaining Claude Code quotas and reset times for the 5-hour and 7-day (weekly) windows.
+- Enable or disable Codex, Antigravity, and Claude monitoring independently.
+- Reorder the provider cards to match your preference.
 - Automatically adjusts window size to fit active content.
 - Keep the widget always on top with the title bar pin button.
 - Refresh usage automatically in the background at a configurable interval.
@@ -27,7 +29,7 @@
 ## Usage
 
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
-Click the pin button on the title bar to toggle **Always on top**. Use the Settings button to enable/disable providers, configure thresholds, change the refresh interval, or choose a theme.
+Click the pin button on the title bar to toggle **Always on top**. Use the Settings button to enable/disable and reorder providers, configure thresholds, change the refresh interval, or choose a theme.
 The widget's `×` button hides it to the tray. Closing it from the taskbar, pressing Alt+F4, or
 choosing **Exit** from the tray menu quits the application.
 
@@ -36,19 +38,21 @@ choosing **Exit** from the tray menu quits the application.
 - Windows 10 or Windows 11 (64-bit)
 - A local OpenAI Codex login session
 - The Google Antigravity `agy` command-line tool, if Antigravity usage is needed
+- A local Claude Code login session, if Claude usage is needed
 
 ## How it works
 
-AI Gauge is a standalone Windows application. It reads the local Codex login session and invokes
-the locally installed `agy` command-line tool when Antigravity usage is enabled. It then displays
-the retrieved usage information in the widget.
+AI Gauge is a standalone Windows application. It reads the local Codex and Claude Code login
+sessions and invokes the locally installed `agy` command-line tool when Antigravity usage is
+enabled. It then displays the retrieved usage information in the widget.
 
 ## Privacy
 
 AI Gauge is a standalone local application. Usage data is processed and displayed on your
 Windows device and is not stored by AI Gauge. AI Gauge does not request or store passwords,
-payment information, or unrelated personal data. It uses the existing local Codex login session
-and the authentication managed by `agy` without storing a separate copy of their credentials.
+payment information, or unrelated personal data. It uses the existing local Codex and Claude Code
+login sessions and the authentication managed by `agy` without storing a separate copy of their
+credentials.
 
 Any network communication and data handling by connected services are governed by their own
 authentication and privacy policies.
@@ -59,6 +63,10 @@ authentication and privacy policies.
 - AI Gauge uses the access token maintained by Codex and does not refresh it itself. If the token
   has expired, sign in again with Codex so that `~/.codex/auth.json` is updated.
 - If Antigravity data is unavailable, verify that `agy` is installed and available to the app.
+- If Claude data is unavailable, verify that the local Claude Code login session is active.
+  AI Gauge uses the access token maintained by Claude Code and does not refresh it itself. If the
+  token has expired, sign in again with Claude Code so that `~/.claude/.credentials.json` is
+  updated.
 - Check the status dot tooltip for failure count, last successful fetch, last error, and next fetch.
 
 ## For developers

@@ -44,10 +44,7 @@
         </fieldset>
         <fieldset>
           <legend>Providers</legend>
-          <div class="provider-options">
-            <label class="provider-setting"><input type="checkbox" id="provider-codex" /> Codex</label>
-            <label class="provider-setting"><input type="checkbox" id="provider-antigravity" /> Antigravity</label>
-          </div>
+          <div id="provider-list" class="provider-options"></div>
         </fieldset>
         <fieldset class="threshold-settings">
           <legend>Thresholds</legend>
@@ -83,25 +80,26 @@
     <section id="codex-card" class="usage-card">
       <div class="heading">
         <strong>Codex</strong>
-        <span class="card-status"><span id="plan" class="plan"></span><span class="status-wrap" tabindex="0"
+        <span class="card-status"><span id="codex-plan" class="plan"></span><span class="status-wrap" tabindex="0"
             aria-label="Codex connection status"><span id="codex-dot"
               class="status-dot"></span><span id="codex-tooltip" class="status-tooltip"></span></span></span>
       </div>
-      <div class="limit">
-        <div class="limit-label"><span>5h</span><span id="five-hour-reset" class="inline-reset"></span><span
-            id="five-hour-value" class="limit-value loading-text">-</span></div>
-        <div class="bar">
-          <div id="five-hour-bar" class="fill" style="width: 0%"></div>
-        </div>
-      </div>
-      <div class="limit">
-        <div class="limit-label"><span>7d</span><span id="seven-day-reset" class="inline-reset"></span><span
-            id="seven-day-value" class="limit-value loading-text">-</span></div>
-        <div class="bar">
-          <div id="seven-day-bar" class="fill" style="width: 0%"></div>
-        </div>
+      <div id="codex-groups">
+        <div id="codex-loading" class="plan loading-text">Loading usage...</div>
       </div>
       <div id="codex-error" class="provider-error" role="status" hidden></div>
+    </section>
+    <section id="claude-card" class="usage-card">
+      <div class="heading">
+        <strong>Claude</strong>
+        <span class="card-status"><span id="claude-plan" class="plan"></span><span class="status-wrap" tabindex="0"
+            aria-label="Claude connection status"><span id="claude-dot"
+              class="status-dot"></span><span id="claude-tooltip" class="status-tooltip"></span></span></span>
+      </div>
+      <div id="claude-groups">
+        <div id="claude-loading" class="plan loading-text">Loading usage...</div>
+      </div>
+      <div id="claude-error" class="provider-error" role="status" hidden></div>
     </section>
     <section id="agy-card" class="usage-card">
       <div class="heading">
@@ -161,11 +159,36 @@
       }
     }
 
-    const defaultConfig = {
-      providers: {
-        codex: { enabled: true },
-        antigravity: { enabled: true }
+    // Render functions are declared later in this file as `function` statements,
+    // so they're already hoisted by the time this array literal runs. Listed
+    // reverse-alphabetically by label - that order also seeds the default
+    // providerOrder (below) and the initial card layout.
+    const PROVIDERS = [
+      {
+        id: 'codex', label: 'Codex', rpcMethod: 'GetCodexUsage',
+        cardId: 'codex-card', groupsId: 'codex-groups', planId: 'codex-plan',
+        dotId: 'codex-dot', tooltipId: 'codex-tooltip', errorId: 'codex-error',
+        render: renderUsage
       },
+      {
+        id: 'claude', label: 'Claude', rpcMethod: 'GetClaudeUsage',
+        cardId: 'claude-card', groupsId: 'claude-groups', planId: 'claude-plan',
+        dotId: 'claude-dot', tooltipId: 'claude-tooltip', errorId: 'claude-error',
+        render: renderClaude
+      },
+      {
+        id: 'antigravity', label: 'Antigravity', rpcMethod: 'GetAntigravityUsage',
+        cardId: 'agy-card', groupsId: 'agy-groups', planId: 'agy-plan',
+        dotId: 'agy-dot', tooltipId: 'agy-tooltip', errorId: 'agy-error',
+        render: renderAntigravity
+      }
+    ];
+    const PROVIDERS_BY_ID = new Map(PROVIDERS.map(p => [p.id, p]));
+    const providerIds = PROVIDERS.map(p => p.id);
+
+    const defaultConfig = {
+      providers: Object.fromEntries(providerIds.map(id => [id, { enabled: true }])),
+      providerOrder: providerIds.slice(),
       theme: 'system',
       refreshInterval: 120,
       thresholds: {
@@ -173,6 +196,15 @@
         critical: 20
       }
     };
+
+    function normalizeProviderOrder(value) {
+      const known = Array.isArray(value) ? value.filter(id => providerIds.includes(id)) : [];
+      const order = [...new Set(known)];
+      for (const id of providerIds) {
+        if (!order.includes(id)) order.push(id);
+      }
+      return order;
+    }
 
     function normalizeConfig(value) {
       const warningValue = Number(value?.thresholds?.warning);
@@ -185,10 +217,8 @@
 
       const theme = value?.theme === 'auto' ? 'system' : value?.theme;
       return {
-        providers: {
-          codex: { enabled: value?.providers?.codex?.enabled !== false },
-          antigravity: { enabled: value?.providers?.antigravity?.enabled !== false }
-        },
+        providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
+        providerOrder: normalizeProviderOrder(value?.providerOrder),
         theme: validThemes.has(theme) ? theme : defaultConfig.theme,
         refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
         thresholds: { warning, critical }
@@ -299,16 +329,16 @@
     };
 
     let refreshInterval = parseIntervalToSeconds(config.refreshInterval);
-    let codexNextRefreshAt = Date.now() + refreshInterval * 1000;
-    let antigravityNextRefreshAt = Date.now() + refreshInterval * 1000;
-    let codexTimerId = null;
-    let antigravityTimerId = null;
-    let codexFailureCount = 0;
-    let antigravityFailureCount = 0;
-    let codexLastSuccessAt = 0;
-    let antigravityLastSuccessAt = 0;
-    let codexLastError = '';
-    let antigravityLastError = '';
+    // One record per provider instead of a parallel `let` per provider per field -
+    // adding a provider only means adding an entry to PROVIDERS above.
+    const providerState = new Map(providerIds.map(id => [id, {
+      nextRefreshAt: Date.now() + refreshInterval * 1000,
+      timerId: null,
+      fetching: false,
+      failureCount: 0,
+      lastSuccessAt: 0,
+      lastError: ''
+    }]));
 
     function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefreshAt, lastError) {
       const dot = document.getElementById(dotId);
@@ -325,6 +355,12 @@
         ...(lastError ? [createTooltipRow('Last error', lastError)] : []),
         createTooltipRow('Next fetch', nextRefreshText),
       );
+    }
+
+    function updateProviderStatus(id) {
+      const meta = PROVIDERS_BY_ID.get(id);
+      const state = providerState.get(id);
+      updateStatus(meta.dotId, meta.tooltipId, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError);
     }
 
     function createTooltipRow(labelText, valueText) {
@@ -353,20 +389,13 @@
       return Math.min(refreshInterval * (2 ** Math.min(failureCount, 4)), 1800);
     }
 
-    function scheduleCodex() {
-      clearTimeout(codexTimerId);
-      if (!config.providers.codex.enabled) return;
-      const delay = retryDelay(codexFailureCount);
-      codexNextRefreshAt = Date.now() + delay * 1000;
-      codexTimerId = setTimeout(fetchCodex, delay * 1000);
-    }
-
-    function scheduleAntigravity() {
-      clearTimeout(antigravityTimerId);
-      if (!config.providers.antigravity.enabled) return;
-      const delay = retryDelay(antigravityFailureCount);
-      antigravityNextRefreshAt = Date.now() + delay * 1000;
-      antigravityTimerId = setTimeout(fetchAntigravity, delay * 1000);
+    function scheduleProvider(id) {
+      const state = providerState.get(id);
+      clearTimeout(state.timerId);
+      if (!config.providers[id].enabled) return;
+      const delay = retryDelay(state.failureCount);
+      state.nextRefreshAt = Date.now() + delay * 1000;
+      state.timerId = setTimeout(() => fetchProvider(id), delay * 1000);
     }
 
     function setLoading(dotId, loading) {
@@ -377,49 +406,79 @@
       document.querySelectorAll(`#${cardId} .loading-text`).forEach(element => element.classList.remove('loading-text'));
     }
 
-    function showProviderError(providerId, message) {
-      const element = document.getElementById(`${providerId}-error`);
+    function showProviderError(errorId, message) {
+      const element = document.getElementById(errorId);
       element.textContent = message;
       element.hidden = !message;
     }
 
-    function renderUsage(usage, failureCount) {
+    function renderUsage(id, usage) {
+      const meta = PROVIDERS_BY_ID.get(id);
+      const groups = document.getElementById(meta.groupsId);
       if (usage.error) {
-        showProviderError('codex', usage.error);
-        updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
+        groups.replaceChildren();
+        showProviderError(meta.errorId, usage.error);
+        updateProviderStatus(id);
         requestWindowResize();
         return;
       }
-      showProviderError('codex', '');
-      const fiveHourRemaining = Math.max(0, Math.min(100, 100 - usage.fiveHour));
-      const sevenDayRemaining = Math.max(0, Math.min(100, 100 - usage.sevenDay));
-      document.getElementById('plan').textContent = usage.plan || 'Codex';
-      updateStatus('codex-dot', 'codex-tooltip', failureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
-      document.getElementById('five-hour-value').textContent = `${fiveHourRemaining.toFixed(0)}%`;
-      document.getElementById('seven-day-value').textContent = `${sevenDayRemaining.toFixed(0)}%`;
-      document.getElementById('five-hour-bar').style.width = `${fiveHourRemaining}%`;
-      document.getElementById('seven-day-bar').style.width = `${sevenDayRemaining}%`;
-      document.getElementById('five-hour-bar').dataset.remaining = fiveHourRemaining;
-      document.getElementById('seven-day-bar').dataset.remaining = sevenDayRemaining;
-      applyLimitState(document.getElementById('five-hour-bar'), fiveHourRemaining);
-      applyLimitState(document.getElementById('seven-day-bar'), sevenDayRemaining);
-      document.getElementById('five-hour-reset').textContent = formatReset(usage.fiveHourResetIn);
-      document.getElementById('seven-day-reset').textContent = formatReset(usage.sevenDayResetIn);
+      showProviderError(meta.errorId, '');
+      updateProviderStatus(id);
+      document.getElementById(meta.planId).textContent = usage.plan || 'Codex';
+      groups.replaceChildren();
+      // Codex reports resets as seconds-from-now rather than an absolute
+      // timestamp; convert so renderBucketRow can use the same absolute-time
+      // formatting as every other provider.
+      const toResetTime = seconds => (seconds > 0 ? new Date(Date.now() + seconds * 1000).toISOString() : '');
+      renderBucketRow(groups, '5h', 100 - usage.fiveHour, toResetTime(usage.fiveHourResetIn));
+      renderBucketRow(groups, '7d', 100 - usage.sevenDay, toResetTime(usage.sevenDayResetIn));
       requestWindowResize();
     }
 
-    function renderAntigravity(usage, failureCount) {
-      const groups = document.getElementById('agy-groups');
+    function renderBucketRow(container, label, remaining, resetTime) {
+      const clamped = Math.max(0, Math.min(100, remaining));
+      const limit = document.createElement('div');
+      limit.className = 'limit';
+      const limitLabel = document.createElement('div');
+      limitLabel.className = 'limit-label';
+      const name = document.createElement('span');
+      name.textContent = label;
+      const value = document.createElement('span');
+      value.className = 'limit-value';
+      value.textContent = `${Math.round(clamped)}%`;
+      limitLabel.append(name, value);
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      const fill = document.createElement('div');
+      fill.className = 'fill';
+      fill.style.width = `${clamped}%`;
+      fill.dataset.remaining = clamped;
+      applyLimitState(fill, clamped);
+      bar.append(fill);
+      const reset = document.createElement('span');
+      reset.className = 'inline-reset';
+      reset.textContent = formatResetAt(resetTime);
+      limitLabel.insertBefore(reset, value);
+      limit.append(limitLabel, bar);
+      container.append(limit);
+    }
+
+    const antigravityWindowOrder = { '5h': 0, '24h': 1, weekly: 2 };
+    const antigravityWindowLabels = { '5h': '5h', weekly: '7d' };
+
+    function renderAntigravity(id, usage) {
+      const meta = PROVIDERS_BY_ID.get(id);
+      const groups = document.getElementById(meta.groupsId);
       if (usage.error) {
         groups.replaceChildren();
-        showProviderError('agy', usage.error);
-        updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
+        showProviderError(meta.errorId, usage.error);
+        updateProviderStatus(id);
         requestWindowResize();
         return;
       }
-      showProviderError('agy', '');
-      updateStatus('agy-dot', 'agy-tooltip', failureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
-      document.getElementById('agy-plan').textContent = 'agy';
+      showProviderError(meta.errorId, '');
+      updateProviderStatus(id);
+      document.getElementById(meta.planId).textContent = 'agy';
       groups.replaceChildren();
       if (!usage.groups?.length) {
         requestWindowResize();
@@ -432,97 +491,73 @@
         title.className = 'agy-group-title';
         title.textContent = group.name;
         groupElement.append(title);
-        const buckets = [...(group.buckets || [])].sort((a, b) => {
-          const order = { '5h': 0, weekly: 1 };
-          return (order[a.window] ?? 2) - (order[b.window] ?? 2);
-        });
+        const buckets = [...(group.buckets || [])].sort((a, b) =>
+          (antigravityWindowOrder[a.window] ?? 3) - (antigravityWindowOrder[b.window] ?? 3));
         for (const bucket of buckets) {
-          const limit = document.createElement('div');
-          limit.className = 'limit';
-          const label = document.createElement('div');
-          label.className = 'limit-label';
-          const name = document.createElement('span');
-          name.textContent = bucket.window === '5h' ? '5h' : bucket.window === 'weekly' ? '7d' : bucket.name;
-          const value = document.createElement('span');
-          value.className = 'limit-value';
-          const remaining = Math.max(0, Math.min(100, bucket.remaining));
-          value.textContent = `${Math.round(remaining)}%`;
-          label.append(name, value);
-          const bar = document.createElement('div');
-          bar.className = 'bar';
-          const fill = document.createElement('div');
-          fill.className = 'fill';
-          fill.style.width = `${remaining}%`;
-          fill.dataset.remaining = remaining;
-          applyLimitState(fill, remaining);
-          bar.append(fill);
-          const reset = document.createElement('span');
-          reset.className = 'inline-reset';
-          reset.textContent = formatResetAt(bucket.resetTime);
-          label.insertBefore(reset, value);
-          limit.append(label, bar);
-          groupElement.append(limit);
+          const label = antigravityWindowLabels[bucket.window] ?? bucket.name;
+          renderBucketRow(groupElement, label, bucket.remaining, bucket.resetTime);
         }
         groups.append(groupElement);
       }
       requestWindowResize();
     }
 
-    async function fetchCodex() {
-      if (!config.providers.codex.enabled) return;
-      setLoading('codex-dot', true);
-      try {
-        const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetCodexUsage');
-        clearLoadingText('codex-card');
-        if (usage.error) {
-          codexFailureCount += 1;
-          codexLastError = String(usage.error).slice(0, 120);
-        } else {
-          codexFailureCount = 0;
-          codexLastSuccessAt = Date.now();
-          codexLastError = '';
-        }
-        renderUsage(usage, codexFailureCount);
-      } catch (error) {
-        clearLoadingText('codex-card');
-        codexFailureCount += 1;
-        codexLastError = `Frontend call failed: ${error}`.slice(0, 120);
-        renderUsage({ error: codexLastError }, codexFailureCount);
-      } finally {
-        setLoading('codex-dot', false);
-        scheduleCodex();
+    function renderClaude(id, usage) {
+      const meta = PROVIDERS_BY_ID.get(id);
+      const groups = document.getElementById(meta.groupsId);
+      if (usage.error) {
+        groups.replaceChildren();
+        showProviderError(meta.errorId, usage.error);
+        updateProviderStatus(id);
+        requestWindowResize();
+        return;
       }
+      showProviderError(meta.errorId, '');
+      updateProviderStatus(id);
+      document.getElementById(meta.planId).textContent = usage.plan || 'Claude';
+      groups.replaceChildren();
+      if (!usage.buckets?.length) {
+        requestWindowResize();
+        return;
+      }
+      for (const bucket of usage.buckets) {
+        renderBucketRow(groups, bucket.name, bucket.remaining, bucket.resetTime);
+      }
+      requestWindowResize();
     }
 
-    async function fetchAntigravity() {
-      if (!config.providers.antigravity.enabled) return;
-      setLoading('agy-dot', true);
+    async function fetchProvider(id) {
+      const meta = PROVIDERS_BY_ID.get(id);
+      const state = providerState.get(id);
+      if (!config.providers[id].enabled || state.fetching) return;
+      state.fetching = true;
+      setLoading(meta.dotId, true);
       try {
-        const usage = await wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetAntigravityUsage');
-        clearLoadingText('agy-card');
+        const usage = await wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${meta.rpcMethod}`);
+        clearLoadingText(meta.cardId);
         if (usage.error) {
-          antigravityFailureCount += 1;
-          antigravityLastError = String(usage.error).slice(0, 120);
+          state.failureCount += 1;
+          state.lastError = String(usage.error).slice(0, 120);
         } else {
-          antigravityFailureCount = 0;
-          antigravityLastSuccessAt = Date.now();
-          antigravityLastError = '';
+          state.failureCount = 0;
+          state.lastSuccessAt = Date.now();
+          state.lastError = '';
         }
-        renderAntigravity(usage, antigravityFailureCount);
+        meta.render(id, usage);
       } catch (error) {
-        clearLoadingText('agy-card');
-        antigravityFailureCount += 1;
-        antigravityLastError = `Frontend call failed: ${error}`.slice(0, 120);
-        renderAntigravity({ error: antigravityLastError }, antigravityFailureCount);
+        clearLoadingText(meta.cardId);
+        state.failureCount += 1;
+        state.lastError = `Frontend call failed: ${error}`.slice(0, 120);
+        meta.render(id, { error: state.lastError });
       } finally {
-        setLoading('agy-dot', false);
-        scheduleAntigravity();
+        state.fetching = false;
+        setLoading(meta.dotId, false);
+        scheduleProvider(id);
       }
     }
 
     const settingsDialog = document.getElementById('settings-dialog');
-    const providerCodexInput = document.getElementById('provider-codex');
-    const providerAntigravityInput = document.getElementById('provider-antigravity');
+    const providerListEl = document.getElementById('provider-list');
     const themeInputs = [...document.querySelectorAll('input[name="theme"]')];
     const pinWindowBtn = document.getElementById('pin-window');
     const refreshPresetSelect = document.getElementById('refresh-preset-select');
@@ -550,37 +585,105 @@
     updateAlwaysOnTopUI(isAlwaysOnTop);
 
     function updateProvidersVisibility() {
-      const codexEnabled = config.providers?.codex?.enabled !== false;
-      const agyEnabled = config.providers?.antigravity?.enabled !== false;
-      const codexCard = document.getElementById('codex-card');
-      const agyCard = document.getElementById('agy-card');
       const noProviders = document.getElementById('no-providers');
+      let anyEnabled = false;
 
-      codexCard.style.display = codexEnabled ? '' : 'none';
-      agyCard.style.display = agyEnabled ? '' : 'none';
-      noProviders.style.display = (!codexEnabled && !agyEnabled) ? 'flex' : 'none';
+      for (const provider of PROVIDERS) {
+        const enabled = config.providers[provider.id].enabled !== false;
+        anyEnabled = anyEnabled || enabled;
+        document.getElementById(provider.cardId).style.display = enabled ? '' : 'none';
 
-      const visibleCards = [codexCard, agyCard].filter(card => card.style.display !== 'none');
+        const state = providerState.get(provider.id);
+        if (enabled) {
+          if (!state.timerId) fetchProvider(provider.id);
+        } else {
+          clearTimeout(state.timerId);
+          state.timerId = null;
+        }
+      }
+      noProviders.style.display = anyEnabled ? 'none' : 'flex';
+
+      const visibleCards = config.providerOrder
+        .map(id => document.getElementById(PROVIDERS_BY_ID.get(id).cardId))
+        .filter(card => card.style.display !== 'none');
       visibleCards.forEach((card, index) => {
         card.classList.toggle('card-divider', index > 0);
       });
 
-      if (codexEnabled) {
-        if (!codexTimerId) fetchCodex();
-      } else {
-        clearTimeout(codexTimerId);
-        codexTimerId = null;
-      }
-
-      if (agyEnabled) {
-        if (!antigravityTimerId) fetchAntigravity();
-      } else {
-        clearTimeout(antigravityTimerId);
-        antigravityTimerId = null;
-      }
-
       requestWindowResize();
     }
+
+    function applyProviderOrder() {
+      const shell = document.querySelector('.shell');
+      for (const id of config.providerOrder) {
+        shell.append(document.getElementById(PROVIDERS_BY_ID.get(id).cardId));
+      }
+      updateProvidersVisibility();
+    }
+
+    function renderProviderList() {
+      providerListEl.replaceChildren();
+      config.providerOrder.forEach((id, index) => {
+        const meta = PROVIDERS_BY_ID.get(id);
+        const row = document.createElement('div');
+        row.className = 'provider-row';
+        row.dataset.provider = id;
+
+        const checkboxLabel = document.createElement('label');
+        checkboxLabel.className = 'provider-setting';
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.dataset.action = 'toggle';
+        checkbox.checked = config.providers[id].enabled;
+        checkboxLabel.append(checkbox, document.createTextNode(` ${meta.label}`));
+
+        const moveButtons = document.createElement('span');
+        moveButtons.className = 'provider-move-buttons';
+        const upBtn = document.createElement('button');
+        upBtn.type = 'button';
+        upBtn.className = 'provider-move-btn';
+        upBtn.dataset.action = 'move-up';
+        upBtn.textContent = '▲';
+        upBtn.title = `Move ${meta.label} up`;
+        upBtn.setAttribute('aria-label', `Move ${meta.label} up`);
+        upBtn.disabled = index === 0;
+        const downBtn = document.createElement('button');
+        downBtn.type = 'button';
+        downBtn.className = 'provider-move-btn';
+        downBtn.dataset.action = 'move-down';
+        downBtn.textContent = '▼';
+        downBtn.title = `Move ${meta.label} down`;
+        downBtn.setAttribute('aria-label', `Move ${meta.label} down`);
+        downBtn.disabled = index === config.providerOrder.length - 1;
+        moveButtons.append(upBtn, downBtn);
+
+        row.append(checkboxLabel, moveButtons);
+        providerListEl.append(row);
+      });
+    }
+
+    providerListEl.addEventListener('change', event => {
+      const checkbox = event.target.closest('input[data-action="toggle"]');
+      if (!checkbox) return;
+      const id = checkbox.closest('[data-provider]').dataset.provider;
+      config.providers[id].enabled = checkbox.checked;
+      updateProvidersVisibility();
+      saveCurrentConfig();
+    });
+
+    providerListEl.addEventListener('click', event => {
+      const button = event.target.closest('button[data-action]');
+      if (!button) return;
+      const id = button.closest('[data-provider]').dataset.provider;
+      const order = config.providerOrder;
+      const index = order.indexOf(id);
+      const swapWith = button.dataset.action === 'move-up' ? index - 1 : index + 1;
+      if (swapWith < 0 || swapWith >= order.length) return;
+      [order[index], order[swapWith]] = [order[swapWith], order[index]];
+      renderProviderList();
+      applyProviderOrder();
+      saveCurrentConfig();
+    });
 
     function applyTheme(theme, persist = true) {
       document.documentElement.dataset.theme = theme;
@@ -610,18 +713,6 @@
       if (document.documentElement.dataset.theme === 'system') applyTheme('system', false);
     });
 
-    providerCodexInput.addEventListener('change', () => {
-      config.providers.codex.enabled = providerCodexInput.checked;
-      updateProvidersVisibility();
-      saveCurrentConfig();
-    });
-
-    providerAntigravityInput.addEventListener('change', () => {
-      config.providers.antigravity.enabled = providerAntigravityInput.checked;
-      updateProvidersVisibility();
-      saveCurrentConfig();
-    });
-
     function updateRefreshPresetSelect(seconds) {
       const matchingOption = refreshPresetSelect.querySelector(`option[value="${seconds}"]`);
       refreshPresetSelect.value = matchingOption ? String(seconds) : 'custom';
@@ -635,15 +726,13 @@
       refreshIntervalInput.value = refreshInterval;
       updateRefreshPresetSelect(refreshInterval);
       saveCurrentConfig();
-      scheduleCodex();
-      scheduleAntigravity();
+      providerIds.forEach(scheduleProvider);
     }
 
     function openSettings() {
       const currentTheme = forcedTheme || config.theme || 'system';
       themeInputs.forEach(input => { input.checked = input.value === currentTheme; });
-      providerCodexInput.checked = config.providers.codex.enabled;
-      providerAntigravityInput.checked = config.providers.antigravity.enabled;
+      renderProviderList();
       refreshIntervalInput.value = refreshInterval;
       updateRefreshPresetSelect(refreshInterval);
       warningThresholdInput.value = warningThreshold;
@@ -730,15 +819,11 @@
     });
     resizeObserver.observe(document.querySelector('.shell'));
 
-    updateProvidersVisibility();
-    requestWindowResize();
+    applyProviderOrder();
 
     function refreshStatusTooltips() {
-      if (config.providers.codex.enabled) {
-        updateStatus('codex-dot', 'codex-tooltip', codexFailureCount, codexLastSuccessAt, codexNextRefreshAt, codexLastError);
-      }
-      if (config.providers.antigravity.enabled) {
-        updateStatus('agy-dot', 'agy-tooltip', antigravityFailureCount, antigravityLastSuccessAt, antigravityNextRefreshAt, antigravityLastError);
+      for (const provider of PROVIDERS) {
+        if (config.providers[provider.id].enabled) updateProviderStatus(provider.id);
       }
     }
 

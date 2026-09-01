@@ -67,25 +67,44 @@ func parseAntigravityUsage(output []byte) (AntigravityUsage, error) {
 	return usage, nil
 }
 
+// resolveAgyPath returns the agy executable to run: lookupPath as found by
+// exec.LookPath("agy") when lookupErr is nil, otherwise the fallback install
+// location under homeDir(), verified to exist via pathExists. Accepting
+// homeDir/pathExists as functions (rather than calling os.UserHomeDir/os.Stat
+// directly) keeps this pure and unit-testable without touching the real
+// filesystem, and returning the resolved path as a single value (instead of
+// reassigning an outer variable from a nested scope) rules out the kind of
+// shadowing bug this used to have, where a `:=` inside the fallback branch
+// silently left the caller's lookupPath untouched.
+func resolveAgyPath(lookupPath string, lookupErr error, homeDir func() (string, error), pathExists func(string) bool) (string, error) {
+	if lookupErr == nil {
+		return lookupPath, nil
+	}
+	home, err := homeDir()
+	if err != nil {
+		return "", errors.New("agy command not found")
+	}
+	fallbackPath, ok := antigravityFallbackPath(home)
+	if !ok {
+		return "", errors.New("agy command not found in PATH")
+	}
+	if !pathExists(fallbackPath) {
+		return "", errors.New("agy command not found in PATH or the default installation directory")
+	}
+	return fallbackPath, nil
+}
+
 func GetAntigravityUsage() AntigravityUsage {
 	usage := AntigravityUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
-	agyPath, err := exec.LookPath("agy")
+	lookupPath, lookupErr := exec.LookPath("agy")
+	agyPath, err := resolveAgyPath(lookupPath, lookupErr, os.UserHomeDir, func(path string) bool {
+		_, statErr := os.Stat(path)
+		return statErr == nil
+	})
 	if err != nil {
-		home, homeErr := os.UserHomeDir()
-		if homeErr != nil {
-			usage.Error = "agy command not found"
-			return usage
-		}
-		agyPath, ok := antigravityFallbackPath(home)
-		if !ok {
-			usage.Error = "agy command not found in PATH"
-			return usage
-		}
-		if _, statErr := os.Stat(agyPath); statErr != nil {
-			usage.Error = "agy command not found in PATH or the default installation directory"
-			return usage
-		}
+		usage.Error = err.Error()
+		return usage
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)

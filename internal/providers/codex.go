@@ -3,11 +3,8 @@ package providers
 import (
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 )
 
@@ -40,8 +37,6 @@ type codexUsageResponse struct {
 		} `json:"secondary_window"`
 	} `json:"rate_limit"`
 }
-
-var httpClient = &http.Client{Timeout: 10 * time.Second}
 
 func parseCodexUsage(data []byte) (CodexUsage, error) {
 	var response codexUsageResponse
@@ -91,34 +86,14 @@ func GetCodexUsage() CodexUsage {
 		return usage
 	}
 
-	request, err := http.NewRequest(http.MethodGet, "https://chatgpt.com/backend-api/wham/usage", nil)
+	body, err := fetchAuthorizedJSON("https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
+		"Authorization": "Bearer " + auth.Tokens.AccessToken,
+	})
 	if err != nil {
-		usage.Error = fmt.Sprintf("Failed to create request: %v", err)
-		return usage
-	}
-	request.Header.Set("Authorization", "Bearer "+auth.Tokens.AccessToken)
-	response, err := httpClient.Do(request)
-	if err != nil {
-		usage.Error = fmt.Sprintf("Failed to fetch Codex usage: %v", err)
-		return usage
-	}
-	defer response.Body.Close()
-	if response.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(io.LimitReader(response.Body, 1024))
-		bodyStr := strings.TrimSpace(string(bodyBytes))
-		if bodyStr != "" && len(bodyStr) < 150 {
-			usage.Error = fmt.Sprintf("Codex request failed (HTTP %d): %s", response.StatusCode, bodyStr)
-		} else {
-			usage.Error = fmt.Sprintf("Codex usage request failed (HTTP %s)", response.Status)
-		}
+		usage.Error = err.Error()
 		return usage
 	}
 
-	body, err := io.ReadAll(response.Body)
-	if err != nil {
-		usage.Error = fmt.Sprintf("Unable to read Codex usage response: %v", err)
-		return usage
-	}
 	parsed, err := parseCodexUsage(body)
 	if err != nil {
 		usage.Error = fmt.Sprintf("Unable to parse Codex usage response: %v", err)
