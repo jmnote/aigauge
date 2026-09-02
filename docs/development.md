@@ -8,7 +8,7 @@ aigauge/
 ├── docs/               # Documentation and listing screenshots
 ├── hack/               # Packaging, capture, and local preview scripts
 ├── internal/app/       # Wails application bindings and services
-├── internal/providers/ # Codex, Antigravity, and Claude usage providers
+├── internal/providers/ # Codex, Claude, and Antigravity usage providers
 ├── internal/ui/        # Window, tray, and runtime wiring
 ├── build.ps1           # Build task entrypoint
 ├── Package.appxmanifest
