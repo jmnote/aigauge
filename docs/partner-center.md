@@ -14,13 +14,13 @@ This document records only the content directly entered/selected by the develope
 - **Privacy policy** (entered as text, not URL):
   > AI Gauge Privacy Policy
   >
-  > AI Gauge is a standalone Windows desktop application that displays usage information for OpenAI Codex, Google Antigravity, and Anthropic Claude Code.
+  > AI Gauge is a standalone Windows desktop application that displays usage information for OpenAI Codex, Anthropic Claude Code, and Google Antigravity.
   >
   > **Data access and use:** AI Gauge reads existing local Codex and Claude Code login sessions and invokes the locally installed agy command-line tool when Antigravity monitoring is enabled. It uses the returned information only to display quotas, reset times, and connection status locally. AI Gauge does not operate an intermediary server, use the information for advertising, or sell personal information.
   >
   > **Credentials:** AI Gauge does not request or persist passwords, payment information, or authentication credentials in its own storage. It uses access tokens maintained by existing Codex and Claude Code login sessions and authentication managed by agy. Credentials are sent only to the corresponding service endpoints as required and are not logged or uploaded to the developer.
   >
-  > **Third-party services:** Requests may be sent directly to OpenAI, Google Antigravity, or Anthropic services to retrieve usage information. Those services process data under their own privacy policies.
+  > **Third-party services:** Requests may be sent directly to OpenAI, Anthropic, or Google Antigravity services to retrieve usage information. Those services process data under their own privacy policies.
   >
   > **Local storage:** AI Gauge stores only local application preferences, including provider visibility and order, refresh interval, theme, thresholds, and window preferences. It does not maintain a remote account, analytics system, or remote database.
   >
@@ -51,7 +51,7 @@ This document records only the content directly entered/selected by the develope
 ## Store listing (English — United States)
 
 - **Description**:
-  > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Google Antigravity, and Anthropic Claude Code. It shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; and choose a light, dark, or system theme. AI Gauge runs locally, uses existing local sign-in sessions and the locally installed agy command-line tool, and does not store a separate copy of your credentials or retain usage data on a remote server.
+  > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. It shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; and choose a light, dark, or system theme. AI Gauge runs locally, uses existing local sign-in sessions and the locally installed agy command-line tool, and does not store a separate copy of your credentials or retain usage data on a remote server.
 - **Short description**: Monitor AI service usage, quotas, reset times, and connection status from your Windows system tray.
 - **Product features**:
   1. Real-time quota and reset countdown monitoring
