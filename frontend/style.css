@@ -139,6 +139,11 @@ code {
   padding: 0 16px;
 }
 
+.heading:hover,
+.heading:has(.status-area :focus-visible) {
+  z-index: 30;
+}
+
 .heading strong {
   font-size: .78rem;
 }
@@ -186,7 +191,7 @@ code {
   left: 50%;
   right: auto;
   transform: translateX(-50%);
-  z-index: 10;
+  z-index: 100;
   display: none;
   box-sizing: border-box;
   width: max-content;
@@ -395,6 +400,13 @@ button {
   margin: 0 4px;
   padding-top: 2px;
   background: transparent;
+}
+
+.usage-card:hover,
+.usage-card:focus-within,
+.usage-card:has(.details-open) {
+  position: relative;
+  z-index: 20;
 }
 
 .usage-card>.heading,
@@ -969,6 +981,14 @@ button {
   padding: 8px 9px;
 }
 
+.setup-provider:hover,
+.setup-provider:focus-within,
+.setup-provider:has(.details-open),
+.setup-provider:has(.details-wrap:hover) {
+  position: relative;
+  z-index: 20;
+}
+
 .setup-provider-head {
   display: flex;
   align-items: baseline;
@@ -1012,6 +1032,12 @@ button {
   margin-top: 7px;
 }
 
+.setup-provider-actions:hover,
+.setup-provider-actions:focus-within,
+.setup-provider-actions:has(.details-open) {
+  z-index: 30;
+}
+
 .setup-provider-actions button {
   padding: 3px 8px;
   font-size: .67rem;
@@ -1025,16 +1051,13 @@ button {
 .details-wrap {
   display: inline-flex;
   align-items: center;
-  animation: details-fade-in .5s ease-out both;
 }
 
-@keyframes details-fade-in {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+.details-wrap:hover,
+.details-wrap:focus-within,
+.details-wrap.details-open {
+  position: relative;
+  z-index: 40;
 }
 
 .details-info-btn {
@@ -1051,6 +1074,17 @@ button {
   cursor: pointer;
   line-height: 1;
   transition: color .15s ease, background-color .15s ease;
+  animation: details-fade-in .5s ease-out both;
+}
+
+@keyframes details-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 .details-info-btn svg {
@@ -1330,7 +1364,7 @@ button {
 
   .status-dot.loading,
   .loading-text,
-  .details-wrap {
+  .details-info-btn {
     animation: none;
   }
 }
