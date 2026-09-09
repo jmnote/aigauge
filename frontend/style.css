@@ -195,7 +195,7 @@ code {
   display: none;
   box-sizing: border-box;
   width: max-content;
-  max-width: 90vw;
+  max-width: 80vw;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
