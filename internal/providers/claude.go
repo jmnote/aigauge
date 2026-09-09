@@ -1,18 +1,41 @@
 package providers
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 )
+
+// errNoUsageWindows marks a usage response that parsed cleanly but described no
+// window to show. It is a sentinel rather than a plain error string so the
+// caller can tell "this account has nothing to report" apart from "this
+// response is a shape we cannot read" when choosing the Reason to surface.
+var errNoUsageWindows = errors.New("response contains no usable usage windows")
 
 type ClaudeUsage struct {
 	Plan      string              `json:"plan"`
 	Buckets   []ClaudeUsageBucket `json:"buckets"`
 	FetchedAt string              `json:"fetchedAt"`
 	Error     string              `json:"error,omitempty"`
+
+	// Status and friends carry the structured diagnosis. Error is still filled
+	// in alongside them so the current frontend, which only knows how to read a
+	// message string, keeps working until it switches to Status.
+	Status  Status `json:"status,omitempty"`
+	Reason  Reason `json:"reason,omitempty"`
+	Message string `json:"message,omitempty"`
+	Details string `json:"details,omitempty"`
+}
+
+func (u *ClaudeUsage) applyDiagnosis(diagnosis Diagnosis) {
+	u.Status = diagnosis.Status
+	u.Reason = diagnosis.Reason
+	u.Message = diagnosis.Message
+	u.Details = diagnosis.Details
+	u.Error = diagnosis.Message
 }
 
 type ClaudeUsageBucket struct {
@@ -99,46 +122,71 @@ func parseClaudeUsage(data []byte) (ClaudeUsage, error) {
 	}
 
 	if len(usage.Buckets) == 0 {
-		return ClaudeUsage{}, fmt.Errorf("response contains no usable usage windows")
+		return ClaudeUsage{}, errNoUsageWindows
 	}
 	return usage, nil
 }
 
-func GetClaudeUsage() ClaudeUsage {
-	usage := ClaudeUsage{FetchedAt: time.Now().Format(time.RFC3339)}
-	home, err := os.UserHomeDir()
+// findClaudeCredentials reads the minimum this app needs to call the usage API:
+// the access token, plus the subscription label shown on the card. It reports
+// found=false both when the file is absent and when it cannot be parsed - the
+// caller treats those the same way, by falling back to the CLI for an
+// explanation - and it never returns the file's other contents.
+func findClaudeCredentials(homeDir func() (string, error), readFile func(string) ([]byte, error)) (claudeCredentials, bool) {
+	home, err := homeDir()
 	if err != nil {
-		usage.Error = fmt.Sprintf("Failed to get home directory: %v", err)
-		return usage
+		return claudeCredentials{}, false
 	}
+	data, err := readFile(filepath.Join(home, ".claude", ".credentials.json"))
+	if err != nil {
+		return claudeCredentials{}, false
+	}
+	var credentials claudeCredentials
+	if err := json.Unmarshal(data, &credentials); err != nil {
+		return claudeCredentials{}, false
+	}
+	if credentials.ClaudeAiOauth.AccessToken == "" {
+		return claudeCredentials{}, false
+	}
+	return credentials, true
+}
 
-	credPath := filepath.Join(home, ".claude", ".credentials.json")
-	credData, err := os.ReadFile(credPath)
-	if err != nil {
-		usage.Error = "Claude Code login information not found (~/.claude/.credentials.json)"
-		return usage
-	}
-	var creds claudeCredentials
-	if err := json.Unmarshal(credData, &creds); err != nil || creds.ClaudeAiOauth.AccessToken == "" {
-		usage.Error = "Unable to read Claude Code access token"
+func GetClaudeUsage() ClaudeUsage {
+	return getClaudeUsage(context.Background(), defaultDeps(), true)
+}
+
+func getClaudeUsage(ctx context.Context, deps providerDeps, active bool) ClaudeUsage {
+	usage := ClaudeUsage{FetchedAt: time.Now().Format(time.RFC3339)}
+
+	diagnosis, credentials, ok := diagnoseClaude(ctx, deps, active)
+	if !ok {
+		usage.applyDiagnosis(diagnosis)
 		return usage
 	}
 
 	body, err := fetchAuthorizedJSON("https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
-		"Authorization":  "Bearer " + creds.ClaudeAiOauth.AccessToken,
+		"Authorization":  "Bearer " + credentials.ClaudeAiOauth.AccessToken,
 		"anthropic-beta": "oauth-2025-04-20",
 	})
 	if err != nil {
-		usage.Error = err.Error()
+		usage.applyDiagnosis(usageFailureDiagnosis("Claude", err))
 		return usage
 	}
 
 	parsed, err := parseClaudeUsage(body)
 	if err != nil {
-		usage.Error = fmt.Sprintf("Unable to parse Claude usage response: %v", err)
+		// An account that simply reports no window is a different problem from a
+		// response shape this version cannot read: the first is nothing the user
+		// can act on, the second may be fixed by an update.
+		reason := ReasonUnsupportedResponse
+		if errors.Is(err, errNoUsageWindows) {
+			reason = ReasonNoUsageData
+		}
+		usage.applyDiagnosis(usageUnreadableDiagnosis("Claude", reason, err))
 		return usage
 	}
 	parsed.FetchedAt = usage.FetchedAt
-	parsed.Plan = creds.ClaudeAiOauth.SubscriptionType
+	parsed.Plan = credentials.ClaudeAiOauth.SubscriptionType
+	parsed.Status = StatusConnected
 	return parsed
 }

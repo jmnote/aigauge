@@ -1,0 +1,328 @@
+package providers
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"os"
+	"os/exec"
+	"time"
+)
+
+// statusCommandTimeout bounds a local status command. These commands read
+// on-disk credential state and answer immediately; anything slower is a hung
+// process, not a slow answer, and the provider card should say "try again"
+// rather than sit on a spinner.
+const statusCommandTimeout = 10 * time.Second
+
+// providerDeps holds every seam a diagnosis touches outside its own process:
+// running a CLI, resolving one on PATH, and reading the credential files. They
+// travel together because a test that describes "signed in, but no credential
+// file this app can read" has to control all of them at once.
+type providerDeps struct {
+	runner     commandRunner
+	lookPath   pathLookup
+	homeDir    func() (string, error)
+	readFile   func(string) ([]byte, error)
+	pathExists func(string) bool
+}
+
+func defaultDeps() providerDeps {
+	return providerDeps{
+		runner:   execRunner{},
+		lookPath: exec.LookPath,
+		homeDir:  os.UserHomeDir,
+		readFile: os.ReadFile,
+		pathExists: func(path string) bool {
+			_, err := os.Stat(path)
+			return err == nil
+		},
+	}
+}
+
+// DiagnoseClaude, DiagnoseCodex and DiagnoseAntigravity report a provider's
+// readiness using only what can be determined locally. They are what the
+// first-run screen calls: no usage API request, no `/usage`, nothing that
+// reaches a provider service, so opening the app on a machine that has never
+// been configured contacts nobody. Confirming a connection is a separate,
+// user-initiated step - GetXUsage - and these three deliberately cannot do it.
+func DiagnoseClaude() Diagnosis {
+	diagnosis, _, _ := diagnoseClaude(context.Background(), defaultDeps(), false)
+	return diagnosis
+}
+
+func DiagnoseCodex() Diagnosis {
+	diagnosis, _, _ := diagnoseCodex(context.Background(), defaultDeps(), false)
+	return diagnosis
+}
+
+func DiagnoseAntigravity() Diagnosis {
+	return diagnoseAntigravityLocal(context.Background(), defaultDeps())
+}
+
+// diagnoseClaude reports Claude Code's readiness, credentials first.
+//
+// The credential file - not the CLI - is what this app actually needs, so a
+// usable one short-circuits every CLI check: a user who has signed in but whose
+// `claude` executable is not on the PATH this app inherited still gets their
+// quota. The CLI status command only runs to explain *why* no credential was
+// found, which is the one thing the file alone cannot tell us.
+//
+// ok is true when the caller should perform the usage request; the returned
+// credentials carry the token for it. A local credential is never enough to
+// report StatusConnected on its own - only a successful usage response is.
+func diagnoseClaude(ctx context.Context, deps providerDeps, active bool) (Diagnosis, claudeCredentials, bool) {
+	credentials, found := findClaudeCredentials(deps.homeDir, deps.readFile)
+	if found {
+		if !active {
+			return credentialsFoundDiagnosis(), credentials, false
+		}
+		return Diagnosis{}, credentials, true
+	}
+	return diagnoseClaudeCLI(ctx, deps, active), credentials, false
+}
+
+// diagnoseClaudeCLI is the secondary diagnosis: it runs only when no usable
+// credential was found, and exists to tell "never signed in" apart from "signed
+// in somewhere this app cannot read".
+func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
+	path, err := deps.lookPath("claude")
+	if err != nil {
+		return Diagnosis{
+			Status:  StatusNotInstalled,
+			Message: "Sign in to Claude Code to monitor your quota.",
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, statusCommandTimeout)
+	defer cancel()
+	result, err := deps.runner.run(ctx, path, "auth", "status", "--json")
+	if err != nil {
+		return Diagnosis{
+			Status:  StatusTemporaryError,
+			Message: "Could not read the Claude Code sign-in state. Try again.",
+			Details: technicalDetails(err.Error() + " " + result.Stderr),
+		}
+	}
+
+	// Parse before looking at the exit code. The signed-in path was verified to
+	// answer with JSON and exit 0, but the signed-out exit code is still an open
+	// item in the release gate, so a machine-readable answer is trusted whatever
+	// the process returned. Only output we cannot read at all falls through to
+	// the exit-code based classification below. Just `loggedIn` is read; the
+	// same response carries email, orgId and orgName, which never leave here.
+	var status struct {
+		LoggedIn *bool `json:"loggedIn"`
+	}
+	if err := json.Unmarshal([]byte(result.Stdout), &status); err == nil && status.LoggedIn != nil {
+		if !*status.LoggedIn {
+			return Diagnosis{
+				Status:  StatusSignInRequired,
+				Message: "Sign in to Claude Code to view quota information.",
+			}
+		}
+		if !active {
+			return signedInLocallyDiagnosis()
+		}
+		return unsupportedCredentialSourceDiagnosis("Claude Code")
+	}
+
+	return unreadableStatusDiagnosis("Claude Code", result)
+}
+
+// diagnoseCodex mirrors diagnoseClaude. The difference is the secondary
+// command: `codex login status` prints prose - on the verified version, to
+// stderr with an empty stdout - so its result is read from the exit code alone
+// and the output is only ever kept as redacted technical detail.
+func diagnoseCodex(ctx context.Context, deps providerDeps, active bool) (Diagnosis, codexAuth, bool) {
+	credentials, found := findCodexCredentials(deps.homeDir, deps.readFile)
+	if found {
+		if !active {
+			return credentialsFoundDiagnosis(), credentials, false
+		}
+		return Diagnosis{}, credentials, true
+	}
+	return diagnoseCodexCLI(ctx, deps, active), credentials, false
+}
+
+func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
+	path, err := deps.lookPath("codex")
+	if err != nil {
+		return Diagnosis{
+			Status:  StatusNotInstalled,
+			Message: "Sign in to the Codex CLI to monitor your quota.",
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, statusCommandTimeout)
+	defer cancel()
+	result, err := deps.runner.run(ctx, path, "login", "status")
+	if err != nil {
+		return Diagnosis{
+			Status:  StatusTemporaryError,
+			Message: "Could not read the Codex sign-in state. Try again.",
+			Details: technicalDetails(err.Error() + " " + result.Stderr),
+		}
+	}
+
+	if result.ExitCode != 0 {
+		// The exact signed-out exit code is still to be captured as a fixture
+		// (see the release gate), so anything non-zero is read as signed out
+		// rather than as a broken CLI: telling a signed-out user to sign in is
+		// recoverable, while hiding that guidance behind a compatibility error
+		// is not.
+		return Diagnosis{
+			Status:  StatusSignInRequired,
+			Message: "Sign in to Codex to view quota information.",
+			Details: technicalDetails(result.Stdout + " " + result.Stderr),
+		}
+	}
+	if !active {
+		return signedInLocallyDiagnosis()
+	}
+	return unsupportedCredentialSourceDiagnosis("Codex")
+}
+
+// diagnoseAntigravity reports Antigravity's readiness. agy is the only provider
+// whose CLI is genuinely required, because the usage lookup *is* an agy command
+// - there is no credential file to fall back to. It also has no local sign-in
+// command (`agy auth status` does not exist through 1.1.28), so the network gate
+// sits earlier here: everything knowable offline is the executable and its
+// version, and the sign-in state itself only comes back with `/usage`.
+func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath string, active bool) (Diagnosis, bool) {
+	ctx, cancel := context.WithTimeout(ctx, statusCommandTimeout)
+	defer cancel()
+	result, err := runner.run(ctx, agyPath, "--version")
+	if err != nil {
+		return Diagnosis{
+			Status:  StatusTemporaryError,
+			Message: "Could not run the Antigravity CLI. Try again.",
+			Details: technicalDetails(err.Error() + " " + result.Stderr),
+		}, false
+	}
+	if result.ExitCode != 0 {
+		return Diagnosis{
+			Status:  StatusUnsupportedCLI,
+			Message: "This Antigravity CLI version is not supported. Update the CLI.",
+			Details: technicalDetails(result.Stdout + " " + result.Stderr),
+		}, false
+	}
+
+	if !active {
+		return Diagnosis{
+			Status:  StatusAuthCheckRequired,
+			Message: "Antigravity CLI found. Connect to verify usage.",
+		}, false
+	}
+	return Diagnosis{}, true
+}
+
+// credentialsFoundDiagnosis is where a provider rests when its credential file
+// is readable but the user has not switched it on: enough is known to offer a
+// connection check, and deliberately not enough to claim a working connection,
+// since confirming that would take the very request this state exists to avoid.
+func credentialsFoundDiagnosis() Diagnosis {
+	return Diagnosis{
+		Status:  StatusAuthCheckRequired,
+		Message: "Credentials found. Connect to verify usage.",
+	}
+}
+
+// signedInLocallyDiagnosis is the same waiting state reached the other way: no
+// credential file this app can read, but the CLI reports a local session.
+func signedInLocallyDiagnosis() Diagnosis {
+	return Diagnosis{
+		Status:  StatusAuthCheckRequired,
+		Message: "Signed in locally. Connect to verify usage.",
+	}
+}
+
+// unsupportedCredentialSourceDiagnosis covers the gap the CLI reveals: it
+// considers itself signed in, but the session is not in a place this app reads.
+// The guidance is compatibility help rather than "sign in again", because
+// signing in again generally writes the credential right back to the same
+// unsupported place.
+func unsupportedCredentialSourceDiagnosis(label string) Diagnosis {
+	return Diagnosis{
+		Status:  StatusUsageUnavailable,
+		Reason:  ReasonUnsupportedCredentialSource,
+		Message: label + " is signed in, but AI Gauge cannot access a supported local credential source.",
+	}
+}
+
+// unreadableStatusDiagnosis classifies a status command whose output we could
+// not interpret. An exit code of 0 with unreadable output means the CLI answered
+// in a shape this version does not know, which is a compatibility problem; a
+// non-zero exit is left as a temporary error rather than as "signed out",
+// because the action plan forbids inferring a sign-out from an unrecognized
+// failure.
+func unreadableStatusDiagnosis(label string, result commandResult) Diagnosis {
+	details := technicalDetails(result.Stdout + " " + result.Stderr)
+	if result.ExitCode == 0 {
+		return Diagnosis{
+			Status:  StatusUnsupportedCLI,
+			Message: "This " + label + " version is not supported. Update the CLI.",
+			Details: details,
+		}
+	}
+	return Diagnosis{
+		Status:  StatusTemporaryError,
+		Message: "Could not read the " + label + " sign-in state. Try again.",
+		Details: details,
+	}
+}
+
+// usageFailureDiagnosis maps a usage request that failed after a credential was
+// found. A 401 or 403 is precisely the case a local credential cannot reveal -
+// the stored token expired or was revoked server-side - and it sends the card
+// back to sign-in guidance instead of leaving a stale "connected".
+func usageFailureDiagnosis(label string, err error) Diagnosis {
+	switch httpStatusCode(err) {
+	case 401, 403:
+		return Diagnosis{
+			Status:  StatusSignInRequired,
+			Message: "Your " + label + " session expired. Sign in again to view quota information.",
+		}
+	}
+	details := ""
+	if err != nil {
+		details = technicalDetails(err.Error())
+	}
+	return Diagnosis{
+		Status:  StatusTemporaryError,
+		Message: "Could not reach " + label + " right now. Retry in a moment.",
+		Details: details,
+	}
+}
+
+// usageUnreadableDiagnosis covers a usage response that arrived but could not be
+// turned into gauges - a schema this version does not support, or an account
+// that reports no usage window at all. They share a status and differ in Reason
+// because only one of them is fixed by updating something.
+func usageUnreadableDiagnosis(label string, reason Reason, err error) Diagnosis {
+	message := "Quota information is not available for this " + label + " account."
+	if reason == ReasonUnsupportedResponse {
+		message = label + " returned usage data this version cannot read. Update AI Gauge or the CLI."
+	}
+	details := ""
+	if err != nil {
+		details = technicalDetails(err.Error())
+	}
+	return Diagnosis{
+		Status:  StatusUsageUnavailable,
+		Reason:  reason,
+		Message: message,
+		Details: details,
+	}
+}
+
+// httpStatusCode recovers the HTTP status from a fetchAuthorizedJSON failure,
+// returning 0 for a transport error that never reached a response. A missing
+// code lands on the safe StatusTemporaryError branch above.
+func httpStatusCode(err error) int {
+	var statusErr *httpStatusError
+	if errors.As(err, &statusErr) {
+		return statusErr.StatusCode
+	}
+	return 0
+}
