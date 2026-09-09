@@ -5,7 +5,7 @@ $outputPath = Join-Path $repo "frontend\logo.png"
 
 # Update this value after changing frontend/logo.svg. Get the new value with:
 # (Get-FileHash frontend/logo.svg -Algorithm SHA256).Hash.ToLowerInvariant()
-$expectedSourceHash = "85e14c2328a97674fdde7c896155180a24ccdf29b5f4a46d23938d44de649e59"
+$expectedSourceHash = "4711d54102c84b2b1b60bb032d01b56b0aaa7bbce7d926923d349bf4a7b0c769"
 $sourceHash = (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToLowerInvariant()
 
 if ((Test-Path -LiteralPath $outputPath -PathType Leaf) -and $expectedSourceHash -eq $sourceHash) {

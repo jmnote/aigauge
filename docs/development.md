@@ -66,15 +66,9 @@ Remove generated packaging output explicitly when it is no longer needed:
 .\build.ps1 clean
 ```
 
-`frontend/logo.svg` is the source logo. The checked-in `frontend/logo.png` is the raster asset used
-by Windows executable resources and MSIX package icons. Windows builds also generate an ignored
-`rsrc_windows_amd64.syso` file from `frontend/logo.png`. The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
-resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
-available.
-The MSIX manifest supplies the Store icons on its own, so the PR-check workflows (`msix.yml`,
-`pull-request.yml`) skip this step for speed. The release workflow (`release.yml`) does not skip
-it: `aigauge.exe` is also uploaded to GitHub Releases as the portable executable, and without the
-embedded resource that file has no icon at all in Explorer/the taskbar.
+`frontend/logo.svg` is the source logo; `frontend/logo.png` is generated from it and feeds both
+the Windows executable icon and the MSIX Store tiles. See [docs/logo.md](logo.md) for how to
+regenerate each of those and how the SVG itself is drawn.
 
 ## Frontend preview
 
