@@ -119,7 +119,7 @@ func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diag
 	if path == "" {
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: `Install Claude Code CLI (<code>claude</code>) and sign in to monitor your quota. <a href="https://code.claude.com/docs/ko/quickstart#step-1-install-claude-code">Installation guide</a>`,
+			Message: `Install Claude Code CLI (<code>claude</code>) and log in to monitor your quota. <a href="https://code.claude.com/docs/ko/quickstart#step-1-install-claude-code">Installation guide</a>`,
 			Details: technicalDetails(notFoundDetails(fallback)),
 		}
 	}
@@ -130,13 +130,13 @@ func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diag
 	if err != nil {
 		return Diagnosis{
 			Status:  StatusTemporaryError,
-			Message: "Could not read the Claude Code sign-in state. Try again.",
+			Message: "Could not read the Claude Code login state. Try again.",
 			Details: technicalDetails(err.Error() + " " + result.Stderr),
 		}
 	}
 
-	// Parse before looking at the exit code. The signed-in path was verified to
-	// answer with JSON and exit 0, but the signed-out exit code is still an open
+	// Parse before looking at the exit code. The logged-in path was verified to
+	// answer with JSON and exit 0, but the logged-out exit code is still an open
 	// item in the release gate, so a machine-readable answer is trusted whatever
 	// the process returned. Only output we cannot read at all falls through to
 	// the exit-code based classification below. Just `loggedIn` is read; the
@@ -147,13 +147,13 @@ func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diag
 	if err := json.Unmarshal([]byte(result.Stdout), &status); err == nil && status.LoggedIn != nil {
 		if !*status.LoggedIn {
 			return Diagnosis{
-				Status:  StatusSignInRequired,
-				Message: "Sign in to Claude Code to view quota information.",
+				Status:  StatusLoginRequired,
+				Message: "Log in to Claude Code to view quota information.",
 				Details: technicalDetails(result.Stdout),
 			}
 		}
 		if !active {
-			return signedInLocallyDiagnosis("Claude Code", path)
+			return loggedInLocallyDiagnosis("Claude Code", path)
 		}
 		return unsupportedCredentialSourceDiagnosis("Claude Code")
 	}
@@ -185,7 +185,7 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 	if path == "" {
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: `Install the Codex CLI (<code>codex</code>) and sign in to monitor your quota. <a href="https://learn.chatgpt.com/docs/codex/cli#getting-started">Installation guide</a>`,
+			Message: `Install the Codex CLI (<code>codex</code>) and log in to monitor your quota. <a href="https://learn.chatgpt.com/docs/codex/cli#getting-started">Installation guide</a>`,
 			Details: technicalDetails(notFoundDetails(fallback)),
 		}
 	}
@@ -196,25 +196,25 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 	if err != nil {
 		return Diagnosis{
 			Status:  StatusTemporaryError,
-			Message: "Could not read the Codex sign-in state. Try again.",
+			Message: "Could not read the Codex login state. Try again.",
 			Details: technicalDetails(err.Error() + " " + result.Stderr),
 		}
 	}
 
 	if result.ExitCode != 0 {
-		// The exact signed-out exit code is still to be captured as a fixture
-		// (see the release gate), so anything non-zero is read as signed out
-		// rather than as a broken CLI: telling a signed-out user to sign in is
+		// The exact logged-out exit code is still to be captured as a fixture
+		// (see the release gate), so anything non-zero is read as logged out
+		// rather than as a broken CLI: telling a logged-out user to log in is
 		// recoverable, while hiding that guidance behind a compatibility error
 		// is not.
 		return Diagnosis{
-			Status:  StatusSignInRequired,
-			Message: "Sign in to Codex to view quota information.",
+			Status:  StatusLoginRequired,
+			Message: "Log in to Codex to view quota information.",
 			Details: technicalDetails(result.Stdout + " " + result.Stderr),
 		}
 	}
 	if !active {
-		return signedInLocallyDiagnosis("Codex", path)
+		return loggedInLocallyDiagnosis("Codex", path)
 	}
 	return unsupportedCredentialSourceDiagnosis("Codex")
 }
@@ -266,38 +266,38 @@ func credentialsFoundDiagnosis(details string) Diagnosis {
 	}
 }
 
-// signedInLocallyDiagnosis is the same waiting state reached the other way: no
+// loggedInLocallyDiagnosis is the same waiting state reached the other way: no
 // credential file this app can read, but the CLI reports a local session.
-func signedInLocallyDiagnosis(label string, path string) Diagnosis {
+func loggedInLocallyDiagnosis(label string, path string) Diagnosis {
 	details := fmt.Sprintf("%s CLI found and reported an active session.", label)
 	if path != "" {
 		details = fmt.Sprintf("Found %s at %s with an active session.", label, path)
 	}
 	return Diagnosis{
 		Status:  StatusAuthCheckRequired,
-		Message: "Signed in locally. Connect to verify usage.",
+		Message: "Logged in locally. Connect to verify usage.",
 		Details: technicalDetails(details),
 	}
 }
 
 // unsupportedCredentialSourceDiagnosis covers the gap the CLI reveals: it
-// considers itself signed in, but the session is not in a place this app reads.
-// The guidance is compatibility help rather than "sign in again", because
-// signing in again generally writes the credential right back to the same
+// considers itself logged in, but the session is not in a place this app reads.
+// The guidance is compatibility help rather than "log in again", because
+// logging in again generally writes the credential right back to the same
 // unsupported place.
 func unsupportedCredentialSourceDiagnosis(label string) Diagnosis {
 	return Diagnosis{
 		Status:  StatusUsageUnavailable,
 		Reason:  ReasonUnsupportedCredentialSource,
-		Message: label + " is signed in, but AI Gauge cannot access a supported local credential source.",
+		Message: label + " is logged in, but AI Gauge cannot access a supported local credential source.",
 	}
 }
 
 // unreadableStatusDiagnosis classifies a status command whose output we could
 // not interpret. An exit code of 0 with unreadable output means the CLI answered
 // in a shape this version does not know, which is a compatibility problem; a
-// non-zero exit is left as a temporary error rather than as "signed out",
-// because the action plan forbids inferring a sign-out from an unrecognized
+// non-zero exit is left as a temporary error rather than as "logged out",
+// because the action plan forbids inferring a logout from an unrecognized
 // failure.
 func unreadableStatusDiagnosis(label string, result commandResult) Diagnosis {
 	details := technicalDetails(result.Stdout + " " + result.Stderr)
@@ -310,7 +310,7 @@ func unreadableStatusDiagnosis(label string, result commandResult) Diagnosis {
 	}
 	return Diagnosis{
 		Status:  StatusTemporaryError,
-		Message: "Could not read the " + label + " sign-in state. Try again.",
+		Message: "Could not read the " + label + " login state. Try again.",
 		Details: details,
 	}
 }
@@ -318,7 +318,7 @@ func unreadableStatusDiagnosis(label string, result commandResult) Diagnosis {
 // usageFailureDiagnosis maps a usage request that failed after a credential was
 // found. A 401 or 403 is precisely the case a local credential cannot reveal -
 // the stored token expired or was revoked server-side - and it sends the card
-// back to sign-in guidance instead of leaving a stale "connected".
+// back to login guidance instead of leaving a stale "connected".
 func usageFailureDiagnosis(label string, err error) Diagnosis {
 	details := ""
 	if err != nil {
@@ -327,8 +327,8 @@ func usageFailureDiagnosis(label string, err error) Diagnosis {
 	switch httpStatusCode(err) {
 	case 401, 403:
 		return Diagnosis{
-			Status:  StatusSignInRequired,
-			Message: "Your " + label + " session expired. Sign in again to view quota information.",
+			Status:  StatusLoginRequired,
+			Message: "Your " + label + " session expired. Log in again to view quota information.",
 			Details: details,
 		}
 	}

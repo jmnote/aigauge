@@ -32,7 +32,7 @@ const defaultConfig = {
   thresholds: { warning: { enabled: true, value: 30 }, critical: { enabled: true, value: 10 } },
 };
 
-const EXPECTED = ['not_installed', 'auth_check_required', 'sign_in_required', 'unsupported_cli'];
+const EXPECTED = ['not_installed', 'auth_check_required', 'login_required', 'sign_in_required', 'unsupported_cli'];
 const FAILURES = ['temporary_error', 'usage_unavailable'];
 
 // --- the rule the certification failure came down to -----------------------
@@ -175,6 +175,7 @@ test('waiting-for-setup states are not styled as errors', () => {
   assert.equal(badgeClass('auth_check_required'), 'is-ready');
   assert.equal(badgeClass('connected'), 'is-ready');
   assert.equal(badgeClass('not_installed'), '');
+  assert.equal(badgeClass('login_required'), '');
   assert.equal(badgeClass('sign_in_required'), '');
   assert.equal(badgeClass('temporary_error'), 'is-blocked');
 });

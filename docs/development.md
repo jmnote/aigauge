@@ -45,7 +45,7 @@ stand-in. `.uild.ps1 test` runs the Go and JavaScript suites in sequence.
 or a network:
 
 ```text
-/?state=sign_in_required                  all three cards at once
+/?state=login_required                  all three cards at once
 /?codex=not_installed&claude=connected     one provider at a time
 /?view=sample                              open in the sample preview
 ```

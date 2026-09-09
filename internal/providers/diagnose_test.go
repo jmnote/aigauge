@@ -137,7 +137,7 @@ func TestDiagnoseClaudeReportsSignedInLocallyWhenInactiveWithoutCredentials(t *t
 	if diagnosis.Status != StatusAuthCheckRequired {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
 	}
-	if !strings.Contains(diagnosis.Message, "Signed in locally") {
+	if !strings.Contains(diagnosis.Message, "Logged in locally") {
 		t.Errorf("Message = %q, want the CLI-based explanation", diagnosis.Message)
 	}
 }
@@ -350,7 +350,7 @@ func TestNeedsUserActionCoversTheExpectedSetupStates(t *testing.T) {
 	expected := map[Status]bool{
 		StatusNotInstalled:      true,
 		StatusAuthCheckRequired: true,
-		StatusSignInRequired:    true,
+		StatusLoginRequired:     true,
 		StatusConnected:         false,
 		StatusUsageUnavailable:  false,
 		StatusTemporaryError:    false,

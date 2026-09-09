@@ -51,7 +51,7 @@ This document records only the content directly entered/selected by the develope
 ## Store listing (English — United States)
 
 - **Description**:
-  > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. It shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; and choose a light, dark, or system theme. Live monitoring uses what is already on your PC: Codex and Claude Code are read from their existing local sign-in, and Antigravity uses the locally installed agy command-line tool, so those providers need the corresponding tool set up and signed in. A built-in sample preview lets you see how the app works before configuring anything - the preview shows bundled example data, not usage from any account. AI Gauge runs locally, does not store a separate copy of your credentials, and does not retain usage data on a remote server.
+  > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. It shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; and choose a light, dark, or system theme. Live monitoring uses what is already on your PC: Codex and Claude Code are read from their existing local login, and Antigravity uses the locally installed agy command-line tool, so those providers need the corresponding tool set up and logged in. A built-in sample preview lets you see how the app works before configuring anything - the preview shows bundled example data, not usage from any account. AI Gauge runs locally, does not store a separate copy of your credentials, and does not retain usage data on a remote server.
 - **Short description**: Monitor AI service usage, quotas, reset times, and connection status from your Windows system tray.
 - **Product features**:
   1. Real-time quota and reset countdown monitoring
@@ -101,9 +101,9 @@ Enter the following text in **Supplemental info → Additional Testing Informati
 > 8. Select **Back to setup** and confirm the first-run screen returns without a crash or a raw system error.
 > 9. Verify the Always-on-top control and the system tray minimize and restore behavior.
 >
-> The preview uses data bundled inside the application and requires no network access, third-party tool installation, sign-in, or credentials. No credentials are required for certification testing.
+> The preview uses data bundled inside the application and requires no network access, third-party tool installation, login, or credentials. No credentials are required for certification testing.
 >
-> AI Gauge contacts a provider service only when the user asks it to. On the first-run screen, a provider that is ready to be verified offers a **Check connection** button, and no network request is made for that provider until it is selected. Until then each provider reports only what was determined locally: "Not installed", "Check connection", or "Sign-in required".
+> AI Gauge contacts a provider service only when the user asks it to. On the first-run screen, a provider that is ready to be verified offers a **Check connection** button, and no network request is made for that provider until it is selected. Until then each provider reports only what was determined locally: "Not installed", "Check connection", or "Login required".
 >
 > The first-run screen, the sample preview, and this provider-state handling were added in response to the previous 10.1.2.10 Functionality result, in which AI detection could not be evaluated on a clean certification device.
 >
@@ -116,5 +116,5 @@ Enter the following text in **Supplemental info → Additional Testing Informati
   1. Confirm the sample preview opens from the first-run screen in the packaged app, with no command-line arguments.
   2. Confirm that every button name in the notes above matches the uploaded MSIX exactly: **Preview with sample data**, **Back to setup**, **Check connection**.
   3. Confirm that entering and leaving the preview leaves the saved provider settings unchanged.
-  4. Test from a clean Windows account with no Codex, Claude Code, or Antigravity installation or sign-in state, and confirm no raw error text or failure counter appears.
+  4. Test from a clean Windows account with no Codex, Claude Code, or Antigravity installation or login state, and confirm no raw error text or failure counter appears.
   5. Enter and save the notes only after the updated package has been uploaded to the draft submission.

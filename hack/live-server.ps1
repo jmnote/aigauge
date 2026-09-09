@@ -44,9 +44,10 @@ const providers = {
 // The wording only has to be close enough to lay out like the real thing; the
 // authoritative copy lives in internal/providers.
 const stateMessages = {
-  not_installed: 'Install the CLI and sign in to monitor your quota.',
+  not_installed: 'Install the CLI and log in to monitor your quota.',
   auth_check_required: 'Credentials found. Connect to verify usage.',
-  sign_in_required: 'Sign in to view quota information.',
+  login_required: 'Log in to view quota information.',
+  sign_in_required: 'Log in to view quota information.',
   usage_unavailable: 'Quota information is not available for this account.',
   temporary_error: 'Could not reach the service right now. Retry in a moment.',
   unsupported_cli: 'This CLI version is not supported. Update the CLI.',
@@ -148,8 +149,8 @@ try {
         exit 1
     }
     Write-Host "Live server: http://localhost:$Port/?theme=light"
-    Write-Host "  Provider states: ?state=sign_in_required (all) or ?codex=not_installed (one)"
-    Write-Host "  States: connected, not_installed, auth_check_required, sign_in_required, usage_unavailable, temporary_error, unsupported_cli"
+    Write-Host "  Provider states: ?state=login_required (all) or ?codex=not_installed (one)"
+    Write-Host "  States: connected, not_installed, auth_check_required, login_required, usage_unavailable, temporary_error, unsupported_cli"
     Write-Host "  Sample preview: ?view=sample"
     Write-Host "Press Ctrl+C to stop."
     while ($listener.IsListening) {

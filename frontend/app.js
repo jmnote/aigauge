@@ -59,7 +59,7 @@ const PROVIDERS_BY_ID = new Map(PROVIDERS.map(p => [p.id, p]));
 
 // The short badge text for each backend status code. Deliberately short: the
 // badge has to stay readable beside the provider name in a 250px window, so
-// the reason behind a status ("Credentials found", "Signed in locally") goes
+// the reason behind a status ("Credentials found", "Logged in locally") goes
 // in the message line underneath rather than into the badge.
 const rpc = method => wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${method}`);
 
@@ -410,7 +410,7 @@ function showProviderError(errorId, message, diagnosis, onCheck) {
 // was already on screen: the data is stale, not wrong, and blanking the card
 // throws away the only thing the user opened the app to see. It is labelled
 // with its age so nobody reads month-old numbers as current. Every other
-// non-connected state (no CLI, not signed in, connection not checked) has no
+// non-connected state (no CLI, not logged in, connection not checked) has no
 // prior data to keep, so its card clears to the guidance instead.
 function renderNonUsageState(id, usage) {
   const meta = PROVIDERS_BY_ID.get(id);
@@ -943,7 +943,7 @@ async function checkConnection(provider) {
 //
 // Lets anyone - a Store reviewer on a clean machine, or a curious new user -
 // see the gauges, countdowns, thresholds and themes working without installing
-// a CLI or signing in to anything. It is a separate screen fed by separate
+// a CLI or logging in to anything. It is a separate screen fed by separate
 // RPCs, not a mode layered over the real providers: nothing here reads or
 // writes the provider settings, so leaving the preview restores exactly the
 // setup the user came from.

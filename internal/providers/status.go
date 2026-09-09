@@ -32,10 +32,11 @@ const (
 	// startup, which is why it is a first-class code rather than an error.
 	StatusAuthCheckRequired Status = "auth_check_required"
 
-	// StatusSignInRequired means the CLI is present but not signed in - either
+	// StatusLoginRequired means the CLI is present but not logged in - either
 	// its own status command said so, or a usage request was rejected as
 	// unauthorized despite a local credential being present.
-	StatusSignInRequired Status = "sign_in_required"
+	StatusLoginRequired  Status = "login_required"
+	StatusSignInRequired Status = StatusLoginRequired
 
 	// StatusUsageUnavailable means authentication worked but the provider
 	// returned no usable quota data.
@@ -43,7 +44,7 @@ const (
 
 	// StatusTemporaryError means a network or service failure that is expected
 	// to resolve on its own. Anything unrecognized lands here rather than in
-	// StatusSignInRequired: telling a signed-in user they are signed out is a
+	// StatusLoginRequired: telling a logged-in user they are logged out is a
 	// worse failure than asking them to retry.
 	StatusTemporaryError Status = "temporary_error"
 
@@ -58,7 +59,7 @@ const (
 // behavior that made the previous certification submission look broken on a
 // clean review device.
 func (s Status) NeedsUserAction() bool {
-	return s == StatusNotInstalled || s == StatusAuthCheckRequired || s == StatusSignInRequired
+	return s == StatusNotInstalled || s == StatusAuthCheckRequired || s == StatusLoginRequired || s == StatusSignInRequired
 }
 
 // Reason narrows a status whose recovery differs case by case. Only

@@ -84,22 +84,23 @@ export function normalizeConfig(value, providerIds, defaultConfig) {
 
 // The short badge text per backend status. Deliberately short: the badge sits
 // beside the provider name in a 250px window, so the reason behind a status
-// ("Credentials found", "Signed in locally") belongs in the message line.
+// ("Credentials found", "Logged in locally") belongs in the message line.
 export const STATUS_BADGES = {
   connected: 'Connected',
   not_installed: 'Not installed',
   auth_check_required: 'Check connection',
-  sign_in_required: 'Sign-in required',
+  login_required: 'Login required',
+  sign_in_required: 'Login required',
   usage_unavailable: 'Usage unavailable',
   temporary_error: 'Temporary error',
   unsupported_cli: 'Unsupported CLI',
 };
 
-// States the user resolves themselves - no CLI yet, not signed in, connection
+// States the user resolves themselves - no CLI yet, not logged in, connection
 // not checked, CLI too old. They are the normal shape of a machine that has not
 // been set up, so they must never be treated as failures.
 export const EXPECTED_SETUP_STATES = new Set([
-  'not_installed', 'auth_check_required', 'sign_in_required', 'unsupported_cli',
+  'not_installed', 'auth_check_required', 'login_required', 'sign_in_required', 'unsupported_cli',
 ]);
 
 export const isExpectedSetupState = status => EXPECTED_SETUP_STATES.has(status);

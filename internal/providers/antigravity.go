@@ -165,7 +165,7 @@ func findAgy(deps providerDeps) (string, Diagnosis, bool) {
 	if err != nil {
 		return "", Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: `Install the Antigravity CLI (<code>agy</code>) and sign in to monitor your quota. <a href="https://antigravity.google/docs/cli/install">Installation guide</a>`,
+			Message: `Install the Antigravity CLI (<code>agy</code>) and log in to monitor your quota. <a href="https://antigravity.google/docs/cli/install">Installation guide</a>`,
 			Details: technicalDetails(err.Error()),
 		}, false
 	}
@@ -240,8 +240,8 @@ func classifyAntigravityUsage(ctx context.Context, deps providerDeps, agyPath st
 	output := result.Stdout + " " + result.Stderr
 	if containsAnyMarker(output, antigravityAuthMarkers) {
 		return nil, Diagnosis{
-			Status:  StatusSignInRequired,
-			Message: "Sign in to the Antigravity CLI to view quota information.",
+			Status:  StatusLoginRequired,
+			Message: "Log in to the Antigravity CLI to view quota information.",
 			Details: technicalDetails(output),
 		}
 	}
@@ -281,8 +281,8 @@ func classifyAntigravityWithModels(ctx context.Context, deps providerDeps, agyPa
 	}
 	if containsAnyMarker(result.Stdout+" "+result.Stderr, antigravityAuthMarkers) {
 		return Diagnosis{
-			Status:  StatusSignInRequired,
-			Message: "Sign in to the Antigravity CLI to view quota information.",
+			Status:  StatusLoginRequired,
+			Message: "Log in to the Antigravity CLI to view quota information.",
 			Details: technicalDetails(usageOutput),
 		}
 	}
