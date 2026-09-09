@@ -749,6 +749,9 @@ function buildSetupRow(provider, diagnosis) {
   if (diagnosis.status === 'auth_check_required') {
     primary.textContent = 'Check connection';
     primary.addEventListener('click', () => checkConnection(provider));
+  } else if (diagnosis.status === 'not_installed' || diagnosis.status === 'unsupported_cli') {
+    primary.textContent = 'Check CLI';
+    primary.addEventListener('click', () => diagnoseProvider(provider));
   } else {
     primary.textContent = 'Check again';
     primary.addEventListener('click', () => diagnoseProvider(provider));
