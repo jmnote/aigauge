@@ -209,7 +209,7 @@ function createTooltipRow(labelText, valueText) {
   label.textContent = labelText;
   const value = document.createElement('span');
   value.className = 'status-tooltip-value';
-  value.textContent = valueText;
+  renderFormattedMessage(value, valueText);
   row.append(label, value);
   return row;
 }
@@ -265,6 +265,7 @@ function renderFormattedMessage(element, text) {
         a.textContent = match[2];
         a.addEventListener('click', (e) => {
           e.preventDefault();
+          e.stopPropagation();
           if (wails && wails.Browser && typeof wails.Browser.OpenURL === 'function') {
             wails.Browser.OpenURL(href).catch(err => console.error('Failed to open URL:', err));
           } else {
@@ -519,12 +520,12 @@ async function fetchProvider(id) {
     clearLoadingText(meta.cardId);
     state.status = usage.status || '';
     if (state.status && state.status !== 'connected') {
-      state.lastError = String(usage.message || usage.error || '').slice(0, 160);
+      state.lastError = String(usage.message || usage.error || '');
       // Only a genuine failure moves the counter - see EXPECTED_SETUP_STATES.
       if (shouldCountFailure(state.status)) state.failureCount += 1;
     } else if (usage.error) {
       state.failureCount += 1;
-      state.lastError = String(usage.error).slice(0, 160);
+      state.lastError = String(usage.error);
     } else {
       state.failureCount = 0;
       state.lastSuccessAt = Date.now();
@@ -535,7 +536,7 @@ async function fetchProvider(id) {
     clearLoadingText(meta.cardId);
     state.status = '';
     state.failureCount += 1;
-    state.lastError = `Frontend call failed: ${error}`.slice(0, 160);
+    state.lastError = `Frontend call failed: ${error}`;
     meta.render(id, { error: state.lastError });
   } finally {
     state.fetching = false;
@@ -1062,56 +1063,18 @@ function clearActiveTooltip() {
 // picks up its extent regardless, so each show/hide needs its own explicit
 // call, same as every other content change.
 //
-// The status tooltip is triggered by the whole provider heading. Tooltips
-// ignore pointer events, so moving away from the heading closes them even
-// when the pointer moves directly onto the tooltip box.
-//
-// Horizontally the cursor is the tooltip's right edge - it hangs down and to
-// the left of the pointer, like a native tooltip would - clamped so it never
-// slides past the heading's own edges. When there isn't enough room left of
-// the cursor for the tooltip's full width (e.g. the cursor is near the
-// heading's own left edge), the clamp just holds it against that edge
-// instead; it can no longer track the cursor exactly, but that's fine here.
-// .status-tooltip is sized to its own content (width: max-content, capped by
-// max-width), so its width is measured live off the element rather than
-// assumed - it differs per provider depending on how long that row's
-// label/value text is. A keyboard-focused tooltip has no cursor position to
-// follow, so it's left alone to keep the CSS default of dead-center
-// (left: 50%; transform: translateX(-50%)) - positionTooltip overrides both
-// of those inline, and mouseleave clears the overrides so a later
-// keyboard-triggered show isn't left pinned at the last mouse position.
-//
-// The heading itself sits flush against the window's edges (see the
-// negative-margin comment on .heading above), and .shell clips overflow-x -
-// so the clamp also leaves EDGE_MARGIN of clearance beyond the tooltip's own
-// box on each side, room for its box-shadow/backdrop-filter blur to render
-// without getting cut off when the tooltip is pinned all the way to one end.
-const EDGE_MARGIN = 12;
-function positionTooltip(heading, tooltip, clientX) {
-  const rect = heading.getBoundingClientRect();
-  const width = tooltip.offsetWidth || rect.width;
-  const desiredLeft = clientX - rect.left - width;
-  const minLeft = EDGE_MARGIN;
-  const maxLeft = Math.max(rect.width - width - EDGE_MARGIN, minLeft);
-  tooltip.style.left = `${Math.min(Math.max(desiredLeft, minLeft), maxLeft)}px`;
-  tooltip.style.transform = 'none';
-}
-
+// The status tooltip is triggered by the provider heading and anchored at a
+// fixed position below the status area. Moving the mouse cursor over the
+// tooltip keeps it open so users can read details and click links.
 document.querySelectorAll('.heading').forEach(element => {
   const tooltip = element.querySelector('.status-tooltip');
-  element.addEventListener('mouseenter', event => {
+  element.addEventListener('mouseenter', () => {
     refreshStatusTooltips();
     setActiveTooltip(tooltip);
-    positionTooltip(element, tooltip, event.clientX);
     requestWindowResize();
-  });
-  element.addEventListener('mousemove', event => {
-    positionTooltip(element, tooltip, event.clientX);
   });
   element.addEventListener('mouseleave', () => {
     clearActiveTooltip();
-    tooltip.style.left = '';
-    tooltip.style.transform = '';
     requestWindowResize();
   });
 });

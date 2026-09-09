@@ -182,12 +182,13 @@ code {
 .status-tooltip {
   position: absolute;
   top: calc(100% + 4px);
-  left: 50%;
-  transform: translateX(-50%);
+  right: 12px;
+  left: auto;
+  transform: none;
   z-index: 10;
   display: none;
   width: max-content;
-  max-width: 190px;
+  max-width: 220px;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -199,7 +200,7 @@ code {
   font-size: .7rem;
   line-height: 1.5;
   overflow-wrap: anywhere;
-  pointer-events: none;
+  pointer-events: auto;
   white-space: pre-line;
   /* Grid (not flex) so the label column is one `max-content` track shared
      via subgrid across every row - it sizes to that tooltip instance's own
@@ -207,6 +208,30 @@ code {
      sized for the longest label anywhere. */
   grid-template-columns: max-content 1fr;
   column-gap: 8px;
+}
+
+.status-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: 0;
+  right: 0;
+  height: 8px;
+}
+
+.status-tooltip a {
+  color: var(--base-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.status-tooltip a:hover {
+  filter: brightness(1.15);
+}
+
+.status-tooltip code {
+  font-size: .95em;
 }
 
 .heading:hover .status-tooltip,
