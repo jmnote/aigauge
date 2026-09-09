@@ -104,7 +104,7 @@ func diagnoseClaude(ctx context.Context, deps providerDeps, active bool) (Diagno
 		if !active {
 			details := ""
 			if home, err := deps.homeDir(); err == nil {
-				details = fmt.Sprintf("Found credentials at %s", filepath.Join(home, ".claude", ".credentials.json"))
+				details = fmt.Sprintf("Found credentials at %s", filepath.Join(home, filepath.FromSlash(claudeCredentialRelPath)))
 			}
 			return credentialsFoundDiagnosis(details), credentials, false
 		}
@@ -133,6 +133,42 @@ func notFoundDetails(fallback string) string {
 		return fmt.Sprintf("CLI Not Found: %s", fallback)
 	}
 	return "CLI Not Found: PATH"
+}
+
+// claudeCredentialRelPath and codexCredentialRelPath are the on-disk
+// credential file locations, relative to the home directory. Both
+// findClaudeCredentials/findCodexCredentials (to read the file) and
+// diagnoseClaude/diagnoseCodex (to describe where it was found) resolve
+// through the same constant so the two can never drift apart.
+const (
+	claudeCredentialRelPath = ".claude/.credentials.json"
+	codexCredentialRelPath  = ".codex/auth.json"
+)
+
+// findCredentials reads a provider's on-disk credential file and reports
+// found=false both when the file is absent and when it cannot be parsed or
+// carries no usable token - the caller treats those the same way, by falling
+// back to the CLI for an explanation, rather than distinguishing them here.
+// It is generic over the two JSON shapes Claude and Codex use so that logic
+// only has to be written, and tested, once.
+func findCredentials[T any](homeDir func() (string, error), readFile func(string) ([]byte, error), relPath string, hasToken func(T) bool) (T, bool) {
+	var zero T
+	home, err := homeDir()
+	if err != nil {
+		return zero, false
+	}
+	data, err := readFile(filepath.Join(home, filepath.FromSlash(relPath)))
+	if err != nil {
+		return zero, false
+	}
+	var credentials T
+	if err := json.Unmarshal(data, &credentials); err != nil {
+		return zero, false
+	}
+	if !hasToken(credentials) {
+		return zero, false
+	}
+	return credentials, true
 }
 
 // diagnoseClaudeCLI is the secondary diagnosis: it runs only when no usable
@@ -195,7 +231,7 @@ func diagnoseCodex(ctx context.Context, deps providerDeps, active bool) (Diagnos
 		if !active {
 			details := ""
 			if home, err := deps.homeDir(); err == nil {
-				details = fmt.Sprintf("Found credentials at %s", filepath.Join(home, ".codex", "auth.json"))
+				details = fmt.Sprintf("Found credentials at %s", filepath.Join(home, filepath.FromSlash(codexCredentialRelPath)))
 			}
 			return credentialsFoundDiagnosis(details), credentials, false
 		}
@@ -251,13 +287,16 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 	return unsupportedCredentialSourceDiagnosis("Codex")
 }
 
-// diagnoseAntigravity reports Antigravity's readiness. agy is the only provider
-// whose CLI is genuinely required, because the usage lookup *is* an agy command
-// - there is no credential file to fall back to. It also has no local sign-in
-// command (`agy auth status` does not exist through 1.1.28), so the network gate
-// sits earlier here: everything knowable offline is the executable and its
-// version, and the sign-in state itself only comes back with `/usage`.
-func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath string, active bool) (Diagnosis, bool) {
+// diagnoseAntigravity reports what can be known about Antigravity without
+// running `/usage`: whether agy exists and whether its version is supported.
+// It backs only the onboarding screen (diagnoseAntigravityLocal), which must
+// never make a network request on its own. Once the user is active,
+// getAntigravityUsage does not call this - it goes straight to `/usage`,
+// since agy has no local sign-in command (`agy auth status` does not exist
+// through 1.1.28) and that single command already proves the executable, its
+// version, and the sign-in state together; running `--version` first would
+// only ask the executable/version half of that question twice.
+func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath string) Diagnosis {
 	ctx, cancel := context.WithTimeout(ctx, statusCommandTimeout)
 	defer cancel()
 	result, err := runner.run(ctx, agyPath, "--version")
@@ -266,24 +305,20 @@ func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath stri
 			Status:  StatusTemporaryError,
 			Message: "Could not run the Antigravity CLI. Try again.",
 			Details: technicalDetails(err.Error() + " " + result.Stderr),
-		}, false
+		}
 	}
 	if result.ExitCode != 0 {
 		return Diagnosis{
 			Status:  StatusUnsupportedCLI,
 			Message: "This Antigravity CLI version is not supported. Update the CLI.",
 			Details: technicalDetails(result.Stdout + " " + result.Stderr),
-		}, false
+		}
 	}
-
-	if !active {
-		return Diagnosis{
-			Status:  StatusAuthCheckRequired,
-			Message: "Antigravity CLI found. Connect to verify usage.",
-			Details: technicalDetails(fmt.Sprintf("Found agy (%s) at %s", strings.TrimSpace(result.Stdout), agyPath)),
-		}, false
+	return Diagnosis{
+		Status:  StatusAuthCheckRequired,
+		Message: "Antigravity CLI found. Connect to verify usage.",
+		Details: technicalDetails(fmt.Sprintf("Found agy (%s) at %s", strings.TrimSpace(result.Stdout), agyPath)),
 	}
-	return Diagnosis{}, true
 }
 
 // credentialsFoundDiagnosis is where a provider rests when its credential file

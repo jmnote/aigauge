@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"path/filepath"
 	"time"
 )
 
@@ -15,22 +14,10 @@ type CodexUsage struct {
 	FiveHourIn int     `json:"fiveHourResetIn"`
 	SevenDayIn int     `json:"sevenDayResetIn"`
 	FetchedAt  string  `json:"fetchedAt"`
-	Error      string  `json:"error,omitempty"`
 
-	// See ClaudeUsage: the structured diagnosis, with Error kept in step for the
-	// frontend that has not migrated to Status yet.
-	Status  Status `json:"status,omitempty"`
-	Reason  Reason `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	Details string `json:"details,omitempty"`
-}
-
-func (u *CodexUsage) applyDiagnosis(diagnosis Diagnosis) {
-	u.Status = diagnosis.Status
-	u.Reason = diagnosis.Reason
-	u.Message = diagnosis.Message
-	u.Details = diagnosis.Details
-	u.Error = diagnosis.Message
+	// See DiagnosisFields in status.go: it carries the structured diagnosis,
+	// shared by all three providers so applyDiagnosis is defined exactly once.
+	DiagnosisFields
 }
 
 type codexAuth struct {
@@ -82,26 +69,11 @@ func parseCodexUsage(data []byte) (CodexUsage, error) {
 }
 
 // findCodexCredentials reads only the access token the usage request needs.
-// Like the Claude equivalent, an absent file and an unreadable one are both
-// reported as "not found" so the caller falls back to the CLI for an
-// explanation rather than guessing at one here.
+// See findCredentials in diagnose.go for what "found" means.
 func findCodexCredentials(homeDir func() (string, error), readFile func(string) ([]byte, error)) (codexAuth, bool) {
-	home, err := homeDir()
-	if err != nil {
-		return codexAuth{}, false
-	}
-	data, err := readFile(filepath.Join(home, ".codex", "auth.json"))
-	if err != nil {
-		return codexAuth{}, false
-	}
-	var auth codexAuth
-	if err := json.Unmarshal(data, &auth); err != nil {
-		return codexAuth{}, false
-	}
-	if auth.Tokens.AccessToken == "" {
-		return codexAuth{}, false
-	}
-	return auth, true
+	return findCredentials(homeDir, readFile, codexCredentialRelPath, func(a codexAuth) bool {
+		return a.Tokens.AccessToken != ""
+	})
 }
 
 func GetCodexUsage() CodexUsage {

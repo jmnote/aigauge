@@ -100,17 +100,21 @@ export const STATUS_BADGES = {
   not_installed: 'Not installed',
   auth_check_required: 'Check connection',
   login_required: 'Login required',
-  sign_in_required: 'Login required',
   usage_unavailable: 'Usage unavailable',
   temporary_error: 'Temporary error',
   unsupported_cli: 'Unsupported CLI',
 };
 
 // States the user resolves themselves - no CLI yet, not logged in, connection
-// not checked, CLI too old. They are the normal shape of a machine that has not
-// been set up, so they must never be treated as failures.
+// not checked. They are the normal shape of a machine that has not been set
+// up, so they must never be treated as failures. unsupported_cli is
+// deliberately NOT here - an install that regresses from a working CLI to an
+// incompatible one is a real failure, not a setup step, and must count
+// against the failure threshold and keep retrying like any other failure (see
+// Status.NeedsUserAction in internal/providers/status.go, which this set
+// mirrors and must stay in sync with).
 export const EXPECTED_SETUP_STATES = new Set([
-  'not_installed', 'auth_check_required', 'login_required', 'sign_in_required', 'unsupported_cli',
+  'not_installed', 'auth_check_required', 'login_required',
 ]);
 
 export const isExpectedSetupState = status => EXPECTED_SETUP_STATES.has(status);
@@ -150,6 +154,6 @@ export function providerVisibilityAction(sampleMode, enabled, hasTimer) {
 // ready one is an error, so neither is styled as one.
 export function badgeClass(status) {
   if (status === 'connected' || status === 'auth_check_required') return 'is-ready';
-  if (status === 'temporary_error' || status === 'usage_unavailable') return 'is-blocked';
+  if (status === 'temporary_error' || status === 'usage_unavailable' || status === 'unsupported_cli') return 'is-blocked';
   return '';
 }

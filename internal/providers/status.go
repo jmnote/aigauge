@@ -35,8 +35,7 @@ const (
 	// StatusLoginRequired means the CLI is present but not logged in - either
 	// its own status command said so, or a usage request was rejected as
 	// unauthorized despite a local credential being present.
-	StatusLoginRequired  Status = "login_required"
-	StatusSignInRequired Status = StatusLoginRequired
+	StatusLoginRequired Status = "login_required"
 
 	// StatusUsageUnavailable means authentication worked but the provider
 	// returned no usable quota data.
@@ -59,7 +58,7 @@ const (
 // behavior that made the previous certification submission look broken on a
 // clean review device.
 func (s Status) NeedsUserAction() bool {
-	return s == StatusNotInstalled || s == StatusAuthCheckRequired || s == StatusLoginRequired || s == StatusSignInRequired
+	return s == StatusNotInstalled || s == StatusAuthCheckRequired || s == StatusLoginRequired
 }
 
 // Reason narrows a status whose recovery differs case by case. Only
@@ -100,6 +99,27 @@ type Diagnosis struct {
 	Reason  Reason `json:"reason,omitempty"`
 	Message string `json:"message"`
 	Details string `json:"details,omitempty"`
+}
+
+// DiagnosisFields is embedded in every provider's usage struct (ClaudeUsage,
+// CodexUsage, AntigravityUsage) so a Diagnosis is applied to it identically
+// everywhere, instead of each provider repeating the same five-line method.
+// Error mirrors Message so the current frontend, which only knows how to read
+// a message string, keeps working until it switches to reading Status.
+type DiagnosisFields struct {
+	Error   string `json:"error,omitempty"`
+	Status  Status `json:"status,omitempty"`
+	Reason  Reason `json:"reason,omitempty"`
+	Message string `json:"message,omitempty"`
+	Details string `json:"details,omitempty"`
+}
+
+func (f *DiagnosisFields) applyDiagnosis(diagnosis Diagnosis) {
+	f.Status = diagnosis.Status
+	f.Reason = diagnosis.Reason
+	f.Message = diagnosis.Message
+	f.Details = diagnosis.Details
+	f.Error = diagnosis.Message
 }
 
 // maxDetailLength caps how much command output can reach the UI. CLI failures

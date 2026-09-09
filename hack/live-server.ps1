@@ -37,7 +37,7 @@ const providers = {
 // Every provider state the real app can show, reproducible here with no CLI,
 // no account and no network:
 //
-//   /?state=sign_in_required                     all three cards at once
+//   /?state=login_required                        all three cards at once
 //   /?codex=not_installed&claude=connected       one provider at a time
 //   /?view=sample                                open in the sample preview
 //
@@ -47,7 +47,6 @@ const stateMessages = {
   not_installed: 'Install the CLI and log in to monitor your quota.',
   auth_check_required: 'Credentials found. Connect to verify usage.',
   login_required: 'Log in to view quota information.',
-  sign_in_required: 'Log in to view quota information.',
   usage_unavailable: 'Quota information is not available for this account.',
   temporary_error: 'Could not reach the service right now. Retry in a moment.',
   unsupported_cli: 'This CLI version is not supported. Update the CLI.',

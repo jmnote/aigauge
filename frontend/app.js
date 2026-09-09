@@ -1,6 +1,6 @@
 import {
   parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
-  shouldCountFailure, shouldScheduleRetry,
+  shouldCountFailure, shouldScheduleRetry, isExpectedSetupState,
   shouldKeepStaleData, retryDelay, badgeClass, providerVisibilityAction,
   normalizeWindowWidth,
 } from '/logic.mjs';
@@ -179,11 +179,17 @@ const providerState = new Map(providerIds.map(id => [id, {
   plan: ''
 }]));
 
-function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan) {
+function updateStatus(dotId, tooltipId, status, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan) {
   const dot = document.getElementById(dotId);
   dot.classList.remove('connected', 'warning');
-  if (lastSuccessAt && failureCount < 3) dot.classList.add('connected');
-  else if (lastSuccessAt && failureCount < 6) dot.classList.add('warning');
+  // An expected setup state (login_required, not_installed, ...) is never
+  // "still connected", no matter how long ago the last real success was:
+  // failureCount is deliberately never incremented for these states (see
+  // shouldCountFailure) and lastSuccessAt is never cleared, so without this
+  // gate a provider whose session expired kept a permanently green dot.
+  const stale = lastSuccessAt && !isExpectedSetupState(status);
+  if (stale && failureCount < 3) dot.classList.add('connected');
+  else if (stale && failureCount < 6) dot.classList.add('warning');
 
   const tooltip = document.getElementById(tooltipId);
   const successValue = lastSuccessAt ? formatAgo(lastSuccessAt) : 'None';
@@ -200,7 +206,7 @@ function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefresh
 function updateProviderStatus(id) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  updateStatus(meta.dotId, meta.tooltipId, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan);
+  updateStatus(meta.dotId, meta.tooltipId, state.status, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan);
 }
 
 function createTooltipRow(labelText, valueText) {
@@ -615,12 +621,12 @@ async function fetchProvider(id) {
     clearLoadingText(meta.cardId);
     state.status = usage.status || '';
     if (state.status && state.status !== 'connected') {
-      state.lastError = String(usage.message || usage.error || '');
+      state.lastError = String(usage.message || usage.error || '').slice(0, 120);
       // Only a genuine failure moves the counter - see EXPECTED_SETUP_STATES.
       if (shouldCountFailure(state.status)) state.failureCount += 1;
     } else if (usage.error) {
       state.failureCount += 1;
-      state.lastError = String(usage.error);
+      state.lastError = String(usage.error).slice(0, 120);
     } else {
       state.failureCount = 0;
       state.lastSuccessAt = Date.now();
@@ -631,7 +637,7 @@ async function fetchProvider(id) {
     clearLoadingText(meta.cardId);
     state.status = '';
     state.failureCount += 1;
-    state.lastError = `Frontend call failed: ${error}`;
+    state.lastError = `Frontend call failed: ${error}`.slice(0, 120);
     meta.render(id, { error: state.lastError });
   } finally {
     state.fetching = false;

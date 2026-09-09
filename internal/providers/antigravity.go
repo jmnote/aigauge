@@ -11,22 +11,10 @@ import (
 type AntigravityUsage struct {
 	Groups    []AntigravityUsageGroup `json:"groups"`
 	FetchedAt string                  `json:"fetchedAt"`
-	Error     string                  `json:"error,omitempty"`
 
-	// See ClaudeUsage: the structured diagnosis, with Error kept in step for the
-	// frontend that has not migrated to Status yet.
-	Status  Status `json:"status,omitempty"`
-	Reason  Reason `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	Details string `json:"details,omitempty"`
-}
-
-func (u *AntigravityUsage) applyDiagnosis(diagnosis Diagnosis) {
-	u.Status = diagnosis.Status
-	u.Reason = diagnosis.Reason
-	u.Message = diagnosis.Message
-	u.Details = diagnosis.Details
-	u.Error = diagnosis.Message
+	// See DiagnosisFields in status.go: it carries the structured diagnosis,
+	// shared by all three providers so applyDiagnosis is defined exactly once.
+	DiagnosisFields
 }
 
 type AntigravityUsageGroup struct {
@@ -79,33 +67,6 @@ func parseAntigravityUsage(output []byte) (AntigravityUsage, error) {
 	return usage, nil
 }
 
-// resolveAgyPath returns the agy executable to run: lookupPath as found by
-// exec.LookPath("agy") when lookupErr is nil, otherwise the fallback install
-// location under homeDir(), verified to exist via pathExists. Accepting
-// homeDir/pathExists as functions (rather than calling os.UserHomeDir/os.Stat
-// directly) keeps this pure and unit-testable without touching the real
-// filesystem, and returning the resolved path as a single value (instead of
-// reassigning an outer variable from a nested scope) rules out the kind of
-// shadowing bug this used to have, where a `:=` inside the fallback branch
-// silently left the caller's lookupPath untouched.
-func resolveAgyPath(lookupPath string, lookupErr error, homeDir func() (string, error), pathExists func(string) bool) (string, error) {
-	if lookupErr == nil {
-		return lookupPath, nil
-	}
-	home, err := homeDir()
-	if err != nil {
-		return "", errors.New(notFoundDetails(""))
-	}
-	fallbackPath, ok := antigravityFallbackPath(home)
-	if !ok {
-		return "", errors.New(notFoundDetails(""))
-	}
-	if !pathExists(fallbackPath) {
-		return "", errors.New(notFoundDetails(fallbackPath))
-	}
-	return fallbackPath, nil
-}
-
 const (
 	// antigravityUsageTimeout bounds the whole `/usage` run. It stays well above
 	// the 30s --print-timeout handed to agy itself so the CLI gets the chance to
@@ -138,33 +99,41 @@ func GetAntigravityUsage() AntigravityUsage {
 	return getAntigravityUsage(context.Background(), defaultDeps(), true)
 }
 
-// findAgy resolves the executable. The raw lookup failure is kept under
-// Details for transparency, while Message provides clear guidance.
+// findAgy resolves the executable, the same way findExecutable resolves
+// claude/codex: PATH first, then the platform's fallback install location.
+// The raw lookup failure is kept under Details for transparency, while
+// Message provides clear guidance.
 func findAgy(deps providerDeps) (string, Diagnosis, bool) {
-	lookupPath, lookupErr := deps.lookPath("agy")
-	agyPath, err := resolveAgyPath(lookupPath, lookupErr, deps.homeDir, deps.pathExists)
-	if err != nil {
+	path, fallback := resolveExecutable("agy", antigravityFallbackPath, deps)
+	if path == "" {
 		return "", Diagnosis{
 			Status:  StatusNotInstalled,
 			Message: `Install the Antigravity CLI (<code>agy</code>) and log in to monitor your quota. <a href="https://antigravity.google/docs/cli/install">Installation guide</a>`,
-			Details: technicalDetails(err.Error()),
+			Details: technicalDetails(notFoundDetails(fallback)),
 		}, false
 	}
-	return agyPath, Diagnosis{}, true
+	return path, Diagnosis{}, true
 }
 
 // diagnoseAntigravityLocal answers with what can be known offline: whether agy
 // is installed and whether its version is supported. It never runs `/usage`,
-// which makes it the safe call for the onboarding screen.
+// which makes it the safe call for the onboarding screen, before the user has
+// asked to connect at all.
 func diagnoseAntigravityLocal(ctx context.Context, deps providerDeps) Diagnosis {
 	agyPath, notInstalled, ok := findAgy(deps)
 	if !ok {
 		return notInstalled
 	}
-	diagnosis, _ := diagnoseAntigravity(ctx, deps.runner, agyPath, false)
-	return diagnosis
+	return diagnoseAntigravity(ctx, deps.runner, agyPath)
 }
 
+// getAntigravityUsage backs both "Check connection" and the recurring poll.
+// Checking the connection *is* running `/usage`: that single command proves
+// the executable, its version, and the sign-in state all at once, so there is
+// no separate "check the CLI first" round trip here once the user is active -
+// classifyAntigravityUsage below reads an unsupported-CLI or logged-out
+// failure straight out of this call's own output instead of a preceding `agy
+// --version`, which would just be asking the same question twice.
 func getAntigravityUsage(ctx context.Context, deps providerDeps, active bool) AntigravityUsage {
 	usage := AntigravityUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
@@ -174,9 +143,8 @@ func getAntigravityUsage(ctx context.Context, deps providerDeps, active bool) An
 		return usage
 	}
 
-	diagnosis, ok := diagnoseAntigravity(ctx, deps.runner, agyPath, active)
-	if !ok {
-		usage.applyDiagnosis(diagnosis)
+	if !active {
+		usage.applyDiagnosis(diagnoseAntigravity(ctx, deps.runner, agyPath))
 		return usage
 	}
 

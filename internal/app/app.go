@@ -100,7 +100,9 @@ func (a *App) GetClaudeUsage() providers.ClaudeUsage { return providers.GetClaud
 func (a *App) GetSampleCodexUsage() providers.CodexUsage {
 	usage, err := decodeSample[providers.CodexUsage](fixtures.CodexJSON)
 	if err != nil {
-		return providers.CodexUsage{Status: providers.StatusUsageUnavailable, Message: err.Error()}
+		return providers.CodexUsage{DiagnosisFields: providers.DiagnosisFields{
+			Status: providers.StatusUsageUnavailable, Message: err.Error(), Error: err.Error(),
+		}}
 	}
 	// Codex reports its reset points as remaining seconds rather than
 	// timestamps, so they are already relative to now and need no shifting.
@@ -112,7 +114,9 @@ func (a *App) GetSampleCodexUsage() providers.CodexUsage {
 func (a *App) GetSampleClaudeUsage() providers.ClaudeUsage {
 	usage, err := decodeSample[providers.ClaudeUsage](fixtures.ClaudeJSON)
 	if err != nil {
-		return providers.ClaudeUsage{Status: providers.StatusUsageUnavailable, Message: err.Error()}
+		return providers.ClaudeUsage{DiagnosisFields: providers.DiagnosisFields{
+			Status: providers.StatusUsageUnavailable, Message: err.Error(), Error: err.Error(),
+		}}
 	}
 	now := time.Now()
 	capturedAt := usage.FetchedAt
@@ -127,7 +131,9 @@ func (a *App) GetSampleClaudeUsage() providers.ClaudeUsage {
 func (a *App) GetSampleAntigravityUsage() providers.AntigravityUsage {
 	usage, err := decodeSample[providers.AntigravityUsage](fixtures.AntigravityJSON)
 	if err != nil {
-		return providers.AntigravityUsage{Status: providers.StatusUsageUnavailable, Message: err.Error()}
+		return providers.AntigravityUsage{DiagnosisFields: providers.DiagnosisFields{
+			Status: providers.StatusUsageUnavailable, Message: err.Error(), Error: err.Error(),
+		}}
 	}
 	now := time.Now()
 	capturedAt := usage.FetchedAt

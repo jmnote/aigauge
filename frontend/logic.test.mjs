@@ -43,8 +43,8 @@ test('window width is restored within the supported range', () => {
   assert.equal(normalizeWindowWidth('invalid'), DEFAULT_WINDOW_WIDTH);
 });
 
-const EXPECTED = ['not_installed', 'auth_check_required', 'login_required', 'sign_in_required', 'unsupported_cli'];
-const FAILURES = ['temporary_error', 'usage_unavailable'];
+const EXPECTED = ['not_installed', 'auth_check_required', 'login_required'];
+const FAILURES = ['temporary_error', 'usage_unavailable', 'unsupported_cli'];
 
 // --- the rule the certification failure came down to -----------------------
 
@@ -89,7 +89,7 @@ test('a temporary failure with nothing fetched yet has nothing to keep', () => {
 });
 
 test('states other than a temporary failure never keep stale usage', () => {
-  for (const status of [...EXPECTED, 'usage_unavailable', 'connected']) {
+  for (const status of [...EXPECTED, 'usage_unavailable', 'unsupported_cli', 'connected']) {
     assert.equal(shouldKeepStaleData(status, 1_700_000_000_000), false, status);
   }
 });
@@ -194,6 +194,6 @@ test('waiting-for-setup states are not styled as errors', () => {
   assert.equal(badgeClass('connected'), 'is-ready');
   assert.equal(badgeClass('not_installed'), '');
   assert.equal(badgeClass('login_required'), '');
-  assert.equal(badgeClass('sign_in_required'), '');
   assert.equal(badgeClass('temporary_error'), 'is-blocked');
+  assert.equal(badgeClass('unsupported_cli'), 'is-blocked');
 });

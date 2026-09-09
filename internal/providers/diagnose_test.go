@@ -97,8 +97,8 @@ func TestDiagnoseClaudeFallsBackToTheCLIWhenCredentialsAreUnreadable(t *testing.
 	deps := testDeps(runner, foundPath("claude"), map[string]string{".claude/.credentials.json": "{ not json"})
 
 	diagnosis, _, _ := diagnoseClaude(context.Background(), deps, true)
-	if diagnosis.Status != StatusSignInRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusSignInRequired)
+	if diagnosis.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusLoginRequired)
 	}
 	want := []string{"claude", "auth", "status", "--json"}
 	if len(runner.calls) != 1 || strings.Join(runner.calls[0], " ") != strings.Join(want, " ") {
@@ -164,8 +164,8 @@ func TestDiagnoseClaudeTrustsReadableJSONOverExitCode(t *testing.T) {
 		ExitCode: 1,
 	}}
 	diagnosis, _, _ := diagnoseClaude(context.Background(), testDeps(runner, foundPath("claude"), nil), true)
-	if diagnosis.Status != StatusSignInRequired {
-		t.Errorf("Status = %q, want %q even though the command exited non-zero", diagnosis.Status, StatusSignInRequired)
+	if diagnosis.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q even though the command exited non-zero", diagnosis.Status, StatusLoginRequired)
 	}
 }
 
@@ -225,11 +225,11 @@ func TestDiagnoseCodexStopsAtAuthCheckWhenProviderIsInactive(t *testing.T) {
 	}
 }
 
-func TestDiagnoseCodexReportsSignInRequiredOnNonZeroExit(t *testing.T) {
+func TestDiagnoseCodexReportsLoginRequiredOnNonZeroExit(t *testing.T) {
 	runner := &fakeRunner{result: commandResult{Stderr: "Not logged in", ExitCode: 1}}
 	diagnosis, _, _ := diagnoseCodex(context.Background(), testDeps(runner, foundPath("codex"), nil), true)
-	if diagnosis.Status != StatusSignInRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusSignInRequired)
+	if diagnosis.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusLoginRequired)
 	}
 }
 
@@ -273,12 +273,12 @@ func TestDiagnoseCodexReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	}
 }
 
-func TestDiagnoseAntigravityStopsBeforeAnyNetworkCommandWhenInactive(t *testing.T) {
+// diagnoseAntigravity only ever backs the offline onboarding screen now -
+// see getAntigravityUsage for the active path, which runs `/usage` directly
+// instead of calling this first.
+func TestDiagnoseAntigravityReportsAuthCheckRequiredOnSupportedVersion(t *testing.T) {
 	runner := &fakeRunner{result: commandResult{Stdout: "1.1.28"}}
-	diagnosis, ok := diagnoseAntigravity(context.Background(), runner, "agy", false)
-	if ok {
-		t.Error("diagnoseAntigravity() ok = true, want false so /usage is never run for an inactive provider")
-	}
+	diagnosis := diagnoseAntigravity(context.Background(), runner, "agy")
 	if diagnosis.Status != StatusAuthCheckRequired {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
 	}
@@ -289,19 +289,9 @@ func TestDiagnoseAntigravityStopsBeforeAnyNetworkCommandWhenInactive(t *testing.
 
 func TestDiagnoseAntigravityReportsUnsupportedCLI(t *testing.T) {
 	runner := &fakeRunner{result: commandResult{Stderr: "unknown flag: --version", ExitCode: 2}}
-	diagnosis, ok := diagnoseAntigravity(context.Background(), runner, "agy", true)
-	if ok {
-		t.Error("diagnoseAntigravity() ok = true, want false for an unsupported CLI")
-	}
+	diagnosis := diagnoseAntigravity(context.Background(), runner, "agy")
 	if diagnosis.Status != StatusUnsupportedCLI {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusUnsupportedCLI)
-	}
-}
-
-func TestDiagnoseAntigravityProceedsWhenActive(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stdout: "1.1.28"}}
-	if _, ok := diagnoseAntigravity(context.Background(), runner, "agy", true); !ok {
-		t.Error("diagnoseAntigravity() ok = false, want true so the caller runs /usage")
 	}
 }
 
@@ -323,8 +313,8 @@ func TestFindAgyReportsNotInstalledWithGuideLink(t *testing.T) {
 func TestUsageFailureDiagnosisMapsUnauthorizedToSignIn(t *testing.T) {
 	for _, code := range []int{401, 403} {
 		err := &httpStatusError{StatusCode: code, message: "Claude usage request failed"}
-		if diagnosis := usageFailureDiagnosis("Claude", err); diagnosis.Status != StatusSignInRequired {
-			t.Errorf("HTTP %d: Status = %q, want %q", code, diagnosis.Status, StatusSignInRequired)
+		if diagnosis := usageFailureDiagnosis("Claude", err); diagnosis.Status != StatusLoginRequired {
+			t.Errorf("HTTP %d: Status = %q, want %q", code, diagnosis.Status, StatusLoginRequired)
 		}
 	}
 }
@@ -504,6 +494,12 @@ func TestGetAntigravityUsageConnectsOnValidUsage(t *testing.T) {
 	if runner.ran("models") {
 		t.Errorf("ran %v, want no secondary diagnostic after a clean /usage", runner.calls)
 	}
+	// Checking the connection IS running /usage - it must not also run a
+	// separate `agy --version` first, since that would ask the same
+	// executable/version question /usage already answers a second time.
+	if runner.ran("--version") || len(runner.calls) != 1 {
+		t.Errorf("ran %v, want exactly one command (`/usage`) for an active check", runner.calls)
+	}
 }
 
 func TestGetAntigravityUsageSeparatesNoDataFromUnreadableResponse(t *testing.T) {
@@ -522,14 +518,14 @@ func TestGetAntigravityUsageSeparatesNoDataFromUnreadableResponse(t *testing.T) 
 	}
 }
 
-func TestGetAntigravityUsageReportsSignInRequiredOnAuthMarker(t *testing.T) {
+func TestGetAntigravityUsageReportsLoginRequiredOnAuthMarker(t *testing.T) {
 	runner := antigravityRunner(map[string]commandResult{
 		"-p": {Stderr: "Error: not logged in. Run agy to sign in.", ExitCode: 1},
 	})
 	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), true)
 
-	if usage.Status != StatusSignInRequired {
-		t.Errorf("Status = %q, want %q", usage.Status, StatusSignInRequired)
+	if usage.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusLoginRequired)
 	}
 	if runner.ran("models") {
 		t.Errorf("ran %v, want no secondary diagnostic once the failure is already clear", runner.calls)

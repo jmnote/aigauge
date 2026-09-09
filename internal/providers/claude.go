@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"time"
 )
 
@@ -19,23 +18,10 @@ type ClaudeUsage struct {
 	Plan      string              `json:"plan"`
 	Buckets   []ClaudeUsageBucket `json:"buckets"`
 	FetchedAt string              `json:"fetchedAt"`
-	Error     string              `json:"error,omitempty"`
 
-	// Status and friends carry the structured diagnosis. Error is still filled
-	// in alongside them so the current frontend, which only knows how to read a
-	// message string, keeps working until it switches to Status.
-	Status  Status `json:"status,omitempty"`
-	Reason  Reason `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	Details string `json:"details,omitempty"`
-}
-
-func (u *ClaudeUsage) applyDiagnosis(diagnosis Diagnosis) {
-	u.Status = diagnosis.Status
-	u.Reason = diagnosis.Reason
-	u.Message = diagnosis.Message
-	u.Details = diagnosis.Details
-	u.Error = diagnosis.Message
+	// See DiagnosisFields in status.go: it carries the structured diagnosis,
+	// shared by all three providers so applyDiagnosis is defined exactly once.
+	DiagnosisFields
 }
 
 type ClaudeUsageBucket struct {
@@ -127,28 +113,13 @@ func parseClaudeUsage(data []byte) (ClaudeUsage, error) {
 	return usage, nil
 }
 
-// findClaudeCredentials reads the minimum this app needs to call the usage API:
-// the access token, plus the subscription label shown on the card. It reports
-// found=false both when the file is absent and when it cannot be parsed - the
-// caller treats those the same way, by falling back to the CLI for an
-// explanation - and it never returns the file's other contents.
+// findClaudeCredentials reads the minimum this app needs to call the usage
+// API: the access token, plus the subscription label shown on the card. See
+// findCredentials in diagnose.go for what "found" means.
 func findClaudeCredentials(homeDir func() (string, error), readFile func(string) ([]byte, error)) (claudeCredentials, bool) {
-	home, err := homeDir()
-	if err != nil {
-		return claudeCredentials{}, false
-	}
-	data, err := readFile(filepath.Join(home, ".claude", ".credentials.json"))
-	if err != nil {
-		return claudeCredentials{}, false
-	}
-	var credentials claudeCredentials
-	if err := json.Unmarshal(data, &credentials); err != nil {
-		return claudeCredentials{}, false
-	}
-	if credentials.ClaudeAiOauth.AccessToken == "" {
-		return claudeCredentials{}, false
-	}
-	return credentials, true
+	return findCredentials(homeDir, readFile, claudeCredentialRelPath, func(c claudeCredentials) bool {
+		return c.ClaudeAiOauth.AccessToken != ""
+	})
 }
 
 func GetClaudeUsage() ClaudeUsage {
