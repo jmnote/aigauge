@@ -285,8 +285,8 @@ function renderFormattedMessage(element, text) {
 function createInfoIcon() {
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '12');
-  svg.setAttribute('height', '12');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
   svg.setAttribute('fill', 'none');
   svg.setAttribute('stroke', 'currentColor');
   svg.setAttribute('stroke-width', '2');

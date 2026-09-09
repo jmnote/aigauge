@@ -1029,21 +1029,30 @@ button {
   width: 20px;
   height: 20px;
   padding: 0 !important;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface);
+  border: 0 !important;
+  border-radius: 4px;
+  background: transparent !important;
   color: var(--muted);
   cursor: pointer;
   line-height: 1;
-  transition: color .15s ease, border-color .15s ease, background .15s ease;
+  transition: color .15s ease, background-color .15s ease;
+}
+
+.details-info-btn svg {
+  width: 15px;
+  height: 15px;
 }
 
 .details-info-btn:hover,
-.details-info-btn:focus-visible,
 .details-wrap.details-open .details-info-btn {
   color: var(--base-accent);
-  border-color: var(--base-accent);
-  background: color-mix(in srgb, var(--base-accent) 12%, transparent);
+  background: color-mix(in srgb, var(--base-accent) 15%, transparent) !important;
+}
+
+.details-info-btn:focus-visible {
+  color: var(--base-accent);
+  outline: 2px solid var(--base-accent);
+  outline-offset: 1px;
 }
 
 .details-wrap:hover .details-tooltip,
