@@ -95,14 +95,14 @@ func resolveAgyPath(lookupPath string, lookupErr error, homeDir func() (string, 
 	}
 	home, err := homeDir()
 	if err != nil {
-		return "", errors.New("agy command not found")
+		return "", errors.New("Checked PATH.")
 	}
 	fallbackPath, ok := antigravityFallbackPath(home)
 	if !ok {
-		return "", errors.New("agy command not found in PATH")
+		return "", errors.New("Checked PATH.")
 	}
 	if !pathExists(fallbackPath) {
-		return "", fmt.Errorf("agy command not found in PATH or default installation directory (%s)", fallbackPath)
+		return "", fmt.Errorf("Checked PATH and %s.", fallbackPath)
 	}
 	return fallbackPath, nil
 }

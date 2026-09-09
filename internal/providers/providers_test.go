@@ -115,6 +115,31 @@ func TestResolveAgyPathErrorsWhenFallbackDoesNotExist(t *testing.T) {
 	}
 }
 
+func TestResolveExecutableFallsBackWhenLookupFails(t *testing.T) {
+	home := filepath.Join("C:", "Users", "test")
+	wantCodex, codexSupported := codexFallbackPath(home)
+	wantClaude, claudeSupported := claudeFallbackPath(home)
+
+	deps := providerDeps{
+		lookPath:   missingPath(),
+		homeDir:    func() (string, error) { return home, nil },
+		pathExists: func(p string) bool { return p == wantCodex || p == wantClaude },
+	}
+
+	if codexSupported {
+		path, _ := resolveExecutable("codex", codexFallbackPath, deps)
+		if path != wantCodex {
+			t.Errorf("resolveExecutable(codex) = %q, want %q", path, wantCodex)
+		}
+	}
+	if claudeSupported {
+		path, _ := resolveExecutable("claude", claudeFallbackPath, deps)
+		if path != wantClaude {
+			t.Errorf("resolveExecutable(claude) = %q, want %q", path, wantClaude)
+		}
+	}
+}
+
 func TestParseClaudeUsage(t *testing.T) {
 	usage, err := parseClaudeUsage(readFixture(t, "claude-usage.json"))
 	if err != nil {

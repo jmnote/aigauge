@@ -89,20 +89,44 @@ func diagnoseClaude(ctx context.Context, deps providerDeps, active bool) (Diagno
 	return diagnoseClaudeCLI(ctx, deps, active), credentials, false
 }
 
+func resolveExecutable(name string, fallbackFunc func(string) (string, bool), deps providerDeps) (string, string) {
+	if path, err := deps.lookPath(name); err == nil {
+		return path, ""
+	}
+	if home, err := deps.homeDir(); err == nil {
+		if fallback, ok := fallbackFunc(home); ok {
+			if deps.pathExists(fallback) {
+				return fallback, ""
+			}
+			return "", fallback
+		}
+	}
+	return "", ""
+}
+
 // diagnoseClaudeCLI is the secondary diagnosis: it runs only when no usable
 // credential was found, and exists to tell "never signed in" apart from "signed
 // in somewhere this app cannot read".
 func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
-	path, err := deps.lookPath("claude")
-	if err != nil {
-		details := "claude command not found in PATH"
-		if home, err := deps.homeDir(); err == nil {
-			details = fmt.Sprintf("claude command not found in PATH; credentials file (%s) not found", filepath.Join(home, ".claude", ".credentials.json"))
+	path, fallback := resolveExecutable("claude", claudeFallbackPath, deps)
+	if path == "" {
+		home, _ := deps.homeDir()
+		credPath := ""
+		if home != "" {
+			credPath = filepath.Join(home, ".claude", ".credentials.json")
+		}
+		var parts []string
+		parts = append(parts, "Checked PATH")
+		if fallback != "" {
+			parts = append(parts, fallback)
+		}
+		if credPath != "" {
+			parts = append(parts, fmt.Sprintf("credentials file (%s)", credPath))
 		}
 		return Diagnosis{
 			Status:  StatusNotInstalled,
 			Message: "Install Claude Code CLI (<code>claude</code>) and sign in to monitor your quota.",
-			Details: technicalDetails(details),
+			Details: technicalDetails(strings.Join(parts, ", ") + "."),
 		}
 	}
 
@@ -163,16 +187,25 @@ func diagnoseCodex(ctx context.Context, deps providerDeps, active bool) (Diagnos
 }
 
 func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
-	path, err := deps.lookPath("codex")
-	if err != nil {
-		details := "codex command not found in PATH"
-		if home, err := deps.homeDir(); err == nil {
-			details = fmt.Sprintf("codex command not found in PATH; credentials file (%s) not found", filepath.Join(home, ".codex", "auth.json"))
+	path, fallback := resolveExecutable("codex", codexFallbackPath, deps)
+	if path == "" {
+		home, _ := deps.homeDir()
+		credPath := ""
+		if home != "" {
+			credPath = filepath.Join(home, ".codex", "auth.json")
+		}
+		var parts []string
+		parts = append(parts, "Checked PATH")
+		if fallback != "" {
+			parts = append(parts, fallback)
+		}
+		if credPath != "" {
+			parts = append(parts, fmt.Sprintf("credentials file (%s)", credPath))
 		}
 		return Diagnosis{
 			Status:  StatusNotInstalled,
 			Message: "Install the Codex CLI (<code>codex</code>) and sign in to monitor your quota.",
-			Details: technicalDetails(details),
+			Details: technicalDetails(strings.Join(parts, ", ") + "."),
 		}
 	}
 
