@@ -1072,15 +1072,11 @@ button {
   gap: 6px;
 }
 
-.setup-primary-btn,
-.setup-secondary-btn {
-  padding: 6px 12px;
-  font-size: .75rem;
-}
-
 .setup-primary-btn {
+  padding: 6px 12px;
   border-color: var(--base-accent);
   color: var(--base-accent);
+  font-size: .75rem;
   font-weight: 650;
 }
 

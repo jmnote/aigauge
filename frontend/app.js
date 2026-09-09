@@ -842,7 +842,6 @@ function openSettings() {
 }
 
 document.getElementById('settings').addEventListener('click', openSettings);
-document.getElementById('open-settings-btn').addEventListener('click', openSettings);
 
 // ---------------------------------------------------------------------------
 // First-run screen

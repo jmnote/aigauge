@@ -114,7 +114,7 @@ Enter the following text in **Supplemental info → Additional Testing Informati
 - **Credentials for certification**: Leave empty. The sample preview must be testable without credentials.
 - **Pre-entry verification**:
   1. Confirm the sample preview opens from the first-run screen in the packaged app, with no command-line arguments.
-  2. Confirm that every button name in the notes above matches the uploaded MSIX exactly: **Preview with sample data**, **Back to setup**, **Check connection**, **Configure Providers**.
+  2. Confirm that every button name in the notes above matches the uploaded MSIX exactly: **Preview with sample data**, **Back to setup**, **Check connection**.
   3. Confirm that entering and leaving the preview leaves the saved provider settings unchanged.
   4. Test from a clean Windows account with no Codex, Claude Code, or Antigravity installation or sign-in state, and confirm no raw error text or failure counter appears.
   5. Enter and save the notes only after the updated package has been uploaded to the draft submission.
