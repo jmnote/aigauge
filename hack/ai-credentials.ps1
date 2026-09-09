@@ -1,9 +1,20 @@
 param(
-    [switch]$Restore
+    [switch]$Restore,
+    [ValidateSet("all", "antigravity", "claude", "codex", "agy")]
+    [string]$Provider = "all"
 )
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
+
+if ($Provider -eq "agy") { $Provider = "antigravity" }
+
+function Get-ProviderFromLabel([string]$label) {
+    if ($label -match "(?i)claude") { return "claude" }
+    if ($label -match "(?i)codex") { return "codex" }
+    if ($label -match "(?i)agy|antigravity") { return "antigravity" }
+    return "unknown"
+}
 
 # Where AI Gauge itself looks for each provider - kept in sync with
 # internal/providers/claude.go (findClaudeCredentials), codex.go
@@ -13,34 +24,37 @@ $repo = Split-Path -Parent $PSScriptRoot
 # certification device starts from, without needing a second Windows
 # account or a VM: internal_providers reads none of them, so every
 # provider reports not_installed exactly as it would on that clean device.
-#
-# Get-Command must run on every call rather than once, because after a
-# backup the live file is gone and Get-Command can no longer see it -
-# which is also why backup records what it found in $manifestPath instead
-# of relying on Restore to look the paths up again from scratch.
 function Get-AiBackupTargets {
-    $targets = @(
-        @{ Label = "Claude credentials"; Path = (Join-Path $env:USERPROFILE ".claude\.credentials.json") }
-        @{ Label = "Codex credentials"; Path = (Join-Path $env:USERPROFILE ".codex\auth.json") }
-    )
+    param([string]$TargetProvider = "all")
 
-    foreach ($entry in @(
-            @{ Label = "claude executable"; Name = "claude" }
-            @{ Label = "codex executable"; Name = "codex" }
-            @{ Label = "agy executable"; Name = "agy" }
-        )) {
-        $command = Get-Command $entry.Name -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
-        if ($command) {
-            $targets += @{ Label = $entry.Label; Path = $command.Source }
+    $targets = @()
+
+    if ($TargetProvider -in @("all", "claude")) {
+        $targets += @{ Provider = "claude"; Label = "Claude credentials"; Path = (Join-Path $env:USERPROFILE ".claude\.credentials.json") }
+        $claudeCmd = Get-Command "claude" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($claudeCmd) {
+            $targets += @{ Provider = "claude"; Label = "claude executable"; Path = $claudeCmd.Source }
         }
     }
 
-    # agy's fallback install location (used when it isn't on PATH) is
-    # separate from what Get-Command above would have found.
-    $agyFallback = Join-Path $env:LOCALAPPDATA "agy\bin\agy.exe"
-    if ((Test-Path -LiteralPath $agyFallback -PathType Leaf) -and
-        -not ($targets | Where-Object { $_.Path -eq $agyFallback })) {
-        $targets += @{ Label = "agy executable (fallback path)"; Path = $agyFallback }
+    if ($TargetProvider -in @("all", "codex")) {
+        $targets += @{ Provider = "codex"; Label = "Codex credentials"; Path = (Join-Path $env:USERPROFILE ".codex\auth.json") }
+        $codexCmd = Get-Command "codex" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($codexCmd) {
+            $targets += @{ Provider = "codex"; Label = "codex executable"; Path = $codexCmd.Source }
+        }
+    }
+
+    if ($TargetProvider -in @("all", "antigravity")) {
+        $agyCmd = Get-Command "agy" -CommandType Application -ErrorAction SilentlyContinue | Select-Object -First 1
+        if ($agyCmd) {
+            $targets += @{ Provider = "antigravity"; Label = "agy executable"; Path = $agyCmd.Source }
+        }
+        $agyFallback = Join-Path $env:LOCALAPPDATA "agy\bin\agy.exe"
+        if ((Test-Path -LiteralPath $agyFallback -PathType Leaf) -and
+            -not ($targets | Where-Object { $_.Path -eq $agyFallback })) {
+            $targets += @{ Provider = "antigravity"; Label = "agy executable (fallback path)"; Path = $agyFallback }
+        }
     }
 
     return $targets
@@ -51,12 +65,27 @@ function Get-AiBackupTargets {
 $manifestPath = Join-Path $repo ".ai-credentials-backup.local.json"
 
 function Invoke-Backup {
-    $targets = Get-AiBackupTargets
+    param([string]$TargetProvider = "all")
+
+    $existingMoved = @()
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
-        Write-Warning "A backup manifest already exists at $manifestPath. Run '.\build.ps1 ai-restore' first before backing up again."
-        exit 1
+        $raw = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+        $existingMoved = @($raw | ForEach-Object { $_ })
     }
 
+    if ($existingMoved.Count -gt 0) {
+        $alreadyBackedUp = $existingMoved | Where-Object {
+            $prov = if ($_.Provider) { $_.Provider } else { Get-ProviderFromLabel $_.Label }
+            $TargetProvider -eq "all" -or $prov -eq $TargetProvider
+        }
+        if ($alreadyBackedUp) {
+            $provLabel = if ($TargetProvider -eq "all") { "Some or all providers are" } else { "Provider '$TargetProvider' is" }
+            Write-Warning "$provLabel already backed up in $manifestPath. Run '.\build.ps1 ai-restore $TargetProvider' first before backing up again."
+            exit 1
+        }
+    }
+
+    $targets = Get-AiBackupTargets -TargetProvider $TargetProvider
     $moved = @()
     foreach ($target in $targets) {
         $livePath = $target.Path
@@ -69,41 +98,67 @@ function Invoke-Backup {
         try {
             Move-Item -LiteralPath $livePath -Destination $backupPath
             Write-Output "Backed up: $($target.Label) -> $backupPath"
-            $moved += @{ Label = $target.Label; LivePath = $livePath; BackupPath = $backupPath }
+            $moved += @{
+                Provider   = $target.Provider
+                Label      = $target.Label
+                LivePath   = $livePath
+                BackupPath = $backupPath
+            }
         } catch {
             Write-Warning "Could not back up $($target.Label) ($livePath): $_. Still in use by a running process?"
         }
     }
 
     if ($moved.Count -eq 0) {
-        Write-Output "Nothing to back up - no live credential or executable files were found."
+        Write-Output "Nothing to back up for '$TargetProvider' - no live credential or executable files were found."
         return
     }
 
-    $moved | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8
+    $allMoved = @($existingMoved) + @($moved)
+    $allMoved | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8
     Write-Output ""
-    Write-Output "Backed up $($moved.Count) item(s). Run '.\build.ps1 ai-restore' when done testing."
+    $restoreHint = if ($TargetProvider -eq "all") { ".\build.ps1 ai-restore" } else { ".\build.ps1 ai-restore $TargetProvider" }
+    Write-Output "Backed up $($moved.Count) item(s) for '$TargetProvider'. Run '$restoreHint' when done testing."
 }
 
 function Invoke-Restore {
+    param([string]$TargetProvider = "all")
+
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
         Write-Output "Nothing to restore - no backup manifest found at $manifestPath."
         return
     }
 
     $raw = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-    $moved = @($raw | ForEach-Object { $_ })
+    $allMoved = @($raw | ForEach-Object { $_ })
+
+    $toRestore = @()
+    $remaining = @()
+    foreach ($item in $allMoved) {
+        $prov = if ($item.Provider) { $item.Provider } else { Get-ProviderFromLabel $item.Label }
+        if ($TargetProvider -eq "all" -or $prov -eq $TargetProvider) {
+            $toRestore += $item
+        } else {
+            $remaining += $item
+        }
+    }
+
+    if ($toRestore.Count -eq 0) {
+        Write-Output "Nothing to restore - no backed-up items found for '$TargetProvider' in $manifestPath."
+        return
+    }
+
     $allRestored = $true
-    foreach ($item in $moved) {
+    $notRestored = @()
+    foreach ($item in $toRestore) {
         if (-not (Test-Path -LiteralPath $item.BackupPath -PathType Leaf)) {
             Write-Warning "Skipping $($item.Label): backup file $($item.BackupPath) is gone."
             continue
         }
         if (Test-Path -LiteralPath $item.LivePath -PathType Leaf) {
-            # Something (e.g. a reinstall while backed up) recreated the live
-            # file. Leave both alone rather than guessing which one is right.
             Write-Warning "Skipping $($item.Label): $($item.LivePath) already exists again. Resolve manually - both it and $($item.BackupPath) are left in place."
             $allRestored = $false
+            $notRestored += $item
             continue
         }
         try {
@@ -112,14 +167,19 @@ function Invoke-Restore {
         } catch {
             Write-Warning "Could not restore $($item.Label) ($($item.BackupPath)): $_"
             $allRestored = $false
+            $notRestored += $item
         }
     }
 
-    if ($allRestored) {
+    $finalRemaining = @($remaining) + @($notRestored)
+    if ($finalRemaining.Count -eq 0) {
         Remove-Item -LiteralPath $manifestPath -Force
     } else {
-        Write-Warning "Some items were not restored; kept $manifestPath so a re-run of 'ai-restore' can retry them."
+        $finalRemaining | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8
+        if (-not $allRestored) {
+            Write-Warning "Some items were not restored; kept in $manifestPath so a re-run of 'ai-restore' can retry them."
+        }
     }
 }
 
-if ($Restore) { Invoke-Restore } else { Invoke-Backup }
+if ($Restore) { Invoke-Restore -TargetProvider $Provider } else { Invoke-Backup -TargetProvider $Provider }

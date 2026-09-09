@@ -1,6 +1,7 @@
 param(
     [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures", "fixtures-json", "fixtures-go", "ai-backup", "ai-restore")]
     [string]$Task = "build",
+    [Alias("Provider", "Target")]
     [string]$Version = "",
     [ValidateSet("x64", "x86", "arm64")]
     [string]$Architecture = "x64",
@@ -143,11 +144,14 @@ switch ($Task) {
         # a clean certification device with none of them installed would -
         # letting that first-run "no CLI, no sign-in" state be tested here
         # without a second Windows account or a VM. Reversed by ai-restore.
-        & (Join-Path $PSScriptRoot "hack\ai-credentials.ps1")
+        # Accepts an optional provider argument: all (default), antigravity, claude, codex.
+        $provider = if ($Version) { $Version } else { "all" }
+        & (Join-Path $PSScriptRoot "hack\ai-credentials.ps1") -Provider $provider
         exit $LASTEXITCODE
     }
     "ai-restore" {
-        & (Join-Path $PSScriptRoot "hack\ai-credentials.ps1") -Restore
+        $provider = if ($Version) { $Version } else { "all" }
+        & (Join-Path $PSScriptRoot "hack\ai-credentials.ps1") -Restore -Provider $provider
         exit $LASTEXITCODE
     }
     "fixtures" {
