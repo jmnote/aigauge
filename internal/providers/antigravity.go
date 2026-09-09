@@ -108,7 +108,7 @@ func findAgy(deps providerDeps) (string, Diagnosis, bool) {
 	if path == "" {
 		return "", Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: `Install the Antigravity CLI (<code>agy</code>) and log in to monitor your quota. <a href="https://antigravity.google/docs/cli/install">Installation guide</a>`,
+			Message: `Install the Antigravity CLI (<code>agy</code>) and log in to monitor your quota. <a href="` + antigravityInstallGuideURL + `">Installation guide</a>`,
 			Details: technicalDetails(notFoundDetails(fallback)),
 		}, false
 	}
@@ -117,23 +117,20 @@ func findAgy(deps providerDeps) (string, Diagnosis, bool) {
 
 // diagnoseAntigravityLocal answers with what can be known offline: whether agy
 // is installed and whether its version is supported. It never runs `/usage`,
-// which makes it the safe call for the onboarding screen, before the user has
-// asked to connect at all.
+// which makes it the safe call for the onboarding screen.
 func diagnoseAntigravityLocal(ctx context.Context, deps providerDeps) Diagnosis {
 	agyPath, notInstalled, ok := findAgy(deps)
 	if !ok {
 		return notInstalled
 	}
-	return diagnoseAntigravity(ctx, deps.runner, agyPath)
+	diagnosis, _ := diagnoseAntigravity(ctx, deps.runner, agyPath, false)
+	return diagnosis
 }
 
 // getAntigravityUsage backs both "Check connection" and the recurring poll.
-// Checking the connection *is* running `/usage`: that single command proves
-// the executable, its version, and the sign-in state all at once, so there is
-// no separate "check the CLI first" round trip here once the user is active -
-// classifyAntigravityUsage below reads an unsupported-CLI or logged-out
-// failure straight out of this call's own output instead of a preceding `agy
-// --version`, which would just be asking the same question twice.
+// It checks `--version` first (via diagnoseAntigravity) even when active, so
+// a broken or incompatible CLI is reported without ever attempting the
+// heavier `/usage` request - see diagnoseAntigravity's doc comment.
 func getAntigravityUsage(ctx context.Context, deps providerDeps, active bool) AntigravityUsage {
 	usage := AntigravityUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
@@ -143,8 +140,9 @@ func getAntigravityUsage(ctx context.Context, deps providerDeps, active bool) An
 		return usage
 	}
 
-	if !active {
-		usage.applyDiagnosis(diagnoseAntigravity(ctx, deps.runner, agyPath))
+	diagnosis, ok := diagnoseAntigravity(ctx, deps.runner, agyPath, active)
+	if !ok {
+		usage.applyDiagnosis(diagnosis)
 		return usage
 	}
 
@@ -197,7 +195,7 @@ func classifyAntigravityUsage(ctx context.Context, deps providerDeps, agyPath st
 	if containsAnyMarker(output, unsupportedCLIMarkers) {
 		return nil, Diagnosis{
 			Status:  StatusUnsupportedCLI,
-			Message: "This Antigravity CLI version is not supported. Update the CLI.",
+			Message: unsupportedCLIMessage("Antigravity CLI", antigravityInstallGuideURL),
 			Details: technicalDetails(output),
 		}
 	}

@@ -109,15 +109,23 @@ export const STATUS_BADGES = {
 // not checked. They are the normal shape of a machine that has not been set
 // up, so they must never be treated as failures. unsupported_cli is
 // deliberately NOT here - an install that regresses from a working CLI to an
-// incompatible one is a real failure, not a setup step, and must count
-// against the failure threshold and keep retrying like any other failure (see
+// incompatible one is a real failure, not a setup step (see
 // Status.NeedsUserAction in internal/providers/status.go, which this set
-// mirrors and must stay in sync with).
+// mirrors and must stay in sync with) - it still counts toward the failure
+// threshold and shows blocked, just without polling on a timer; see
+// shouldScheduleRetry below for why.
 export const EXPECTED_SETUP_STATES = new Set([
   'not_installed', 'auth_check_required', 'login_required',
 ]);
 
 export const isExpectedSetupState = status => EXPECTED_SETUP_STATES.has(status);
+
+// States where an automatic retry cannot fix anything on its own: the three
+// expected-setup states need the user to act, and unsupported_cli needs a CLI
+// update - polling it on a timer just repeats the same failing check against
+// a version that will not change by itself, and the guidance ("Update to the
+// latest version") already points the user at what to do instead.
+const NO_AUTO_RETRY_STATES = new Set([...EXPECTED_SETUP_STATES, 'unsupported_cli']);
 
 // Counting an expected setup state as a failure is what made a clean review
 // machine look broken: it drives the status dot red and backs the refresh off
@@ -125,10 +133,10 @@ export const isExpectedSetupState = status => EXPECTED_SETUP_STATES.has(status);
 export const shouldCountFailure = status =>
   Boolean(status) && status !== 'connected' && !isExpectedSetupState(status);
 
-// Nothing polls its way out of "no CLI installed" or "not signed in", so an
-// expected setup state gets no automatic retry - the user's own Check again is
-// the trigger.
-export const shouldScheduleRetry = status => !isExpectedSetupState(status);
+// Nothing polls its way out of "no CLI installed", "not signed in", or "this
+// CLI version isn't supported", so these states get no automatic retry - the
+// user's own Check again is the trigger.
+export const shouldScheduleRetry = status => !NO_AUTO_RETRY_STATES.has(status);
 
 // A temporary network or service failure is the one case that keeps whatever is
 // already on screen: the numbers are stale, not wrong, and blanking the card

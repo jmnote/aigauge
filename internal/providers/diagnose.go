@@ -135,6 +135,23 @@ func notFoundDetails(fallback string) string {
 	return "CLI Not Found: PATH"
 }
 
+// The install guide links, one per provider. The same page answers both
+// "how do I install this" (not_installed) and "how do I get a newer version"
+// (unsupported_cli), so both messages point at it.
+const (
+	claudeInstallGuideURL      = "https://code.claude.com/docs/ko/quickstart#step-1-install-claude-code"
+	codexInstallGuideURL       = "https://learn.chatgpt.com/docs/codex/cli#getting-started"
+	antigravityInstallGuideURL = "https://antigravity.google/docs/cli/install"
+)
+
+// unsupportedCLIMessage is the message shown for StatusUnsupportedCLI: the
+// installed CLI answered, but not in a shape this version understands, so the
+// fix is a CLI update rather than a retry - retrying would just run the same
+// failing check again against a version that will not change on its own.
+func unsupportedCLIMessage(label, guideURL string) string {
+	return fmt.Sprintf(`This %s version is not supported. Update to the latest version. <a href="%s">Installation guide</a>`, label, guideURL)
+}
+
 // claudeCredentialRelPath and codexCredentialRelPath are the on-disk
 // credential file locations, relative to the home directory. Both
 // findClaudeCredentials/findCodexCredentials (to read the file) and
@@ -179,7 +196,7 @@ func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diag
 	if path == "" {
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: `Install Claude Code CLI (<code>claude</code>) and log in to monitor your quota. <a href="https://code.claude.com/docs/ko/quickstart#step-1-install-claude-code">Installation guide</a>`,
+			Message: `Install Claude Code CLI (<code>claude</code>) and log in to monitor your quota. <a href="` + claudeInstallGuideURL + `">Installation guide</a>`,
 			Details: technicalDetails(notFoundDetails(fallback)),
 		}
 	}
@@ -218,7 +235,7 @@ func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diag
 		return unsupportedCredentialSourceDiagnosis("Claude Code")
 	}
 
-	return unreadableStatusDiagnosis("Claude Code", result)
+	return unreadableStatusDiagnosis("Claude Code", claudeInstallGuideURL, result)
 }
 
 // diagnoseCodex mirrors diagnoseClaude. The difference is the secondary
@@ -245,7 +262,7 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 	if path == "" {
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: `Install the Codex CLI (<code>codex</code>) and log in to monitor your quota. <a href="https://learn.chatgpt.com/docs/codex/cli#getting-started">Installation guide</a>`,
+			Message: `Install the Codex CLI (<code>codex</code>) and log in to monitor your quota. <a href="` + codexInstallGuideURL + `">Installation guide</a>`,
 			Details: technicalDetails(notFoundDetails(fallback)),
 		}
 	}
@@ -265,7 +282,7 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 	if containsAnyMarker(output, unsupportedCLIMarkers) {
 		return Diagnosis{
 			Status:  StatusUnsupportedCLI,
-			Message: "This Codex version is not supported. Update the CLI.",
+			Message: unsupportedCLIMessage("Codex", codexInstallGuideURL),
 			Details: technicalDetails(output),
 		}
 	}
@@ -287,16 +304,15 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 	return unsupportedCredentialSourceDiagnosis("Codex")
 }
 
-// diagnoseAntigravity reports what can be known about Antigravity without
-// running `/usage`: whether agy exists and whether its version is supported.
-// It backs only the onboarding screen (diagnoseAntigravityLocal), which must
-// never make a network request on its own. Once the user is active,
-// getAntigravityUsage does not call this - it goes straight to `/usage`,
-// since agy has no local sign-in command (`agy auth status` does not exist
-// through 1.1.28) and that single command already proves the executable, its
-// version, and the sign-in state together; running `--version` first would
-// only ask the executable/version half of that question twice.
-func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath string) Diagnosis {
+// diagnoseAntigravity reports Antigravity's readiness. agy is the only
+// provider whose CLI is genuinely required, because the usage lookup *is* an
+// agy command - there is no credential file to fall back to. It also has no
+// local sign-in command (`agy auth status` does not exist through 1.1.28), so
+// the network gate sits earlier here: `--version` is checked first, network-
+// free, for every caller including an active one - a broken or incompatible
+// CLI is then reported without ever attempting the heavier `/usage` request,
+// and the version state itself only comes back with `/usage`.
+func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath string, active bool) (Diagnosis, bool) {
 	ctx, cancel := context.WithTimeout(ctx, statusCommandTimeout)
 	defer cancel()
 	result, err := runner.run(ctx, agyPath, "--version")
@@ -305,20 +321,24 @@ func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath stri
 			Status:  StatusTemporaryError,
 			Message: "Could not run the Antigravity CLI. Try again.",
 			Details: technicalDetails(err.Error() + " " + result.Stderr),
-		}
+		}, false
 	}
 	if result.ExitCode != 0 {
 		return Diagnosis{
 			Status:  StatusUnsupportedCLI,
-			Message: "This Antigravity CLI version is not supported. Update the CLI.",
+			Message: unsupportedCLIMessage("Antigravity CLI", antigravityInstallGuideURL),
 			Details: technicalDetails(result.Stdout + " " + result.Stderr),
-		}
+		}, false
 	}
-	return Diagnosis{
-		Status:  StatusAuthCheckRequired,
-		Message: "Antigravity CLI found. Connect to verify usage.",
-		Details: technicalDetails(fmt.Sprintf("Found agy (%s) at %s", strings.TrimSpace(result.Stdout), agyPath)),
+
+	if !active {
+		return Diagnosis{
+			Status:  StatusAuthCheckRequired,
+			Message: "Antigravity CLI found. Connect to verify usage.",
+			Details: technicalDetails(fmt.Sprintf("Found agy (%s) at %s", strings.TrimSpace(result.Stdout), agyPath)),
+		}, false
 	}
+	return Diagnosis{}, true
 }
 
 // credentialsFoundDiagnosis is where a provider rests when its credential file
@@ -366,13 +386,13 @@ func unsupportedCredentialSourceDiagnosis(label string) Diagnosis {
 // non-zero exit is left as a temporary error rather than as "logged out",
 // because the action plan forbids inferring a logout from an unrecognized
 // failure.
-func unreadableStatusDiagnosis(label string, result commandResult) Diagnosis {
+func unreadableStatusDiagnosis(label, guideURL string, result commandResult) Diagnosis {
 	output := result.Stdout + " " + result.Stderr
 	details := technicalDetails(output)
 	if containsAnyMarker(output, unsupportedCLIMarkers) || result.ExitCode == 0 {
 		return Diagnosis{
 			Status:  StatusUnsupportedCLI,
-			Message: "This " + label + " version is not supported. Update the CLI.",
+			Message: unsupportedCLIMessage(label, guideURL),
 			Details: details,
 		}
 	}

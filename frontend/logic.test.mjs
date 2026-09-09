@@ -45,6 +45,9 @@ test('window width is restored within the supported range', () => {
 
 const EXPECTED = ['not_installed', 'auth_check_required', 'login_required'];
 const FAILURES = ['temporary_error', 'usage_unavailable', 'unsupported_cli'];
+// unsupported_cli counts as a failure like the others above, but - unlike
+// them - retrying it automatically can never succeed, so it is excluded here.
+const RETRIED = ['temporary_error', 'usage_unavailable'];
 
 // --- the rule the certification failure came down to -----------------------
 
@@ -72,8 +75,13 @@ test('an expected setup state schedules no automatic retry', () => {
   }
 });
 
+test('an unsupported CLI counts as a failure but never auto-retries, since only a CLI update fixes it', () => {
+  assert.equal(shouldCountFailure('unsupported_cli'), true);
+  assert.equal(shouldScheduleRetry('unsupported_cli'), false);
+});
+
 test('a recoverable state keeps its automatic retry', () => {
-  for (const status of [...FAILURES, 'connected', '']) {
+  for (const status of [...RETRIED, 'connected', '']) {
     assert.equal(shouldScheduleRetry(status), true, status);
   }
 });

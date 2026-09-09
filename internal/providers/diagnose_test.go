@@ -273,12 +273,12 @@ func TestDiagnoseCodexReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	}
 }
 
-// diagnoseAntigravity only ever backs the offline onboarding screen now -
-// see getAntigravityUsage for the active path, which runs `/usage` directly
-// instead of calling this first.
-func TestDiagnoseAntigravityReportsAuthCheckRequiredOnSupportedVersion(t *testing.T) {
+func TestDiagnoseAntigravityStopsBeforeAnyNetworkCommandWhenInactive(t *testing.T) {
 	runner := &fakeRunner{result: commandResult{Stdout: "1.1.28"}}
-	diagnosis := diagnoseAntigravity(context.Background(), runner, "agy")
+	diagnosis, ok := diagnoseAntigravity(context.Background(), runner, "agy", false)
+	if ok {
+		t.Error("diagnoseAntigravity() ok = true, want false so /usage is never run for an inactive provider")
+	}
 	if diagnosis.Status != StatusAuthCheckRequired {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
 	}
@@ -289,9 +289,23 @@ func TestDiagnoseAntigravityReportsAuthCheckRequiredOnSupportedVersion(t *testin
 
 func TestDiagnoseAntigravityReportsUnsupportedCLI(t *testing.T) {
 	runner := &fakeRunner{result: commandResult{Stderr: "unknown flag: --version", ExitCode: 2}}
-	diagnosis := diagnoseAntigravity(context.Background(), runner, "agy")
+	diagnosis, ok := diagnoseAntigravity(context.Background(), runner, "agy", true)
+	if ok {
+		t.Error("diagnoseAntigravity() ok = true, want false for an unsupported CLI")
+	}
 	if diagnosis.Status != StatusUnsupportedCLI {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusUnsupportedCLI)
+	}
+	wantLink := antigravityInstallGuideURL
+	if !strings.Contains(diagnosis.Message, wantLink) {
+		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
+	}
+}
+
+func TestDiagnoseAntigravityProceedsWhenActive(t *testing.T) {
+	runner := &fakeRunner{result: commandResult{Stdout: "1.1.28"}}
+	if _, ok := diagnoseAntigravity(context.Background(), runner, "agy", true); !ok {
+		t.Error("diagnoseAntigravity() ok = false, want true so the caller runs /usage")
 	}
 }
 
@@ -494,11 +508,8 @@ func TestGetAntigravityUsageConnectsOnValidUsage(t *testing.T) {
 	if runner.ran("models") {
 		t.Errorf("ran %v, want no secondary diagnostic after a clean /usage", runner.calls)
 	}
-	// Checking the connection IS running /usage - it must not also run a
-	// separate `agy --version` first, since that would ask the same
-	// executable/version question /usage already answers a second time.
-	if runner.ran("--version") || len(runner.calls) != 1 {
-		t.Errorf("ran %v, want exactly one command (`/usage`) for an active check", runner.calls)
+	if !runner.ran("--version") {
+		t.Errorf("ran %v, want the local `agy --version` check before /usage even for an active check", runner.calls)
 	}
 }
 
