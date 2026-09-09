@@ -71,8 +71,10 @@ by Windows executable resources and MSIX package icons. Windows builds also gene
 `rsrc_windows_amd64.syso` file from `frontend/logo.png`. The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
 resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
 available.
-The executable-resource step is local-only; the CI MSIX workflow skips it because the MSIX
-manifest supplies the Store icons and CI does not need the optional executable icon.
+The MSIX manifest supplies the Store icons on its own, so the PR-check workflows (`msix.yml`,
+`pull-request.yml`) skip this step for speed. The release workflow (`release.yml`) does not skip
+it: `aigauge.exe` is also uploaded to GitHub Releases as the portable executable, and without the
+embedded resource that file has no icon at all in Explorer/the taskbar.
 
 ## Frontend preview
 

@@ -24,6 +24,15 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Install go-winres
+        shell: pwsh
+        # Embeds the AI Gauge icon and file metadata into aigauge.exe (see
+        # hack/prepare-windows-resources.ps1). The MSIX itself gets its icon
+        # from Package.appxmanifest regardless, but this same aigauge.exe is
+        # also uploaded directly as the portable release executable, and
+        # without this resource step that one has no icon at all.
+        run: go install github.com/tc-hib/go-winres@v0.3.3
+
       - name: Check formatting
         shell: pwsh
         run: |
@@ -44,7 +53,7 @@ jobs:
 
       - name: Build MSIX
         shell: pwsh
-        run: .\build.ps1 -Task package -Architecture x64 -SkipWindowsResources -ReleaseArtifact
+        run: .\build.ps1 -Task package -Architecture x64 -ReleaseArtifact
 
       - name: Copy portable executable
         shell: pwsh
