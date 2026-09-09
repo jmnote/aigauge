@@ -3,32 +3,22 @@ package app
 import (
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
+	"time"
 
+	"github.com/jmnote/aigauge/internal/app/fixtures"
 	"github.com/jmnote/aigauge/internal/providers"
 )
 
 var AppVersion = "v0.0.0"
 var ThemeOverride string
 
-// FixturesDir, when set (via --fixtures=<dir>), makes the usage RPC methods
-// below return that directory's saved sample-*.json fixtures - the same
-// files hack/gensample writes and hack/live-server.ps1 serves to the browser
-// preview - instead of calling the real provider APIs. It exists for fast,
-// deterministic runs of the real native app when only a realistic-looking
-// UI is needed and the live network round-trips aren't: hack/screenshot.ps1
-// uses it so `.\build.ps1 screenshot` doesn't have to wait on (or even be
-// logged into) Codex/Claude/Antigravity just to render the window.
-var FixturesDir string
-
-func loadFixture(name string, out any) error {
-	data, err := os.ReadFile(filepath.Join(FixturesDir, name))
-	if err != nil {
-		return err
-	}
-	return json.Unmarshal(data, out)
-}
+// SamplePreviewAtStartup opens the sample-data preview as soon as the window
+// loads. It exists for hack/screenshot.ps1, which needs a populated window
+// without depending on the developer being signed in to anything. It is a
+// developer entry point into a screen the user can open themselves, not a mode:
+// it changes which screen is shown and nothing else, so no provider setting is
+// read or written on account of it.
+var SamplePreviewAtStartup bool
 
 type App struct {
 	onResize         func(width, height int)
@@ -47,6 +37,8 @@ func NewApp(onResize func(width, height int), onSetAlwaysOnTop func(alwaysOnTop 
 func (a *App) GetVersion() string { return AppVersion }
 
 func (a *App) GetThemeOverride() string { return ThemeOverride }
+
+func (a *App) GetSamplePreviewAtStartup() bool { return SamplePreviewAtStartup }
 
 func (a *App) SetAlwaysOnTop(alwaysOnTop bool) {
 	if a.onSetAlwaysOnTop != nil {
@@ -73,36 +65,97 @@ func (a *App) SetContentHeight(height int) {
 	a.onResize(250, height)
 }
 
-// Keep these methods on App for Wails bindings; the implementations live in providers.
-func (a *App) GetCodexUsage() providers.CodexUsage {
-	if FixturesDir != "" {
-		var usage providers.CodexUsage
-		if err := loadFixture("sample-codex.json", &usage); err != nil {
-			return providers.CodexUsage{Error: fmt.Sprintf("Failed to load fixture: %v", err)}
-		}
-		return usage
-	}
-	return providers.GetCodexUsage()
-}
+// Diagnose* report what can be determined about a provider without contacting
+// any service. The first-run screen calls these, so opening AI Gauge on a
+// machine that has never been configured makes no outbound request at all;
+// confirming a connection is the separate, user-initiated GetXUsage call.
+func (a *App) DiagnoseCodex() providers.Diagnosis { return providers.DiagnoseCodex() }
+
+func (a *App) DiagnoseClaude() providers.Diagnosis { return providers.DiagnoseClaude() }
+
+func (a *App) DiagnoseAntigravity() providers.Diagnosis { return providers.DiagnoseAntigravity() }
+
+// GetXUsage performs the real, network-backed lookup for a provider the user
+// has enabled.
+func (a *App) GetCodexUsage() providers.CodexUsage { return providers.GetCodexUsage() }
 
 func (a *App) GetAntigravityUsage() providers.AntigravityUsage {
-	if FixturesDir != "" {
-		var usage providers.AntigravityUsage
-		if err := loadFixture("sample-antigravity.json", &usage); err != nil {
-			return providers.AntigravityUsage{Error: fmt.Sprintf("Failed to load fixture: %v", err)}
-		}
-		return usage
-	}
 	return providers.GetAntigravityUsage()
 }
 
-func (a *App) GetClaudeUsage() providers.ClaudeUsage {
-	if FixturesDir != "" {
-		var usage providers.ClaudeUsage
-		if err := loadFixture("sample-claude.json", &usage); err != nil {
-			return providers.ClaudeUsage{Error: fmt.Sprintf("Failed to load fixture: %v", err)}
-		}
-		return usage
+func (a *App) GetClaudeUsage() providers.ClaudeUsage { return providers.GetClaudeUsage() }
+
+// GetSampleXUsage return the bundled fixtures that back the sample-data
+// preview. They are separate RPCs rather than a mode flag on the live methods
+// on purpose: the preview has to be provably incapable of reading a credential,
+// running a CLI, or reaching the network, and the way to guarantee that is for
+// its data to arrive through methods that contain no such code. Nothing here
+// reads or writes the user's provider settings either, so opening and closing
+// the preview leaves the real configuration exactly as it was.
+func (a *App) GetSampleCodexUsage() providers.CodexUsage {
+	usage, err := decodeSample[providers.CodexUsage](fixtures.CodexJSON)
+	if err != nil {
+		return providers.CodexUsage{Status: providers.StatusUsageUnavailable, Message: err.Error()}
 	}
-	return providers.GetClaudeUsage()
+	// Codex reports its reset points as remaining seconds rather than
+	// timestamps, so they are already relative to now and need no shifting.
+	usage.FetchedAt = time.Now().Format(time.RFC3339)
+	usage.Status = providers.StatusConnected
+	return usage
+}
+
+func (a *App) GetSampleClaudeUsage() providers.ClaudeUsage {
+	usage, err := decodeSample[providers.ClaudeUsage](fixtures.ClaudeJSON)
+	if err != nil {
+		return providers.ClaudeUsage{Status: providers.StatusUsageUnavailable, Message: err.Error()}
+	}
+	now := time.Now()
+	capturedAt := usage.FetchedAt
+	for i := range usage.Buckets {
+		usage.Buckets[i].ResetTime = shiftResetTime(usage.Buckets[i].ResetTime, capturedAt, now)
+	}
+	usage.FetchedAt = now.Format(time.RFC3339)
+	usage.Status = providers.StatusConnected
+	return usage
+}
+
+func (a *App) GetSampleAntigravityUsage() providers.AntigravityUsage {
+	usage, err := decodeSample[providers.AntigravityUsage](fixtures.AntigravityJSON)
+	if err != nil {
+		return providers.AntigravityUsage{Status: providers.StatusUsageUnavailable, Message: err.Error()}
+	}
+	now := time.Now()
+	capturedAt := usage.FetchedAt
+	for gi := range usage.Groups {
+		for bi := range usage.Groups[gi].Buckets {
+			bucket := &usage.Groups[gi].Buckets[bi]
+			bucket.ResetTime = shiftResetTime(bucket.ResetTime, capturedAt, now)
+		}
+	}
+	usage.FetchedAt = now.Format(time.RFC3339)
+	usage.Status = providers.StatusConnected
+	return usage
+}
+
+func decodeSample[T any](data []byte) (T, error) {
+	var usage T
+	if err := json.Unmarshal(data, &usage); err != nil {
+		return usage, fmt.Errorf("could not load the bundled sample data: %v", err)
+	}
+	return usage, nil
+}
+
+// shiftResetTime moves a fixture's reset timestamp forward by the time elapsed
+// since the fixture was captured, so the preview's countdowns read as plausibly
+// live instead of having expired months ago.
+func shiftResetTime(resetTime, capturedAt string, now time.Time) string {
+	reset, err := time.Parse(time.RFC3339, resetTime)
+	if resetTime == "" || err != nil {
+		return resetTime
+	}
+	captured, err := time.Parse(time.RFC3339, capturedAt)
+	if err != nil {
+		return resetTime
+	}
+	return reset.Add(now.Sub(captured)).Format(time.RFC3339Nano)
 }

@@ -38,3 +38,4 @@ go.work.sum
 
 # Node.js tooling used to regenerate the checked-in logo PNG
 /hack/node_modules/
+/hack/docs/

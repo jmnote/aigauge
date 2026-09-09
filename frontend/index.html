@@ -62,7 +62,7 @@
           </svg>
         </button>
       </div>
-      <form method="dialog" class="settings-form">
+      <form method="dialog" class="settings-form" id="settings-form">
         <div id="provider-list" class="provider-options"></div>
         <div class="threshold-settings">
           <div class="threshold-setting">
@@ -138,9 +138,22 @@
         </div>
       </form>
     </dialog>
-    <div id="no-providers" class="no-providers" style="display: none;">
-      <p>No providers enabled</p>
-      <button id="open-settings-btn" class="open-settings-btn">Open Settings</button>
+    <section id="setup-screen" class="setup-screen" aria-labelledby="setup-heading" hidden>
+      <h1 id="setup-heading" class="setup-heading">Quota usage and reset times</h1>
+      <p class="setup-intro">AI Gauge reads how much of your Codex, Claude Code, and Antigravity quota is left, and
+        when each one resets.</p>
+      <p class="setup-intro">Live usage needs an existing sign-in on this PC: saved Codex or Claude Code credentials,
+        or the <code>agy</code> CLI for Antigravity.</p>
+      <div id="setup-providers" class="setup-providers"></div>
+      <div class="setup-actions">
+        <button type="button" id="sample-preview-btn" class="setup-primary-btn">Preview with sample data</button>
+        <button type="button" id="open-settings-btn" class="setup-secondary-btn">Configure Providers</button>
+      </div>
+      <p class="setup-hint">The preview needs no account, sign-in, or network access.</p>
+    </section>
+    <div id="sample-bar" class="sample-bar" role="status" hidden>
+      <span class="sample-bar-label">Sample data</span>
+      <button type="button" id="back-to-setup-btn" class="sample-bar-btn">Back to setup</button>
     </div>
     <div class="usage-sections">
       <section id="codex-card" class="usage-card">

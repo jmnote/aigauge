@@ -1,3 +1,9 @@
+import {
+  parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
+  shouldCountFailure, shouldScheduleRetry,
+  shouldKeepStaleData, retryDelay, badgeClass,
+} from '/logic.mjs';
+
 const wails = await import('/wails/runtime.js');
 if (globalThis.__AIGAUGE_LIVE__) {
   const watchLiveResource = url => {
@@ -12,27 +18,7 @@ if (globalThis.__AIGAUGE_LIVE__) {
   watchLiveResource('/__live-version');
 }
 
-const validThemes = new Set(['light', 'dark', 'system']);
 const settingsStorageKey = 'aigauge-settings-v1';
-
-function parseIntervalToSeconds(val) {
-  if (typeof val === 'number') {
-    return Number.isFinite(val) ? Math.max(1, Math.min(3600, Math.round(val))) : 120;
-  }
-  if (typeof val === 'string') {
-    const str = val.trim().toLowerCase();
-    let total = 0;
-    let matched = false;
-    const mMatch = str.match(/(\d+)\s*m/);
-    const sMatch = str.match(/(\d+)\s*s/);
-    if (mMatch) { total += parseInt(mMatch[1], 10) * 60; matched = true; }
-    if (sMatch) { total += parseInt(sMatch[1], 10); matched = true; }
-    if (matched) return Math.max(1, Math.min(3600, total));
-    const rawNum = Number(str);
-    if (str !== '' && Number.isFinite(rawNum)) return Math.max(1, Math.min(3600, Math.round(rawNum)));
-  }
-  return 120;
-}
 
 function saveCurrentConfig() {
   try {
@@ -49,28 +35,47 @@ function saveCurrentConfig() {
 const PROVIDERS = [
   {
     id: 'codex', label: 'Codex', rpcMethod: 'GetCodexUsage',
+    sampleRpcMethod: 'GetSampleCodexUsage', diagnoseRpcMethod: 'DiagnoseCodex',
     cardId: 'codex-card', groupsId: 'codex-groups',
     dotId: 'codex-dot', tooltipId: 'codex-tooltip', errorId: 'codex-error',
     render: renderUsage
   },
   {
     id: 'claude', label: 'Claude', rpcMethod: 'GetClaudeUsage',
+    sampleRpcMethod: 'GetSampleClaudeUsage', diagnoseRpcMethod: 'DiagnoseClaude',
     cardId: 'claude-card', groupsId: 'claude-groups',
     dotId: 'claude-dot', tooltipId: 'claude-tooltip', errorId: 'claude-error',
     render: renderClaude
   },
   {
     id: 'antigravity', label: 'Antigravity', rpcMethod: 'GetAntigravityUsage',
+    sampleRpcMethod: 'GetSampleAntigravityUsage', diagnoseRpcMethod: 'DiagnoseAntigravity',
     cardId: 'agy-card', groupsId: 'agy-groups',
     dotId: 'agy-dot', tooltipId: 'agy-tooltip', errorId: 'agy-error',
     render: renderAntigravity
   }
 ];
 const PROVIDERS_BY_ID = new Map(PROVIDERS.map(p => [p.id, p]));
+
+// The short badge text for each backend status code. Deliberately short: the
+// badge has to stay readable beside the provider name in a 250px window, so
+// the reason behind a status ("Credentials found", "Signed in locally") goes
+// in the message line underneath rather than into the badge.
+const rpc = method => wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${method}`);
+
+// 'live' shows the user's real providers; 'sample' shows the bundled preview.
+// The preview is a screen, not a mode: nothing below writes config while it is
+// open, so entering and leaving it leaves every provider setting untouched.
+let viewMode = 'live';
 const providerIds = PROVIDERS.map(p => p.id);
 
 const defaultConfig = {
-  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: true }])),
+  // Providers start disabled so a fresh install never probes for local CLI
+  // tools/credentials on its own - the first screen is "No providers
+  // enabled" with "Open Settings" and "Demo" buttons instead of raw
+  // not-found errors. This only affects genuinely first runs: normalizeConfig
+  // (below) falls back to enabled once localStorage holds any saved config.
+  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
   providerOrder: providerIds.slice(),
   theme: 'system',
   refreshInterval: 120,
@@ -80,53 +85,16 @@ const defaultConfig = {
   }
 };
 
-function normalizeProviderOrder(value) {
-  const known = Array.isArray(value) ? value.filter(id => providerIds.includes(id)) : [];
-  const order = [...new Set(known)];
-  for (const id of providerIds) {
-    if (!order.includes(id)) order.push(id);
-  }
-  return order;
-}
-
-function normalizeThreshold(raw, defaultThreshold, min, max) {
-  const isObj = typeof raw === 'object' && raw !== null;
-  const rawInput = isObj ? raw.value : raw;
-  const num = typeof rawInput === 'string' && rawInput.trim() === '' ? NaN : Number(rawInput);
-  const rounded = Number.isFinite(num) ? Math.round(num) : NaN;
-  const value = Number.isFinite(rounded) && rounded >= min && rounded <= max
-    ? rounded : defaultThreshold.value;
-  const enabled = isObj && typeof raw.enabled === 'boolean' ? raw.enabled : true;
-  return { enabled, value };
-}
-
-function normalizeConfig(value) {
-  const warning = normalizeThreshold(value?.thresholds?.warning, defaultConfig.thresholds.warning, 1, 100);
-  const critical = normalizeThreshold(value?.thresholds?.critical, defaultConfig.thresholds.critical, 0, 99);
-  if (warning.enabled && critical.enabled && critical.value >= warning.value) {
-    critical.value = Math.max(0, warning.value - 1);
-  }
-
-  const theme = value?.theme === 'auto' ? 'system' : value?.theme;
-  return {
-    providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
-    providerOrder: normalizeProviderOrder(value?.providerOrder),
-    theme: validThemes.has(theme) ? theme : defaultConfig.theme,
-    refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
-    thresholds: { warning, critical }
-  };
-}
-
-let config = normalizeConfig(defaultConfig);
+let config = normalizeConfig(defaultConfig, providerIds, defaultConfig);
 
 try {
   const storedSettings = localStorage.getItem(settingsStorageKey);
   if (storedSettings !== null) {
-    config = normalizeConfig(JSON.parse(storedSettings));
+    config = normalizeConfig(JSON.parse(storedSettings), providerIds, defaultConfig);
   }
 } catch (e) {
   console.warn('Failed to load settings:', e);
-  config = normalizeConfig(defaultConfig);
+  config = normalizeConfig(defaultConfig, providerIds, defaultConfig);
 }
 
 function applyLimitState(barElement, remaining) {
@@ -159,17 +127,19 @@ const formatTimeRemaining = (seconds, targetDate) => {
 
 // "Now", for reset-time math, is the moment this usage was fetched rather
 // than whenever it happens to be rendered - every provider's payload carries
-// a `fetchedAt` (see hack/gensample and internal/providers), set right
+// a `fetchedAt` (see hack/fixtures/gen-json and internal/providers), set right
 // before that fetch went out. For a live fetch the two are milliseconds
 // apart (network latency, basically), so this changes nothing normal users
-// would notice. It matters for fixture data - the live-server preview
-// (hack/live-server.ps1) and the native app run with --fixtures= (see
-// hack/screenshot.ps1) both render whatever `.\build.ps1 fixtures` last
-// saved - which can be arbitrarily old by the time it's viewed: without
+// would notice. It matters for the live-server preview (hack/live-server.ps1),
+// which serves whatever `.\build.ps1 fixtures-json` last saved as-is, with no
+// correction - that can be arbitrarily old by the time it's viewed: without
 // anchoring to fetchedAt, a Codex reset (reported as a relative "seconds
 // from now") would silently push further into the future every reload, and
 // an absolute reset time (Claude/Antigravity) could drift into the past and
-// render as already-elapsed.
+// render as already-elapsed. (The native app's own Demo Mode, --demo - see
+// hack/screenshot.ps1 - doesn't depend on this: internal/app.App already
+// re-anchors fetchedAt and every resetTime to "now" server-side before the
+// frontend ever sees them.)
 function referenceNow(usage) {
   const fetchedAt = new Date(usage?.fetchedAt).getTime();
   return Number.isNaN(fetchedAt) ? Date.now() : fetchedAt;
@@ -203,6 +173,7 @@ const providerState = new Map(providerIds.map(id => [id, {
   failureCount: 0,
   lastSuccessAt: 0,
   lastError: '',
+  status: '',
   plan: ''
 }]));
 
@@ -253,15 +224,15 @@ function formatUntil(timestamp) {
   return `in ${seconds}s`;
 }
 
-function retryDelay(failureCount) {
-  return Math.min(refreshInterval * (2 ** Math.min(failureCount, 4)), 1800);
-}
-
 function scheduleProvider(id) {
   const state = providerState.get(id);
   clearTimeout(state.timerId);
+  state.timerId = null;
+  // The sample preview is static, so there is nothing to poll for.
+  if (viewMode !== 'live') return;
   if (!config.providers[id].enabled) return;
-  const delay = retryDelay(state.failureCount);
+  if (!shouldScheduleRetry(state.status)) return;
+  const delay = retryDelay(state.failureCount, refreshInterval);
   state.nextRefreshAt = Date.now() + delay * 1000;
   state.timerId = setTimeout(() => fetchProvider(id), delay * 1000);
 }
@@ -280,15 +251,34 @@ function showProviderError(errorId, message) {
   element.hidden = !message;
 }
 
+// Draws a provider that came back with something other than usable numbers.
+//
+// A temporary network or service failure is the one case that keeps whatever
+// was already on screen: the data is stale, not wrong, and blanking the card
+// throws away the only thing the user opened the app to see. It is labelled
+// with its age so nobody reads month-old numbers as current. Every other
+// non-connected state (no CLI, not signed in, connection not checked) has no
+// prior data to keep, so its card clears to the guidance instead.
+function renderNonUsageState(id, usage) {
+  const meta = PROVIDERS_BY_ID.get(id);
+  const state = providerState.get(id);
+  const message = String(usage.message || usage.error || '');
+  if (shouldKeepStaleData(usage.status, state.lastSuccessAt)) {
+    showProviderError(meta.errorId, `${message} Showing data from ${formatAgo(state.lastSuccessAt)}.`);
+  } else {
+    document.getElementById(meta.groupsId).replaceChildren();
+    showProviderError(meta.errorId, message);
+  }
+  updateProviderStatus(id);
+  requestWindowResize();
+}
+
 function renderUsage(id, usage) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
   const groups = document.getElementById(meta.groupsId);
   if (usage.error) {
-    groups.replaceChildren();
-    showProviderError(meta.errorId, usage.error);
-    updateProviderStatus(id);
-    requestWindowResize();
+    renderNonUsageState(id, usage);
     return;
   }
   showProviderError(meta.errorId, '');
@@ -376,10 +366,7 @@ function renderAntigravity(id, usage) {
   const state = providerState.get(id);
   const groups = document.getElementById(meta.groupsId);
   if (usage.error) {
-    groups.replaceChildren();
-    showProviderError(meta.errorId, usage.error);
-    updateProviderStatus(id);
-    requestWindowResize();
+    renderNonUsageState(id, usage);
     return;
   }
   showProviderError(meta.errorId, '');
@@ -415,10 +402,7 @@ function renderClaude(id, usage) {
   const state = providerState.get(id);
   const groups = document.getElementById(meta.groupsId);
   if (usage.error) {
-    groups.replaceChildren();
-    showProviderError(meta.errorId, usage.error);
-    updateProviderStatus(id);
-    requestWindowResize();
+    renderNonUsageState(id, usage);
     return;
   }
   showProviderError(meta.errorId, '');
@@ -440,15 +424,22 @@ function renderClaude(id, usage) {
 async function fetchProvider(id) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  if (!config.providers[id].enabled || state.fetching) return;
+  const sampleMode = viewMode === 'sample';
+  if (state.fetching) return;
+  if (!sampleMode && !config.providers[id].enabled) return;
   state.fetching = true;
   setLoading(meta.dotId, true);
   try {
-    const usage = await wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${meta.rpcMethod}`);
+    const usage = await rpc(sampleMode ? meta.sampleRpcMethod : meta.rpcMethod);
     clearLoadingText(meta.cardId);
-    if (usage.error) {
+    state.status = usage.status || '';
+    if (state.status && state.status !== 'connected') {
+      state.lastError = String(usage.message || usage.error || '').slice(0, 160);
+      // Only a genuine failure moves the counter - see EXPECTED_SETUP_STATES.
+      if (shouldCountFailure(state.status)) state.failureCount += 1;
+    } else if (usage.error) {
       state.failureCount += 1;
-      state.lastError = String(usage.error).slice(0, 120);
+      state.lastError = String(usage.error).slice(0, 160);
     } else {
       state.failureCount = 0;
       state.lastSuccessAt = Date.now();
@@ -457,8 +448,9 @@ async function fetchProvider(id) {
     meta.render(id, usage);
   } catch (error) {
     clearLoadingText(meta.cardId);
+    state.status = '';
     state.failureCount += 1;
-    state.lastError = `Frontend call failed: ${error}`.slice(0, 120);
+    state.lastError = `Frontend call failed: ${error}`.slice(0, 160);
     meta.render(id, { error: state.lastError });
   } finally {
     state.fetching = false;
@@ -484,6 +476,9 @@ const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 
 let isAlwaysOnTop = false;
+// True while the first-run screen's diagnosis rows are already rendered, so
+// reopening Settings does not re-probe every provider.
+let setupRendered = false;
 
 function updateAlwaysOnTopUI(isTop) {
   pinWindowBtn.classList.toggle('active', isTop);
@@ -502,23 +497,38 @@ pinWindowBtn.addEventListener('click', toggleAlwaysOnTop);
 updateAlwaysOnTopUI(isAlwaysOnTop);
 
 function updateProvidersVisibility() {
-  const noProviders = document.getElementById('no-providers');
+  const sampleMode = viewMode === 'sample';
   let anyEnabled = false;
 
   for (const provider of PROVIDERS) {
     const enabled = config.providers[provider.id].enabled !== false;
     anyEnabled = anyEnabled || enabled;
-    document.getElementById(provider.cardId).style.display = enabled ? '' : 'none';
+    // The preview shows all three cards regardless of what the user has
+    // enabled - and without consulting that setting for anything else.
+    document.getElementById(provider.cardId).style.display = (sampleMode || enabled) ? '' : 'none';
 
     const state = providerState.get(provider.id);
-    if (enabled) {
-      if (!state.timerId) fetchProvider(provider.id);
+    clearTimeout(state.timerId);
+    if (sampleMode || enabled) {
+      if (sampleMode || !state.timerId) fetchProvider(provider.id);
     } else {
-      clearTimeout(state.timerId);
       state.timerId = null;
     }
   }
-  noProviders.style.display = anyEnabled ? 'none' : 'flex';
+
+  const showSetup = !sampleMode && !anyEnabled;
+  document.getElementById('setup-screen').hidden = !showSetup;
+  document.getElementById('sample-bar').hidden = !sampleMode;
+  if (showSetup) {
+    // Re-run the diagnoses only on the way into the screen, not on every
+    // visibility recalculation, so opening Settings does not re-probe.
+    if (!setupRendered) {
+      setupRendered = true;
+      renderSetupProviders();
+    }
+  } else {
+    setupRendered = false;
+  }
 
   const visibleCards = config.providerOrder
     .map(id => document.getElementById(PROVIDERS_BY_ID.get(id).cardId))
@@ -642,7 +652,7 @@ try {
   console.warn('Unable to read the theme override:', error);
 }
 const activeTheme = forcedTheme || config.theme || 'system';
-applyTheme(validThemes.has(activeTheme) ? activeTheme : 'system', !forcedTheme);
+applyTheme(VALID_THEMES.has(activeTheme) ? activeTheme : 'system', !forcedTheme);
 
 systemTheme.addEventListener('change', () => {
   if (document.documentElement.dataset.theme === 'system') applyTheme('system', false);
@@ -679,6 +689,167 @@ function openSettings() {
 
 document.getElementById('settings').addEventListener('click', openSettings);
 document.getElementById('open-settings-btn').addEventListener('click', openSettings);
+
+// ---------------------------------------------------------------------------
+// First-run screen
+//
+// Replaces the old bare "No providers enabled" message. It explains what the
+// app does and what it needs, then shows each provider's readiness with the
+// one action that moves it forward. Everything it calls is local-only: the
+// Diagnose* RPCs read installed files and run no-network status commands, so
+// opening AI Gauge on a machine that was never configured contacts nobody.
+// ---------------------------------------------------------------------------
+
+function setupRow(provider) {
+  return document.querySelector(`.setup-provider[data-provider-id="${provider.id}"]`);
+}
+
+function buildSetupRow(provider, diagnosis) {
+  const row = document.createElement('div');
+  row.className = 'setup-provider';
+  row.dataset.providerId = provider.id;
+
+  const head = document.createElement('div');
+  head.className = 'setup-provider-head';
+  const name = document.createElement('span');
+  name.className = 'setup-provider-name';
+  name.textContent = provider.label;
+  const badge = document.createElement('span');
+  badge.className = `setup-provider-badge ${badgeClass(diagnosis.status)}`.trim();
+  badge.textContent = STATUS_BADGES[diagnosis.status] || 'Checking...';
+  head.append(name, badge);
+
+  const message = document.createElement('p');
+  message.className = 'setup-provider-message';
+  message.textContent = diagnosis.message || '';
+  row.append(head, message);
+
+  if (!diagnosis.status) return row; // still checking: no actions to offer yet
+
+  const actions = document.createElement('div');
+  actions.className = 'setup-provider-actions';
+  const primary = document.createElement('button');
+  primary.type = 'button';
+  if (diagnosis.status === 'auth_check_required') {
+    primary.textContent = 'Check connection';
+    primary.addEventListener('click', () => checkConnection(provider));
+  } else {
+    primary.textContent = 'Check again';
+    primary.addEventListener('click', () => diagnoseProvider(provider));
+  }
+  actions.append(primary);
+
+  if (diagnosis.details) {
+    const detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.textContent = 'Technical details';
+    detailsBtn.setAttribute('aria-expanded', 'false');
+    const details = document.createElement('p');
+    details.className = 'setup-provider-details';
+    details.textContent = diagnosis.details;
+    details.hidden = true;
+    detailsBtn.addEventListener('click', () => {
+      details.hidden = !details.hidden;
+      detailsBtn.setAttribute('aria-expanded', String(!details.hidden));
+      requestWindowResize();
+    });
+    actions.append(detailsBtn);
+    row.append(actions, details);
+  } else {
+    row.append(actions);
+  }
+  return row;
+}
+
+function showSetupRow(provider, diagnosis) {
+  const existing = setupRow(provider);
+  if (!existing) return;
+  existing.replaceWith(buildSetupRow(provider, diagnosis));
+  requestWindowResize();
+}
+
+function diagnoseProvider(provider) {
+  showSetupRow(provider, { status: '', message: 'Checking...' });
+  return rpc(provider.diagnoseRpcMethod)
+    .then(diagnosis => showSetupRow(provider, diagnosis || {}))
+    .catch(() => showSetupRow(provider, {
+      status: 'temporary_error',
+      message: 'Could not check this provider. Try again.',
+    }));
+}
+
+// Each provider resolves independently so one slow diagnosis never holds up
+// the others - or the sample preview, which stays clickable throughout.
+function renderSetupProviders() {
+  const container = document.getElementById('setup-providers');
+  container.replaceChildren(...PROVIDERS.map(provider =>
+    buildSetupRow(provider, { status: '', message: 'Checking...' })));
+  requestWindowResize();
+  for (const provider of PROVIDERS) diagnoseProvider(provider);
+}
+
+// The one place the first-run screen is allowed to reach the network, and only
+// because the user just asked it to. A provider that answers with real usage is
+// enabled and the window switches to the live dashboard; anything else just
+// updates that provider's row and leaves the configuration alone.
+async function checkConnection(provider) {
+  showSetupRow(provider, { status: '', message: 'Checking connection...' });
+  try {
+    const usage = await rpc(provider.rpcMethod);
+    if (usage.status === 'connected') {
+      config.providers[provider.id].enabled = true;
+      saveCurrentConfig();
+      renderProviderList();
+      updateProvidersVisibility();
+      return;
+    }
+    showSetupRow(provider, usage || {});
+  } catch (error) {
+    showSetupRow(provider, {
+      status: 'temporary_error',
+      message: 'Could not reach this provider. Retry in a moment.',
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sample-data preview
+//
+// Lets anyone - a Store reviewer on a clean machine, or a curious new user -
+// see the gauges, countdowns, thresholds and themes working without installing
+// a CLI or signing in to anything. It is a separate screen fed by separate
+// RPCs, not a mode layered over the real providers: nothing here reads or
+// writes the provider settings, so leaving the preview restores exactly the
+// setup the user came from.
+// ---------------------------------------------------------------------------
+
+function resetProviderRuntimeState() {
+  for (const id of providerIds) {
+    const state = providerState.get(id);
+    clearTimeout(state.timerId);
+    state.timerId = null;
+    state.failureCount = 0;
+    state.lastError = '';
+    state.lastSuccessAt = 0;
+    state.status = '';
+    state.plan = '';
+  }
+}
+
+function openSamplePreview() {
+  viewMode = 'sample';
+  resetProviderRuntimeState();
+  updateProvidersVisibility();
+}
+
+function closeSamplePreview() {
+  viewMode = 'live';
+  resetProviderRuntimeState();
+  updateProvidersVisibility();
+}
+
+document.getElementById('sample-preview-btn').addEventListener('click', openSamplePreview);
+document.getElementById('back-to-setup-btn').addEventListener('click', closeSamplePreview);
 
 document.querySelectorAll('.dialog-close').forEach(button => {
   button.addEventListener('click', () => button.closest('dialog').close('cancel'));
@@ -745,6 +916,14 @@ refreshIntervalInput.addEventListener('change', () => setRefreshInterval(refresh
 wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetVersion').then(version => {
   document.getElementById('version').textContent = version || 'v—';
 });
+
+// Covers launching with --sample-preview (see hack/screenshot.ps1), which
+// opens the window straight into the preview so a screenshot run needs no
+// live account. It picks a screen and nothing else - the saved provider
+// settings are read and written exactly as they would be without the flag.
+rpc('GetSamplePreviewAtStartup').then(open => {
+  if (open) openSamplePreview();
+}).catch(() => {});
 
 let lastReportedHeight = 0;
 let resizeTimer = null;

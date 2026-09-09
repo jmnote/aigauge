@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures")]
+    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures", "fixtures-json", "fixtures-go")]
     [string]$Task = "build",
     [string]$Version = "",
     [ValidateSet("x64", "x86", "arm64")]
@@ -9,20 +9,6 @@ param(
     [switch]$SkipWindowsResources,
     [switch]$ReleaseArtifact
 )
-
-# Screenshots render whatever's in frontend/fixtures/sample-*.json (the same
-# files `.\build.ps1 fixtures` writes and hack/live-server.ps1 serves) rather
-# than calling the real provider APIs, so capturing doesn't need a logged-in
-# Codex/Claude/Antigravity account or the tens of seconds a live fetch takes.
-function Get-ScreenshotFixturesDir {
-    $fixturesDir = Join-Path $PSScriptRoot "frontend\fixtures"
-    $missing = @("sample-codex.json", "sample-claude.json", "sample-antigravity.json") |
-        Where-Object { -not (Test-Path -LiteralPath (Join-Path $fixturesDir $_) -PathType Leaf) }
-    if ($missing.Count -gt 0) {
-        throw "Missing fixture(s) for screenshots: $($missing -join ', '). Run '.\build.ps1 fixtures' first."
-    }
-    return $fixturesDir
-}
 
 switch ($Task) {
     "run"   { Start-Process -FilePath "go" -ArgumentList "run ." -WorkingDirectory (Get-Location) -WindowStyle Hidden }
@@ -37,7 +23,15 @@ switch ($Task) {
             Write-Output "No running aigauge.exe process found"
         }
     }
-    "test"  { go test ./... }
+    "test" {
+        go test ./...
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        # The frontend's pure rules (frontend/logic.mjs) - notably which
+        # provider states may be counted as failures. node's built-in runner,
+        # so this needs no test framework or browser stand-in.
+        node --test "frontend/*.test.mjs"
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    }
     "logo" {
         & (Join-Path $PSScriptRoot "hack\convert-logo.ps1")
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -83,6 +77,9 @@ switch ($Task) {
         }
 
         go test ./...
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        node --test "frontend/*.test.mjs"
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         go vet ./...
@@ -141,9 +138,30 @@ switch ($Task) {
         exit $LASTEXITCODE
     }
     "fixtures" {
+        foreach ($fixturesTask in @("fixtures-json", "fixtures-go")) {
+            & $PSCommandPath -Task $fixturesTask
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
+    }
+    "fixtures-json" {
+        # Fetches real usage data (needs local Codex/Claude sign-in and the
+        # `agy` CLI) and writes it to hack/fixtures/sample-*.json.
         Push-Location $PSScriptRoot
         try {
-            go run ./hack/gensample
+            go run hack/fixtures/gen-json.go
+        } finally {
+            Pop-Location
+        }
+        exit $LASTEXITCODE
+    }
+    "fixtures-go" {
+        # Compiles hack/fixtures/sample-*.json into
+        # internal/app/fixtures/fixtures.go for the app's sample-data preview.
+        # Pure local transform - no accounts or network needed - so unlike
+        # fixtures-json this is safe to run in CI or by any contributor.
+        Push-Location $PSScriptRoot
+        try {
+            go run hack/fixtures/gen-go.go
         } finally {
             Pop-Location
         }
@@ -159,7 +177,7 @@ switch ($Task) {
         & $PSCommandPath -Task build -Version $Version
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         $screenshotScript = Join-Path $PSScriptRoot "hack\screenshot.ps1"
-        $arguments = @{ Theme = "light"; FixturesDir = (Get-ScreenshotFixturesDir); RenderWaitSeconds = 3 }
+        $arguments = @{ Theme = "light"; SamplePreview = $true; RenderWaitSeconds = 3 }
         if (-not [string]::IsNullOrWhiteSpace($ScreenshotPath)) { $arguments.OutputPath = $ScreenshotPath }
         & $screenshotScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -168,7 +186,7 @@ switch ($Task) {
         & $PSCommandPath -Task build -Version $Version
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         $screenshotScript = Join-Path $PSScriptRoot "hack\screenshot.ps1"
-        $arguments = @{ Theme = "dark"; FixturesDir = (Get-ScreenshotFixturesDir); RenderWaitSeconds = 3 }
+        $arguments = @{ Theme = "dark"; SamplePreview = $true; RenderWaitSeconds = 3 }
         if (-not [string]::IsNullOrWhiteSpace($ScreenshotPath)) { $arguments.OutputPath = $ScreenshotPath }
         & $screenshotScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

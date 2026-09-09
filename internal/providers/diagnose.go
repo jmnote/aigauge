@@ -90,7 +90,7 @@ func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diag
 	if err != nil {
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: "Sign in to Claude Code to monitor your quota.",
+			Message: "Install Claude Code and sign in to monitor your quota.",
 		}
 	}
 
@@ -150,7 +150,7 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 	if err != nil {
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: "Sign in to the Codex CLI to monitor your quota.",
+			Message: "Install the Codex CLI and sign in to monitor your quota.",
 		}
 	}
 
