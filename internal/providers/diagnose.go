@@ -106,9 +106,9 @@ func resolveExecutable(name string, fallbackFunc func(string) (string, bool), de
 
 func notFoundDetails(fallback string) string {
 	if fallback != "" {
-		return fmt.Sprintf("Checked PATH and %s.", fallback)
+		return fmt.Sprintf("CLI Not Found: %s", fallback)
 	}
-	return "Checked PATH."
+	return "CLI Not Found: PATH"
 }
 
 // diagnoseClaudeCLI is the secondary diagnosis: it runs only when no usable

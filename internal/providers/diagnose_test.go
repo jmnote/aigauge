@@ -117,8 +117,8 @@ func TestDiagnoseClaudeReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	if diagnosis.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
 	}
-	if !strings.Contains(diagnosis.Details, "PATH") {
-		t.Errorf("Details = %q, want Details to mention PATH search", diagnosis.Details)
+	if !strings.Contains(diagnosis.Details, "CLI Not Found") {
+		t.Errorf("Details = %q, want Details to mention CLI Not Found", diagnosis.Details)
 	}
 	if strings.Contains(diagnosis.Details, "credentials") {
 		t.Errorf("Details = %q, want Details not to mention credentials file", diagnosis.Details)
@@ -253,8 +253,8 @@ func TestDiagnoseCodexReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	if diagnosis.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
 	}
-	if !strings.Contains(diagnosis.Details, "PATH") {
-		t.Errorf("Details = %q, want Details to mention PATH search", diagnosis.Details)
+	if !strings.Contains(diagnosis.Details, "CLI Not Found") {
+		t.Errorf("Details = %q, want Details to mention CLI Not Found", diagnosis.Details)
 	}
 	if strings.Contains(diagnosis.Details, "credentials") {
 		t.Errorf("Details = %q, want Details not to mention credentials file", diagnosis.Details)
@@ -458,8 +458,8 @@ func TestGetAntigravityUsageReportsNotInstalledWithoutRawPathError(t *testing.T)
 		t.Errorf("Message = %q, want guidance to name the agy CLI", usage.Message)
 	}
 	// Details provides concrete lookup locations so the user can see what was searched.
-	if usage.Details == "" || !strings.Contains(usage.Details, "PATH") {
-		t.Errorf("Details = %q, want Details to mention PATH search", usage.Details)
+	if usage.Details == "" || !strings.Contains(usage.Details, "CLI Not Found") {
+		t.Errorf("Details = %q, want Details to mention CLI Not Found", usage.Details)
 	}
 	if len(runner.calls) != 0 {
 		t.Errorf("ran %v, want no command when the executable was never resolved", runner.calls)

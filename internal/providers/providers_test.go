@@ -141,10 +141,10 @@ func TestResolveExecutableFallsBackWhenLookupFails(t *testing.T) {
 }
 
 func TestNotFoundDetails(t *testing.T) {
-	if got := notFoundDetails(""); got != "Checked PATH." {
-		t.Errorf("notFoundDetails(\"\") = %q, want %q", got, "Checked PATH.")
+	if got := notFoundDetails(""); got != "CLI Not Found: PATH" {
+		t.Errorf("notFoundDetails(\"\") = %q, want %q", got, "CLI Not Found: PATH")
 	}
-	want := "Checked PATH and C:\\bin\\tool.exe."
+	want := "CLI Not Found: C:\\bin\\tool.exe"
 	if got := notFoundDetails("C:\\bin\\tool.exe"); got != want {
 		t.Errorf("notFoundDetails(...) = %q, want %q", got, want)
 	}
