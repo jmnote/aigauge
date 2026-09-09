@@ -72,8 +72,8 @@ func TestAppSetWindowWidth(t *testing.T) {
 	}
 
 	app.SetWindowWidth(100)
-	if capturedWidth != 160 {
-		t.Errorf("Minimum width = %d, want 160", capturedWidth)
+	if capturedWidth != 200 {
+		t.Errorf("Minimum width = %d, want 200", capturedWidth)
 	}
 
 	app.SetWindowWidth(900)

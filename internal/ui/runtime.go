@@ -23,7 +23,7 @@ type runtime struct {
 const (
 	initialWindowWidth  = 250
 	initialWindowHeight = 250
-	minWindowWidth      = 160
+	minWindowWidth      = 200
 	maxWindowWidth      = 600
 )
 

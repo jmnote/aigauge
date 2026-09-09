@@ -32,8 +32,8 @@ func (a *App) SetWindowWidth(width int) {
 	if a.onWindowWidth == nil {
 		return
 	}
-	if width < 160 {
-		width = 160
+	if width < 200 {
+		width = 200
 	}
 	if width > 600 {
 		width = 600

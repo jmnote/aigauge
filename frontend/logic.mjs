@@ -11,7 +11,7 @@ export const MIN_REFRESH_SECONDS = 1;
 export const MAX_REFRESH_SECONDS = 3600;
 export const DEFAULT_REFRESH_SECONDS = 120;
 export const MAX_RETRY_DELAY_SECONDS = 1800;
-export const MIN_WINDOW_WIDTH = 160;
+export const MIN_WINDOW_WIDTH = 200;
 export const MAX_WINDOW_WIDTH = 600;
 export const DEFAULT_WINDOW_WIDTH = 250;
 

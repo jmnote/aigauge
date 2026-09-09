@@ -38,7 +38,7 @@ const defaultConfig = {
 
 test('window width is restored within the supported range', () => {
   assert.equal(normalizeWindowWidth(320), 320);
-  assert.equal(normalizeWindowWidth(100), 160);
+  assert.equal(normalizeWindowWidth(100), 200);
   assert.equal(normalizeWindowWidth(900), 600);
   assert.equal(normalizeWindowWidth('invalid'), DEFAULT_WINDOW_WIDTH);
 });

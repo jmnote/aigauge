@@ -1067,11 +1067,11 @@ button {
   z-index: 30;
 }
 
-/* Keep controls usable at the native window's 160px minimum width. The
+/* Keep controls usable at the native window's 200px minimum width. The
    regular 250px layout remains unchanged; secondary rows that cannot fit in
    the narrow viewport stack vertically. Provider toggles/move controls and
    threshold values stay on one line so their relationship remains clear. */
-@media (max-width: 190px) {
+@media (max-width: 230px) {
   .shell {
     padding-right: 8px;
     padding-left: 8px;
