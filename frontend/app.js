@@ -282,6 +282,49 @@ function renderFormattedMessage(element, text) {
   }
 }
 
+function createInfoIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '12');
+  svg.setAttribute('height', '12');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', '12');
+  circle.setAttribute('cy', '12');
+  circle.setAttribute('r', '10');
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', '12');
+  line.setAttribute('y1', '16');
+  line.setAttribute('x2', '12');
+  line.setAttribute('y2', '12');
+
+  const dot = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  dot.setAttribute('x1', '12');
+  dot.setAttribute('y1', '8');
+  dot.setAttribute('x2', '12.01');
+  dot.setAttribute('y2', '8');
+
+  svg.append(circle, line, dot);
+  return svg;
+}
+
+function closeOpenDetailsTooltips() {
+  let changed = false;
+  document.querySelectorAll('.details-wrap.details-open').forEach(el => {
+    el.classList.remove('details-open');
+    const btn = el.querySelector('.details-info-btn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    changed = true;
+  });
+  if (changed) requestWindowResize();
+}
+
 function createDiagnosisActions(diagnosis, onCheck) {
   const actions = document.createElement('div');
   actions.className = 'setup-provider-actions';
@@ -298,21 +341,46 @@ function createDiagnosisActions(diagnosis, onCheck) {
   actions.append(primary);
 
   if (diagnosis.details) {
+    const detailsWrap = document.createElement('span');
+    detailsWrap.className = 'details-wrap';
+
     const detailsBtn = document.createElement('button');
     detailsBtn.type = 'button';
-    detailsBtn.textContent = 'Details';
+    detailsBtn.className = 'details-info-btn';
+    detailsBtn.title = 'Details';
+    detailsBtn.setAttribute('aria-label', 'Details');
     detailsBtn.setAttribute('aria-expanded', 'false');
-    const details = document.createElement('p');
-    details.className = 'setup-provider-details';
-    details.textContent = diagnosis.details;
-    details.hidden = true;
-    detailsBtn.addEventListener('click', () => {
-      details.hidden = !details.hidden;
-      detailsBtn.setAttribute('aria-expanded', String(!details.hidden));
+    detailsBtn.append(createInfoIcon());
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'details-tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    renderFormattedMessage(tooltip, diagnosis.details);
+
+    detailsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasOpen = detailsWrap.classList.contains('details-open');
+      closeOpenDetailsTooltips();
+      if (!wasOpen) {
+        detailsWrap.classList.add('details-open');
+        detailsBtn.setAttribute('aria-expanded', 'true');
+      }
       requestWindowResize();
     });
-    actions.append(detailsBtn);
-    return [actions, details];
+
+    tooltip.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    detailsWrap.addEventListener('mouseenter', () => requestWindowResize());
+    detailsWrap.addEventListener('mouseleave', () => {
+      if (!detailsWrap.classList.contains('details-open')) {
+        requestWindowResize();
+      }
+    });
+
+    detailsWrap.append(detailsBtn, tooltip);
+    actions.append(detailsWrap);
   }
   return [actions];
 }
@@ -1044,6 +1112,7 @@ function refreshStatusTooltips() {
 // lifts the suppression so whatever's still legitimately hovered/focused (if
 // anything) can show again on its own.
 function setActiveTooltip(tooltip) {
+  closeOpenDetailsTooltips();
   document.querySelectorAll('.status-tooltip').forEach(element => {
     element.classList.toggle('tooltip-suppressed', element !== tooltip);
   });
@@ -1091,6 +1160,16 @@ document.querySelectorAll('.status-area').forEach(element => {
     clearActiveTooltip();
     requestWindowResize();
   });
+});
+
+document.addEventListener('click', () => {
+  closeOpenDetailsTooltips();
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeOpenDetailsTooltips();
+  }
 });
 
 // .inline-reset elements swap their text content in place to the full date

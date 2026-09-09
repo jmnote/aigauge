@@ -179,12 +179,13 @@ code {
   background: var(--base-warning);
 }
 
-.status-tooltip {
+.status-tooltip,
+.details-tooltip {
   position: absolute;
   top: calc(100% + 4px);
-  right: 12px;
-  left: auto;
-  transform: none;
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
   z-index: 10;
   display: none;
   width: max-content;
@@ -197,11 +198,14 @@ code {
   -webkit-backdrop-filter: blur(2px);
   box-shadow: 0 4px 14px var(--light-shadow);
   color: var(--muted);
-  font-size: .7rem;
-  line-height: 1.5;
   overflow-wrap: anywhere;
   pointer-events: auto;
   white-space: pre-line;
+}
+
+.status-tooltip {
+  font-size: .7rem;
+  line-height: 1.5;
   /* Grid (not flex) so the label column is one `max-content` track shared
      via subgrid across every row - it sizes to that tooltip instance's own
      widest label ("Last error" vs. just "Plan") instead of a fixed width
@@ -210,27 +214,37 @@ code {
   column-gap: 8px;
 }
 
-.status-tooltip::before {
+.details-tooltip {
+  font-size: .67rem;
+  line-height: 1.4;
+  max-width: 210px;
+}
+
+.status-tooltip::before,
+.details-tooltip::before {
   content: "";
   position: absolute;
   top: -8px;
-  left: 0;
-  right: 0;
+  left: -30px;
+  right: -30px;
   height: 8px;
 }
 
-.status-tooltip a {
+.status-tooltip a,
+.details-tooltip a {
   color: var(--base-accent);
   text-decoration: underline;
   text-underline-offset: 2px;
   cursor: pointer;
 }
 
-.status-tooltip a:hover {
+.status-tooltip a:hover,
+.details-tooltip a:hover {
   filter: brightness(1.15);
 }
 
-.status-tooltip code {
+.status-tooltip code,
+.details-tooltip code {
   font-size: .95em;
 }
 
@@ -990,8 +1004,10 @@ button {
 }
 
 .setup-provider-actions {
+  position: relative;
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 6px;
   margin-top: 7px;
 }
@@ -1001,12 +1017,44 @@ button {
   font-size: .67rem;
 }
 
-.setup-provider-details {
-  margin-top: 6px;
+.details-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.details-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0 !important;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface);
   color: var(--muted);
-  font-size: .62rem;
-  line-height: 1.4;
-  overflow-wrap: anywhere;
+  cursor: pointer;
+  line-height: 1;
+  transition: color .15s ease, border-color .15s ease, background .15s ease;
+}
+
+.details-info-btn:hover,
+.details-info-btn:focus-visible,
+.details-wrap.details-open .details-info-btn {
+  color: var(--base-accent);
+  border-color: var(--base-accent);
+  background: color-mix(in srgb, var(--base-accent) 12%, transparent);
+}
+
+.details-wrap:hover .details-tooltip,
+.details-wrap:focus-within .details-tooltip,
+.details-wrap.details-open .details-tooltip {
+  display: block;
+}
+
+.details-wrap:hover .details-tooltip.tooltip-suppressed,
+.details-wrap:focus-within .details-tooltip.tooltip-suppressed {
+  display: none;
 }
 
 .setup-actions {
@@ -1157,7 +1205,8 @@ button {
     background: color-mix(in srgb, var(--light-button-hover) 50%, transparent);
   }
 
-  .status-tooltip {
+  .status-tooltip,
+  .details-tooltip {
     border-color: var(--border);
     color: var(--muted);
   }
@@ -1239,7 +1288,8 @@ button {
     background: color-mix(in srgb, var(--dark-button-hover) 50%, transparent);
   }
 
-  .status-tooltip {
+  .status-tooltip,
+  .details-tooltip {
     border-color: var(--border);
     color: var(--muted);
     box-shadow: 0 4px 14px var(--dark-shadow);
