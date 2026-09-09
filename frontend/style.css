@@ -431,6 +431,10 @@ button {
   overflow-wrap: anywhere;
 }
 
+.provider-error p {
+  margin: 0;
+}
+
 @keyframes text-blink {
   50% {
     opacity: .25;
@@ -892,7 +896,8 @@ button {
   line-height: 1.45;
 }
 
-.setup-provider-message code {
+.setup-provider-message code,
+.provider-error code {
   font-size: .95em;
 }
 

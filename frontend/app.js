@@ -260,11 +260,58 @@ function renderFormattedMessage(element, text) {
   }
 }
 
-function showProviderError(errorId, message) {
+function createDiagnosisActions(diagnosis, onCheck) {
+  const actions = document.createElement('div');
+  actions.className = 'setup-provider-actions';
+  const primary = document.createElement('button');
+  primary.type = 'button';
+  if (diagnosis.status === 'auth_check_required') {
+    primary.textContent = 'Check connection';
+  } else if (diagnosis.status === 'not_installed' || diagnosis.status === 'unsupported_cli') {
+    primary.textContent = 'Check CLI';
+  } else {
+    primary.textContent = 'Check again';
+  }
+  primary.addEventListener('click', onCheck);
+  actions.append(primary);
+
+  if (diagnosis.details) {
+    const detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.textContent = 'Details';
+    detailsBtn.setAttribute('aria-expanded', 'false');
+    const details = document.createElement('p');
+    details.className = 'setup-provider-details';
+    details.textContent = diagnosis.details;
+    details.hidden = true;
+    detailsBtn.addEventListener('click', () => {
+      details.hidden = !details.hidden;
+      detailsBtn.setAttribute('aria-expanded', String(!details.hidden));
+      requestWindowResize();
+    });
+    actions.append(detailsBtn);
+    return [actions, details];
+  }
+  return [actions];
+}
+
+function showProviderError(errorId, message, diagnosis, onCheck) {
   const element = document.getElementById(errorId);
   if (!element) return;
-  renderFormattedMessage(element, message);
-  element.hidden = !message;
+  element.replaceChildren();
+  if (!message) {
+    element.hidden = true;
+    return;
+  }
+  element.hidden = false;
+  const p = document.createElement('p');
+  p.className = 'provider-error-message';
+  renderFormattedMessage(p, message);
+  element.append(p);
+
+  if (diagnosis && diagnosis.status && onCheck) {
+    element.append(...createDiagnosisActions(diagnosis, onCheck));
+  }
 }
 
 // Draws a provider that came back with something other than usable numbers.
@@ -279,11 +326,12 @@ function renderNonUsageState(id, usage) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
   const message = String(usage.message || usage.error || '');
+  const onCheck = () => fetchProvider(id);
   if (shouldKeepStaleData(usage.status, state.lastSuccessAt)) {
-    showProviderError(meta.errorId, `${message} Showing data from ${formatAgo(state.lastSuccessAt)}.`);
+    showProviderError(meta.errorId, `${message} Showing data from ${formatAgo(state.lastSuccessAt)}.`, usage, onCheck);
   } else {
     document.getElementById(meta.groupsId).replaceChildren();
-    showProviderError(meta.errorId, message);
+    showProviderError(meta.errorId, message, usage, onCheck);
   }
   updateProviderStatus(id);
   requestWindowResize();
@@ -506,7 +554,7 @@ function toggleAlwaysOnTop() {
   isAlwaysOnTop = !isAlwaysOnTop;
   updateAlwaysOnTopUI(isAlwaysOnTop);
   wails.Window.SetAlwaysOnTop(isAlwaysOnTop);
-  wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetAlwaysOnTop', isAlwaysOnTop).catch(() => {});
+  wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetAlwaysOnTop', isAlwaysOnTop).catch(() => { });
 }
 
 pinWindowBtn.addEventListener('click', toggleAlwaysOnTop);
@@ -742,41 +790,11 @@ function buildSetupRow(provider, diagnosis) {
 
   if (!diagnosis.status) return row; // still checking: no actions to offer yet
 
-  const actions = document.createElement('div');
-  actions.className = 'setup-provider-actions';
-  const primary = document.createElement('button');
-  primary.type = 'button';
-  if (diagnosis.status === 'auth_check_required') {
-    primary.textContent = 'Check connection';
-    primary.addEventListener('click', () => checkConnection(provider));
-  } else if (diagnosis.status === 'not_installed' || diagnosis.status === 'unsupported_cli') {
-    primary.textContent = 'Check CLI';
-    primary.addEventListener('click', () => diagnoseProvider(provider));
-  } else {
-    primary.textContent = 'Check again';
-    primary.addEventListener('click', () => diagnoseProvider(provider));
-  }
-  actions.append(primary);
+  const onCheck = diagnosis.status === 'auth_check_required'
+    ? () => checkConnection(provider)
+    : () => diagnoseProvider(provider);
 
-  if (diagnosis.details) {
-    const detailsBtn = document.createElement('button');
-    detailsBtn.type = 'button';
-    detailsBtn.textContent = 'Details';
-    detailsBtn.setAttribute('aria-expanded', 'false');
-    const details = document.createElement('p');
-    details.className = 'setup-provider-details';
-    details.textContent = diagnosis.details;
-    details.hidden = true;
-    detailsBtn.addEventListener('click', () => {
-      details.hidden = !details.hidden;
-      detailsBtn.setAttribute('aria-expanded', String(!details.hidden));
-      requestWindowResize();
-    });
-    actions.append(detailsBtn);
-    row.append(actions, details);
-  } else {
-    row.append(actions);
-  }
+  row.append(...createDiagnosisActions(diagnosis, onCheck));
   return row;
 }
 
@@ -942,7 +960,7 @@ wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetVersion').then(
 // settings are read and written exactly as they would be without the flag.
 rpc('GetSamplePreviewAtStartup').then(open => {
   if (open) openSamplePreview();
-}).catch(() => {});
+}).catch(() => { });
 
 let lastReportedHeight = 0;
 let resizeTimer = null;
@@ -979,7 +997,7 @@ function requestWindowResize() {
     }
     if (height > 0 && Math.abs(height - lastReportedHeight) >= 2) {
       lastReportedHeight = height;
-      wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetContentHeight', height).catch(() => {});
+      wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetContentHeight', height).catch(() => { });
     }
   });
 }
