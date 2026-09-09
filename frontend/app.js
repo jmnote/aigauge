@@ -136,8 +136,8 @@ const formatTimeRemaining = (seconds, targetDate) => {
 // anchoring to fetchedAt, a Codex reset (reported as a relative "seconds
 // from now") would silently push further into the future every reload, and
 // an absolute reset time (Claude/Antigravity) could drift into the past and
-// render as already-elapsed. (The native app's own Demo Mode, --demo - see
-// hack/screenshot.ps1 - doesn't depend on this: internal/app.App already
+// render as already-elapsed. (The native app's own sample preview, --sample-preview
+// - see hack/screenshot.ps1 - doesn't depend on this: internal/app.App already
 // re-anchors fetchedAt and every resetTime to "now" server-side before the
 // frontend ever sees them.)
 function referenceNow(usage) {

@@ -140,11 +140,11 @@ Individual captures can be run with `screenshot-light` or `screenshot-dark`. To 
 wait, invoke the capture helper directly, for example:
 
 ```powershell
-.\hack\screenshot.ps1 -Theme light -RenderWaitSeconds 5 -Demo
+.\hack\screenshot.ps1 -Theme light -RenderWaitSeconds 5 -SamplePreview
 ```
 
-Omit `-Demo` to capture against live provider data instead (needs real logged-in accounts, and a
-longer `-RenderWaitSeconds` to give the real fetch time to finish).
+Omit `-SamplePreview` to capture against live provider data instead (needs real logged-in
+accounts, and a longer `-RenderWaitSeconds` to give the real fetch time to finish).
 
 ## MSIX packaging
 
@@ -164,6 +164,14 @@ package Publisher.
 The packaging script locates `makeappx.exe` from the Windows SDK. If it is not on `PATH`, pass its
 full path through the existing packaging script parameter. `signtool.exe` is only needed when
 creating a locally signed package.
+
+The `Release` GitHub Actions workflow (`.github/workflows/release.yml`) additionally copies the
+same build's `aigauge.exe` into `dist/` under the MSIX's own name (e.g. `aigauge_0.5.1.0_x64.exe`
+alongside `aigauge_0.5.1.0_x64.msix`) and attaches both, plus `SHA256SUMS.txt`, to the GitHub
+release. It runs unsigned and needs no installation - unlike the MSIX, which either goes through
+Store certification or needs a certificate matching the package Publisher installed and trusted
+first. Running the portable `.exe` still triggers SmartScreen on a machine that has not seen it
+before; that is a separate, much smaller prompt than installing a certificate.
 
 ## Theme behavior
 
