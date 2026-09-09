@@ -73,32 +73,34 @@ function Invoke-Backup {
         $existingMoved = @($raw | ForEach-Object { $_ })
     }
 
-    if ($existingMoved.Count -gt 0) {
-        $alreadyBackedUp = $existingMoved | Where-Object {
-            $prov = if ($_.Provider) { $_.Provider } else { Get-ProviderFromLabel $_.Label }
-            $TargetProvider -eq "all" -or $prov -eq $TargetProvider
-        }
-        if ($alreadyBackedUp) {
-            $provLabel = if ($TargetProvider -eq "all") { "Some or all providers are" } else { "Provider '$TargetProvider' is" }
-            Write-Warning "$provLabel already backed up in $manifestPath. Run '.\build.ps1 ai-restore $TargetProvider' first before backing up again."
-            exit 1
-        }
-    }
-
     $targets = Get-AiBackupTargets -TargetProvider $TargetProvider
-    $moved = @()
+    $newMoved = @()
+
     foreach ($target in $targets) {
         $livePath = $target.Path
-        if (-not (Test-Path -LiteralPath $livePath -PathType Leaf)) { continue }
         $backupPath = "$livePath.bak"
+
+        # If already tracked in manifest, leave it as is
+        $alreadyTracked = $existingMoved | Where-Object { $_.BackupPath -eq $backupPath -or $_.LivePath -eq $livePath }
+        if ($alreadyTracked) {
+            continue
+        }
+
+        # If live file does not exist, nothing to back up for this target
+        if (-not (Test-Path -LiteralPath $livePath -PathType Leaf)) {
+            continue
+        }
+
+        # If backup file already exists without being tracked, do not overwrite
         if (Test-Path -LiteralPath $backupPath -PathType Leaf) {
             Write-Warning "Skipping $($target.Label): $backupPath already exists. Not touching it."
             continue
         }
+
         try {
             Move-Item -LiteralPath $livePath -Destination $backupPath
             Write-Output "Backed up: $($target.Label) -> $backupPath"
-            $moved += @{
+            $newMoved += @{
                 Provider   = $target.Provider
                 Label      = $target.Label
                 LivePath   = $livePath
@@ -109,16 +111,26 @@ function Invoke-Backup {
         }
     }
 
-    if ($moved.Count -eq 0) {
-        Write-Output "Nothing to back up for '$TargetProvider' - no live credential or executable files were found."
+    if ($newMoved.Count -eq 0) {
+        # Check if requested provider(s) are already backed up in manifest
+        $matchingExisting = $existingMoved | Where-Object {
+            $prov = if ($_.Provider) { $_.Provider } else { Get-ProviderFromLabel $_.Label }
+            $TargetProvider -eq "all" -or $prov -eq $TargetProvider
+        }
+        if ($matchingExisting.Count -gt 0) {
+            $provLabel = if ($TargetProvider -eq "all") { "All requested providers" } else { "Provider '$TargetProvider'" }
+            Write-Output "$provLabel are already backed up ($($matchingExisting.Count) item(s) in manifest). Run '.\build.ps1 ai-restore' when done testing."
+        } else {
+            Write-Output "Nothing to back up for '$TargetProvider' - no live credential or executable files were found."
+        }
         return
     }
 
-    $allMoved = @($existingMoved) + @($moved)
+    $allMoved = @($existingMoved) + @($newMoved)
     $allMoved | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8
     Write-Output ""
     $restoreHint = if ($TargetProvider -eq "all") { ".\build.ps1 ai-restore" } else { ".\build.ps1 ai-restore $TargetProvider" }
-    Write-Output "Backed up $($moved.Count) item(s) for '$TargetProvider'. Run '$restoreHint' when done testing."
+    Write-Output "Backed up $($newMoved.Count) new item(s) for '$TargetProvider' ($($allMoved.Count) total item(s) currently backed up). Run '$restoreHint' when done testing."
 }
 
 function Invoke-Restore {
@@ -151,16 +163,29 @@ function Invoke-Restore {
     $allRestored = $true
     $notRestored = @()
     foreach ($item in $toRestore) {
-        if (-not (Test-Path -LiteralPath $item.BackupPath -PathType Leaf)) {
+        $liveExists = Test-Path -LiteralPath $item.LivePath -PathType Leaf
+        $backupExists = Test-Path -LiteralPath $item.BackupPath -PathType Leaf
+
+        # Case 1: Already restored (live exists and backup file is already gone)
+        if ($liveExists -and -not $backupExists) {
+            Write-Output "Already restored: $($item.Label) -> $($item.LivePath)"
+            continue
+        }
+
+        # Case 2: Backup is missing
+        if (-not $backupExists) {
             Write-Warning "Skipping $($item.Label): backup file $($item.BackupPath) is gone."
             continue
         }
-        if (Test-Path -LiteralPath $item.LivePath -PathType Leaf) {
+
+        # Case 3: Both exist (live was recreated while backup also exists)
+        if ($liveExists -and $backupExists) {
             Write-Warning "Skipping $($item.Label): $($item.LivePath) already exists again. Resolve manually - both it and $($item.BackupPath) are left in place."
             $allRestored = $false
             $notRestored += $item
             continue
         }
+
         try {
             Move-Item -LiteralPath $item.BackupPath -Destination $item.LivePath
             Write-Output "Restored: $($item.Label) -> $($item.LivePath)"
