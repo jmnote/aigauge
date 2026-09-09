@@ -245,9 +245,25 @@ function clearLoadingText(cardId) {
   document.querySelectorAll(`#${cardId} .loading-text`).forEach(element => element.classList.remove('loading-text'));
 }
 
+function renderFormattedMessage(element, text) {
+  element.replaceChildren();
+  if (!text) return;
+  const parts = text.split(/(<code>.*?<\/code>)/g);
+  for (const part of parts) {
+    if (part.startsWith('<code>') && part.endsWith('</code>')) {
+      const code = document.createElement('code');
+      code.textContent = part.slice(6, -7);
+      element.appendChild(code);
+    } else if (part) {
+      element.appendChild(document.createTextNode(part));
+    }
+  }
+}
+
 function showProviderError(errorId, message) {
   const element = document.getElementById(errorId);
-  element.textContent = message;
+  if (!element) return;
+  renderFormattedMessage(element, message);
   element.hidden = !message;
 }
 
@@ -721,7 +737,7 @@ function buildSetupRow(provider, diagnosis) {
 
   const message = document.createElement('p');
   message.className = 'setup-provider-message';
-  message.textContent = diagnosis.message || '';
+  renderFormattedMessage(message, diagnosis.message || '');
   row.append(head, message);
 
   if (!diagnosis.status) return row; // still checking: no actions to offer yet

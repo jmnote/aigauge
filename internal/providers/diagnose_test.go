@@ -415,13 +415,17 @@ func TestGetAntigravityUsageReportsNotInstalledWithoutRawPathError(t *testing.T)
 	if usage.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", usage.Status, StatusNotInstalled)
 	}
-	// The certification review saw the raw lookup failure on the card. It may
-	// still be inspected, but it must not be the headline any more.
+	// The certification review saw the raw lookup failure on the card. It is
+	// replaced with guidance that names the command to install, with no
+	// raw lookup error in Message or Details.
 	if strings.Contains(usage.Message, "PATH") {
 		t.Errorf("Message = %q, want guidance rather than the raw lookup error", usage.Message)
 	}
-	if !strings.Contains(usage.Details, "agy command not found") {
-		t.Errorf("Details = %q, want the raw lookup error kept for Technical details", usage.Details)
+	if !strings.Contains(usage.Message, "agy") {
+		t.Errorf("Message = %q, want guidance to name the agy CLI", usage.Message)
+	}
+	if usage.Details != "" {
+		t.Errorf("Details = %q, want empty Details on not_installed to avoid a Technical details button", usage.Details)
 	}
 	if len(runner.calls) != 0 {
 		t.Errorf("ran %v, want no command when the executable was never resolved", runner.calls)

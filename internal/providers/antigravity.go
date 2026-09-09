@@ -167,8 +167,7 @@ func findAgy(deps providerDeps) (string, Diagnosis, bool) {
 	if err != nil {
 		return "", Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: "Install the Antigravity CLI and sign in to monitor your quota.",
-			Details: technicalDetails(err.Error()),
+			Message: "Install the Antigravity CLI (<code>agy</code>) and sign in to monitor your quota.",
 		}, false
 	}
 	return agyPath, Diagnosis{}, true
