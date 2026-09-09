@@ -117,6 +117,9 @@ func TestDiagnoseClaudeReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	if diagnosis.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
 	}
+	if !strings.Contains(diagnosis.Details, "PATH") {
+		t.Errorf("Details = %q, want Details to mention PATH search", diagnosis.Details)
+	}
 }
 
 func TestDiagnoseClaudeReportsSignedInLocallyWhenInactiveWithoutCredentials(t *testing.T) {
@@ -242,6 +245,9 @@ func TestDiagnoseCodexReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	diagnosis, _, _ := diagnoseCodex(context.Background(), testDeps(&fakeRunner{}, missingPath(), nil), true)
 	if diagnosis.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
+	}
+	if !strings.Contains(diagnosis.Details, "PATH") {
+		t.Errorf("Details = %q, want Details to mention PATH search", diagnosis.Details)
 	}
 }
 
@@ -415,17 +421,16 @@ func TestGetAntigravityUsageReportsNotInstalledWithoutRawPathError(t *testing.T)
 	if usage.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", usage.Status, StatusNotInstalled)
 	}
-	// The certification review saw the raw lookup failure on the card. It is
-	// replaced with guidance that names the command to install, with no
-	// raw lookup error in Message or Details.
+	// Message provides clean, actionable guidance that names the command to install.
 	if strings.Contains(usage.Message, "PATH") {
 		t.Errorf("Message = %q, want guidance rather than the raw lookup error", usage.Message)
 	}
 	if !strings.Contains(usage.Message, "agy") {
 		t.Errorf("Message = %q, want guidance to name the agy CLI", usage.Message)
 	}
-	if usage.Details != "" {
-		t.Errorf("Details = %q, want empty Details on not_installed to avoid a Technical details button", usage.Details)
+	// Details provides concrete lookup locations so the user can see what was searched.
+	if usage.Details == "" || !strings.Contains(usage.Details, "PATH") {
+		t.Errorf("Details = %q, want Details to mention PATH search", usage.Details)
 	}
 	if len(runner.calls) != 0 {
 		t.Errorf("ran %v, want no command when the executable was never resolved", runner.calls)

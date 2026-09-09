@@ -761,7 +761,7 @@ function buildSetupRow(provider, diagnosis) {
   if (diagnosis.details) {
     const detailsBtn = document.createElement('button');
     detailsBtn.type = 'button';
-    detailsBtn.textContent = 'Technical details';
+    detailsBtn.textContent = 'Details';
     detailsBtn.setAttribute('aria-expanded', 'false');
     const details = document.createElement('p');
     details.className = 'setup-provider-details';

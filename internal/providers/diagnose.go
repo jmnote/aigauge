@@ -4,8 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -75,7 +78,11 @@ func diagnoseClaude(ctx context.Context, deps providerDeps, active bool) (Diagno
 	credentials, found := findClaudeCredentials(deps.homeDir, deps.readFile)
 	if found {
 		if !active {
-			return credentialsFoundDiagnosis(), credentials, false
+			details := ""
+			if home, err := deps.homeDir(); err == nil {
+				details = fmt.Sprintf("Found credentials at %s", filepath.Join(home, ".claude", ".credentials.json"))
+			}
+			return credentialsFoundDiagnosis(details), credentials, false
 		}
 		return Diagnosis{}, credentials, true
 	}
@@ -88,9 +95,14 @@ func diagnoseClaude(ctx context.Context, deps providerDeps, active bool) (Diagno
 func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
 	path, err := deps.lookPath("claude")
 	if err != nil {
+		details := "claude command not found in PATH"
+		if home, err := deps.homeDir(); err == nil {
+			details = fmt.Sprintf("claude command not found in PATH; credentials file (%s) not found", filepath.Join(home, ".claude", ".credentials.json"))
+		}
 		return Diagnosis{
 			Status:  StatusNotInstalled,
 			Message: "Install Claude Code CLI (<code>claude</code>) and sign in to monitor your quota.",
+			Details: technicalDetails(details),
 		}
 	}
 
@@ -119,10 +131,11 @@ func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diag
 			return Diagnosis{
 				Status:  StatusSignInRequired,
 				Message: "Sign in to Claude Code to view quota information.",
+				Details: technicalDetails(result.Stdout),
 			}
 		}
 		if !active {
-			return signedInLocallyDiagnosis()
+			return signedInLocallyDiagnosis("Claude Code", path)
 		}
 		return unsupportedCredentialSourceDiagnosis("Claude Code")
 	}
@@ -138,7 +151,11 @@ func diagnoseCodex(ctx context.Context, deps providerDeps, active bool) (Diagnos
 	credentials, found := findCodexCredentials(deps.homeDir, deps.readFile)
 	if found {
 		if !active {
-			return credentialsFoundDiagnosis(), credentials, false
+			details := ""
+			if home, err := deps.homeDir(); err == nil {
+				details = fmt.Sprintf("Found credentials at %s", filepath.Join(home, ".codex", "auth.json"))
+			}
+			return credentialsFoundDiagnosis(details), credentials, false
 		}
 		return Diagnosis{}, credentials, true
 	}
@@ -148,9 +165,14 @@ func diagnoseCodex(ctx context.Context, deps providerDeps, active bool) (Diagnos
 func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
 	path, err := deps.lookPath("codex")
 	if err != nil {
+		details := "codex command not found in PATH"
+		if home, err := deps.homeDir(); err == nil {
+			details = fmt.Sprintf("codex command not found in PATH; credentials file (%s) not found", filepath.Join(home, ".codex", "auth.json"))
+		}
 		return Diagnosis{
 			Status:  StatusNotInstalled,
 			Message: "Install the Codex CLI (<code>codex</code>) and sign in to monitor your quota.",
+			Details: technicalDetails(details),
 		}
 	}
 
@@ -178,7 +200,7 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 		}
 	}
 	if !active {
-		return signedInLocallyDiagnosis()
+		return signedInLocallyDiagnosis("Codex", path)
 	}
 	return unsupportedCredentialSourceDiagnosis("Codex")
 }
@@ -212,6 +234,7 @@ func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath stri
 		return Diagnosis{
 			Status:  StatusAuthCheckRequired,
 			Message: "Antigravity CLI found. Connect to verify usage.",
+			Details: technicalDetails(fmt.Sprintf("Found agy (%s) at %s", strings.TrimSpace(result.Stdout), agyPath)),
 		}, false
 	}
 	return Diagnosis{}, true
@@ -221,19 +244,25 @@ func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath stri
 // is readable but the user has not switched it on: enough is known to offer a
 // connection check, and deliberately not enough to claim a working connection,
 // since confirming that would take the very request this state exists to avoid.
-func credentialsFoundDiagnosis() Diagnosis {
+func credentialsFoundDiagnosis(details string) Diagnosis {
 	return Diagnosis{
 		Status:  StatusAuthCheckRequired,
 		Message: "Credentials found. Connect to verify usage.",
+		Details: technicalDetails(details),
 	}
 }
 
 // signedInLocallyDiagnosis is the same waiting state reached the other way: no
 // credential file this app can read, but the CLI reports a local session.
-func signedInLocallyDiagnosis() Diagnosis {
+func signedInLocallyDiagnosis(label string, path string) Diagnosis {
+	details := fmt.Sprintf("%s CLI found and reported an active session.", label)
+	if path != "" {
+		details = fmt.Sprintf("Found %s at %s with an active session.", label, path)
+	}
 	return Diagnosis{
 		Status:  StatusAuthCheckRequired,
 		Message: "Signed in locally. Connect to verify usage.",
+		Details: technicalDetails(details),
 	}
 }
 
@@ -277,16 +306,17 @@ func unreadableStatusDiagnosis(label string, result commandResult) Diagnosis {
 // the stored token expired or was revoked server-side - and it sends the card
 // back to sign-in guidance instead of leaving a stale "connected".
 func usageFailureDiagnosis(label string, err error) Diagnosis {
+	details := ""
+	if err != nil {
+		details = technicalDetails(err.Error())
+	}
 	switch httpStatusCode(err) {
 	case 401, 403:
 		return Diagnosis{
 			Status:  StatusSignInRequired,
 			Message: "Your " + label + " session expired. Sign in again to view quota information.",
+			Details: details,
 		}
-	}
-	details := ""
-	if err != nil {
-		details = technicalDetails(err.Error())
 	}
 	return Diagnosis{
 		Status:  StatusTemporaryError,

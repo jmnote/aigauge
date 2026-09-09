@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 )
@@ -101,7 +102,7 @@ func resolveAgyPath(lookupPath string, lookupErr error, homeDir func() (string, 
 		return "", errors.New("agy command not found in PATH")
 	}
 	if !pathExists(fallbackPath) {
-		return "", errors.New("agy command not found in PATH or the default installation directory")
+		return "", fmt.Errorf("agy command not found in PATH or default installation directory (%s)", fallbackPath)
 	}
 	return fallbackPath, nil
 }
@@ -157,10 +158,8 @@ func GetAntigravityUsage() AntigravityUsage {
 	return getAntigravityUsage(context.Background(), defaultDeps(), true)
 }
 
-// findAgy resolves the executable. The raw "agy command not found in PATH or
-// the default installation directory" string is what the certification review
-// saw on the card; it stays available under Technical details, but the message
-// now leads with something the reader can act on.
+// findAgy resolves the executable. The raw lookup failure is kept under
+// Details for transparency, while Message provides clear guidance.
 func findAgy(deps providerDeps) (string, Diagnosis, bool) {
 	lookupPath, lookupErr := deps.lookPath("agy")
 	agyPath, err := resolveAgyPath(lookupPath, lookupErr, deps.homeDir, deps.pathExists)
@@ -168,6 +167,7 @@ func findAgy(deps providerDeps) (string, Diagnosis, bool) {
 		return "", Diagnosis{
 			Status:  StatusNotInstalled,
 			Message: "Install the Antigravity CLI (<code>agy</code>) and sign in to monitor your quota.",
+			Details: technicalDetails(err.Error()),
 		}, false
 	}
 	return agyPath, Diagnosis{}, true
