@@ -101,6 +101,7 @@ export const Call = {
 export const Events = { On: () => () => {} };
 export const Window = { Close: () => {}, Hide: () => {}, SetAlwaysOnTop: () => {} };
 export const Application = { Quit: () => {} };
+export const Browser = { OpenURL: async url => { window.open(url, '_blank'); } };
 '@
 
 try {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 )
@@ -95,14 +94,14 @@ func resolveAgyPath(lookupPath string, lookupErr error, homeDir func() (string, 
 	}
 	home, err := homeDir()
 	if err != nil {
-		return "", errors.New("Checked PATH.")
+		return "", errors.New(notFoundDetails(""))
 	}
 	fallbackPath, ok := antigravityFallbackPath(home)
 	if !ok {
-		return "", errors.New("Checked PATH.")
+		return "", errors.New(notFoundDetails(""))
 	}
 	if !pathExists(fallbackPath) {
-		return "", fmt.Errorf("Checked PATH and %s.", fallbackPath)
+		return "", errors.New(notFoundDetails(fallbackPath))
 	}
 	return fallbackPath, nil
 }
@@ -166,7 +165,7 @@ func findAgy(deps providerDeps) (string, Diagnosis, bool) {
 	if err != nil {
 		return "", Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: "Install the Antigravity CLI (<code>agy</code>) and sign in to monitor your quota.",
+			Message: `Install the Antigravity CLI (<code>agy</code>) and sign in to monitor your quota. <a href="https://antigravity.google/docs/cli/install">Installation guide</a>`,
 			Details: technicalDetails(err.Error()),
 		}, false
 	}

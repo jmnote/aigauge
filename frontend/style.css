@@ -901,6 +901,19 @@ button {
   font-size: .95em;
 }
 
+.setup-provider-message a,
+.provider-error a {
+  color: var(--base-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.setup-provider-message a:hover,
+.provider-error a:hover {
+  filter: brightness(1.15);
+}
+
 .setup-providers {
   display: flex;
   flex-direction: column;

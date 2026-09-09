@@ -140,6 +140,16 @@ func TestResolveExecutableFallsBackWhenLookupFails(t *testing.T) {
 	}
 }
 
+func TestNotFoundDetails(t *testing.T) {
+	if got := notFoundDetails(""); got != "Checked PATH." {
+		t.Errorf("notFoundDetails(\"\") = %q, want %q", got, "Checked PATH.")
+	}
+	want := "Checked PATH and C:\\bin\\tool.exe."
+	if got := notFoundDetails("C:\\bin\\tool.exe"); got != want {
+		t.Errorf("notFoundDetails(...) = %q, want %q", got, want)
+	}
+}
+
 func TestParseClaudeUsage(t *testing.T) {
 	usage, err := parseClaudeUsage(readFixture(t, "claude-usage.json"))
 	if err != nil {

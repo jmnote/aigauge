@@ -248,12 +248,33 @@ function clearLoadingText(cardId) {
 function renderFormattedMessage(element, text) {
   element.replaceChildren();
   if (!text) return;
-  const parts = text.split(/(<code>.*?<\/code>)/g);
+  const parts = text.split(/(<code>.*?<\/code>|<a\s+[^>]*>.*?<\/a>)/g);
   for (const part of parts) {
     if (part.startsWith('<code>') && part.endsWith('</code>')) {
       const code = document.createElement('code');
       code.textContent = part.slice(6, -7);
       element.appendChild(code);
+    } else if (part.startsWith('<a ') && part.endsWith('</a>')) {
+      const match = part.match(/^<a\s+href="([^"]*)">(.*?)<\/a>$/);
+      if (match) {
+        const a = document.createElement('a');
+        const href = match[1];
+        a.href = href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = match[2];
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          if (wails && wails.Browser && typeof wails.Browser.OpenURL === 'function') {
+            wails.Browser.OpenURL(href).catch(err => console.error('Failed to open URL:', err));
+          } else {
+            window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+        element.appendChild(a);
+      } else {
+        element.appendChild(document.createTextNode(part));
+      }
     } else if (part) {
       element.appendChild(document.createTextNode(part));
     }

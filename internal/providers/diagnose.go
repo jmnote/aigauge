@@ -104,29 +104,23 @@ func resolveExecutable(name string, fallbackFunc func(string) (string, bool), de
 	return "", ""
 }
 
+func notFoundDetails(fallback string) string {
+	if fallback != "" {
+		return fmt.Sprintf("Checked PATH and %s.", fallback)
+	}
+	return "Checked PATH."
+}
+
 // diagnoseClaudeCLI is the secondary diagnosis: it runs only when no usable
 // credential was found, and exists to tell "never signed in" apart from "signed
 // in somewhere this app cannot read".
 func diagnoseClaudeCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
 	path, fallback := resolveExecutable("claude", claudeFallbackPath, deps)
 	if path == "" {
-		home, _ := deps.homeDir()
-		credPath := ""
-		if home != "" {
-			credPath = filepath.Join(home, ".claude", ".credentials.json")
-		}
-		var parts []string
-		parts = append(parts, "Checked PATH")
-		if fallback != "" {
-			parts = append(parts, fallback)
-		}
-		if credPath != "" {
-			parts = append(parts, fmt.Sprintf("credentials file (%s)", credPath))
-		}
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: "Install Claude Code CLI (<code>claude</code>) and sign in to monitor your quota.",
-			Details: technicalDetails(strings.Join(parts, ", ") + "."),
+			Message: `Install Claude Code CLI (<code>claude</code>) and sign in to monitor your quota. <a href="https://code.claude.com/docs/ko/quickstart#step-1-install-claude-code">Installation guide</a>`,
+			Details: technicalDetails(notFoundDetails(fallback)),
 		}
 	}
 
@@ -189,23 +183,10 @@ func diagnoseCodex(ctx context.Context, deps providerDeps, active bool) (Diagnos
 func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagnosis {
 	path, fallback := resolveExecutable("codex", codexFallbackPath, deps)
 	if path == "" {
-		home, _ := deps.homeDir()
-		credPath := ""
-		if home != "" {
-			credPath = filepath.Join(home, ".codex", "auth.json")
-		}
-		var parts []string
-		parts = append(parts, "Checked PATH")
-		if fallback != "" {
-			parts = append(parts, fallback)
-		}
-		if credPath != "" {
-			parts = append(parts, fmt.Sprintf("credentials file (%s)", credPath))
-		}
 		return Diagnosis{
 			Status:  StatusNotInstalled,
-			Message: "Install the Codex CLI (<code>codex</code>) and sign in to monitor your quota.",
-			Details: technicalDetails(strings.Join(parts, ", ") + "."),
+			Message: `Install the Codex CLI (<code>codex</code>) and sign in to monitor your quota. <a href="https://learn.chatgpt.com/docs/codex/cli#getting-started">Installation guide</a>`,
+			Details: technicalDetails(notFoundDetails(fallback)),
 		}
 	}
 

@@ -120,6 +120,13 @@ func TestDiagnoseClaudeReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	if !strings.Contains(diagnosis.Details, "PATH") {
 		t.Errorf("Details = %q, want Details to mention PATH search", diagnosis.Details)
 	}
+	if strings.Contains(diagnosis.Details, "credentials") {
+		t.Errorf("Details = %q, want Details not to mention credentials file", diagnosis.Details)
+	}
+	wantLink := "https://code.claude.com/docs/ko/quickstart#step-1-install-claude-code"
+	if !strings.Contains(diagnosis.Message, wantLink) {
+		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
+	}
 }
 
 func TestDiagnoseClaudeReportsSignedInLocallyWhenInactiveWithoutCredentials(t *testing.T) {
@@ -249,6 +256,13 @@ func TestDiagnoseCodexReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
 	if !strings.Contains(diagnosis.Details, "PATH") {
 		t.Errorf("Details = %q, want Details to mention PATH search", diagnosis.Details)
 	}
+	if strings.Contains(diagnosis.Details, "credentials") {
+		t.Errorf("Details = %q, want Details not to mention credentials file", diagnosis.Details)
+	}
+	wantLink := "https://learn.chatgpt.com/docs/codex/cli#getting-started"
+	if !strings.Contains(diagnosis.Message, wantLink) {
+		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
+	}
 }
 
 func TestDiagnoseAntigravityStopsBeforeAnyNetworkCommandWhenInactive(t *testing.T) {
@@ -280,6 +294,21 @@ func TestDiagnoseAntigravityProceedsWhenActive(t *testing.T) {
 	runner := &fakeRunner{result: commandResult{Stdout: "1.1.28"}}
 	if _, ok := diagnoseAntigravity(context.Background(), runner, "agy", true); !ok {
 		t.Error("diagnoseAntigravity() ok = false, want true so the caller runs /usage")
+	}
+}
+
+func TestFindAgyReportsNotInstalledWithGuideLink(t *testing.T) {
+	deps := testDeps(&fakeRunner{}, missingPath(), nil)
+	_, diagnosis, ok := findAgy(deps)
+	if ok {
+		t.Error("findAgy() ok = true, want false when agy is not installed")
+	}
+	if diagnosis.Status != StatusNotInstalled {
+		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
+	}
+	wantLink := "https://antigravity.google/docs/cli/install"
+	if !strings.Contains(diagnosis.Message, wantLink) {
+		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
 	}
 }
 
