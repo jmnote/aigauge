@@ -337,14 +337,16 @@ function createDiagnosisActions(diagnosis, onCheck) {
   } else {
     primary.textContent = 'Check again';
   }
-  primary.addEventListener('click', onCheck);
   actions.append(primary);
 
+  let detailsWrap = null;
+  let detailsBtn = null;
+
   if (diagnosis.details) {
-    const detailsWrap = document.createElement('span');
+    detailsWrap = document.createElement('span');
     detailsWrap.className = 'details-wrap';
 
-    const detailsBtn = document.createElement('button');
+    detailsBtn = document.createElement('button');
     detailsBtn.type = 'button';
     detailsBtn.className = 'details-info-btn';
     detailsBtn.title = 'Details';
@@ -382,6 +384,29 @@ function createDiagnosisActions(diagnosis, onCheck) {
     detailsWrap.append(detailsBtn, tooltip);
     actions.append(detailsWrap);
   }
+
+  primary.addEventListener('click', async () => {
+    if (primary.disabled) return;
+    primary.disabled = true;
+    closeOpenDetailsTooltips();
+    if (detailsWrap) {
+      detailsWrap.style.display = 'none';
+    }
+    try {
+      if (onCheck) await onCheck();
+    } finally {
+      if (primary.isConnected) {
+        primary.disabled = false;
+        if (detailsWrap) {
+          detailsWrap.style.display = '';
+          detailsWrap.style.animation = 'none';
+          void detailsWrap.offsetWidth;
+          detailsWrap.style.animation = '';
+        }
+      }
+    }
+  });
+
   return [actions];
 }
 
@@ -894,14 +919,16 @@ function showSetupRow(provider, diagnosis) {
   requestWindowResize();
 }
 
-function diagnoseProvider(provider) {
-  showSetupRow(provider, { status: '', message: 'Checking...' });
-  return rpc(provider.diagnoseRpcMethod)
-    .then(diagnosis => showSetupRow(provider, diagnosis || {}))
-    .catch(() => showSetupRow(provider, {
+async function diagnoseProvider(provider) {
+  try {
+    const diagnosis = await rpc(provider.diagnoseRpcMethod);
+    showSetupRow(provider, diagnosis || {});
+  } catch {
+    showSetupRow(provider, {
       status: 'temporary_error',
       message: 'Could not check this provider. Try again.',
-    }));
+    });
+  }
 }
 
 // Each provider resolves independently so one slow diagnosis never holds up
@@ -919,7 +946,6 @@ function renderSetupProviders() {
 // enabled and the window switches to the live dashboard; anything else just
 // updates that provider's row and leaves the configuration alone.
 async function checkConnection(provider) {
-  showSetupRow(provider, { status: '', message: 'Checking connection...' });
   try {
     const usage = await rpc(provider.rpcMethod);
     if (usage.status === 'connected') {

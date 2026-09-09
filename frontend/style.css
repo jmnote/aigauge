@@ -188,8 +188,9 @@ code {
   transform: translateX(-50%);
   z-index: 10;
   display: none;
+  box-sizing: border-box;
   width: max-content;
-  max-width: 220px;
+  max-width: 90vw;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -217,7 +218,6 @@ code {
 .details-tooltip {
   font-size: .67rem;
   line-height: 1.4;
-  max-width: 210px;
 }
 
 .status-tooltip::before,
@@ -1017,9 +1017,24 @@ button {
   font-size: .67rem;
 }
 
+.setup-provider-actions button:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
 .details-wrap {
   display: inline-flex;
   align-items: center;
+  animation: details-fade-in .5s ease-out both;
+}
+
+@keyframes details-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .details-info-btn {
@@ -1314,7 +1329,8 @@ button {
 @media (prefers-reduced-motion: reduce) {
 
   .status-dot.loading,
-  .loading-text {
+  .loading-text,
+  .details-wrap {
     animation: none;
   }
 }
