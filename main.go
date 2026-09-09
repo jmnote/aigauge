@@ -25,9 +25,6 @@ func main() {
 				usageapp.ThemeOverride = theme
 			}
 		}
-		if strings.HasPrefix(arg, "--fixtures=") {
-			usageapp.FixturesDir = strings.TrimPrefix(arg, "--fixtures=")
-		}
 	}
 	frontendAssets, err := fs.Sub(embeddedFrontend, "frontend")
 	if err != nil {

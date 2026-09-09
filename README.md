@@ -61,10 +61,10 @@ authentication and privacy policies.
 
 - If Codex data is unavailable, verify that the local Codex login session is active.
 - AI Gauge uses the access token maintained by Codex and does not refresh it itself. If the token
-  has expired, sign in again with Codex so that `~/.codex/auth.json` is updated.
+  has expired, log in again with Codex so that `~/.codex/auth.json` is updated.
 - If Claude data is unavailable, verify that the local Claude Code login session is active.
   AI Gauge uses the access token maintained by Claude Code and does not refresh it itself. If the
-  token has expired, sign in again with Claude Code so that `~/.claude/.credentials.json` is
+  token has expired, log in again with Claude Code so that `~/.claude/.credentials.json` is
   updated.
 - If Antigravity data is unavailable, verify that `agy` is installed and available to the app.
 - Check the status dot tooltip for failure count, last successful fetch, last error, and next fetch.

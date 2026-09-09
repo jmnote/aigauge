@@ -4,6 +4,6 @@ package providers
 
 import "os/exec"
 
-func configureAntigravityCommand(command *exec.Cmd) {}
+func configureHiddenCommand(command *exec.Cmd) {}
 
 func antigravityFallbackPath(_ string) (string, bool) { return "", false }

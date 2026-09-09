@@ -13,7 +13,7 @@ import (
 // https://github.com/google-antigravity/antigravity-cli/issues/508
 const createNoWindow = 0x08000000
 
-func configureAntigravityCommand(command *exec.Cmd) {
+func configureHiddenCommand(command *exec.Cmd) {
 	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow}
 }
 

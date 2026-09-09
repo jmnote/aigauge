@@ -46,12 +46,35 @@ jobs:
         shell: pwsh
         run: .\build.ps1 -Task package -Architecture x64 -SkipWindowsResources -ReleaseArtifact
 
+      - name: Copy portable executable
+        shell: pwsh
+        run: |
+          # build.ps1's package task already built aigauge.exe at the repo root
+          # to produce the MSIX above (hack/package-msix.ps1 builds it, then
+          # copies it into the MSIX staging directory) - this just also copies
+          # it into dist/ under the MSIX's own name, so someone who doesn't
+          # want to install anything can run it directly. Named after the
+          # MSIX (not a separately computed version string) so the two never
+          # drift apart.
+          $msix = Get-ChildItem -LiteralPath dist -Filter *.msix -File | Select-Object -First 1
+          if (-not $msix) {
+            throw "No MSIX package was produced; cannot name the portable executable after it."
+          }
+          $exeName = [IO.Path]::GetFileNameWithoutExtension($msix.Name) + ".exe"
+          Copy-Item -LiteralPath aigauge.exe -Destination (Join-Path dist $exeName)
+
       - name: Create checksums
         shell: pwsh
         run: |
-          $packages = @(Get-ChildItem -LiteralPath dist -Filter *.msix -File)
+          # -Path (wildcard) rather than -LiteralPath: -Include is silently
+          # ignored without either a wildcard path or -Recurse, which would
+          # pick up hack/package-msix.ps1's own build-time copy of aigauge.exe
+          # under dist\staging\<arch>\ - not part of the release - alongside
+          # everything else in the tree. This form stays non-recursive and
+          # matches dist\'s own contents only.
+          $packages = @(Get-ChildItem -Path (Join-Path dist '*') -Include *.msix, *.exe -File)
           if ($packages.Count -eq 0) {
-            throw "No MSIX packages were produced."
+            throw "No release artifacts were produced."
           }
           $checksums = $packages | Sort-Object Name | ForEach-Object {
             $hash = (Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -59,12 +82,13 @@ jobs:
           }
           $checksums | Set-Content -LiteralPath dist\SHA256SUMS.txt -Encoding ascii
 
-      - name: Upload MSIX and checksums
+      - name: Upload MSIX, executable, and checksums
         uses: actions/upload-artifact@v4
         with:
           name: release-msix
           path: |
             dist/*.msix
+            dist/*.exe
             dist/SHA256SUMS.txt
           if-no-files-found: error
 
@@ -86,7 +110,7 @@ jobs:
           fi
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
-      - name: Download MSIX
+      - name: Download MSIX and executable
         uses: actions/download-artifact@v5
         with:
           name: release-msix
@@ -108,4 +132,5 @@ jobs:
             --title "$tag" \
             --generate-notes \
             dist/*.msix \
+            dist/*.exe \
             dist/SHA256SUMS.txt

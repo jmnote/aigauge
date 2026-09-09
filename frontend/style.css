@@ -62,6 +62,15 @@ h1 {
   font-weight: 650;
 }
 
+code {
+  font-family: Consolas, "Cascadia Code", "SF Mono", Monaco, monospace;
+  font-size: .88em;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: var(--bar-background);
+  color: var(--text);
+}
+
 .shell {
   display: flex;
   flex-direction: column;
@@ -71,12 +80,37 @@ h1 {
   padding: 12px 12px 18px;
   overflow-x: hidden;
   overflow-y: auto;
-  /* The window is kept sized to fit content (SetContentHeight), so this
+  /* The window height is kept sized to fit content (SetContentHeight), so this
      scrollbar only exists as a fallback for content taller than the 1600px
      cap - it should never visibly appear otherwise, e.g. as a momentary
      flash before the initial resize lands. Hide it but keep scrolling
      itself (wheel/keyboard/programmatic) working for that fallback case. */
   scrollbar-width: none;
+}
+
+.window-size-indicator {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  right: auto;
+  bottom: auto;
+  z-index: 200;
+  padding: 3px 7px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1.2;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, -3px);
+  transition: opacity .12s ease, transform .12s ease;
+}
+
+.window-size-indicator.is-visible {
+  opacity: .95;
+  transform: translate(-50%, 0);
 }
 
 .shell::-webkit-scrollbar {
@@ -114,6 +148,8 @@ h1 {
   font-weight: 650;
 }
 
+
+
 .heading {
   position: relative;
   display: flex;
@@ -126,6 +162,11 @@ h1 {
      flush, square-cornered highlight rather than one inset within the card. */
   margin: 0 -16px 14px;
   padding: 0 16px;
+}
+
+.heading:hover,
+.heading:has(.status-area :focus-visible) {
+  z-index: 30;
 }
 
 .heading strong {
@@ -168,15 +209,18 @@ h1 {
   background: var(--base-warning);
 }
 
-.status-tooltip {
+.status-tooltip,
+.details-tooltip {
   position: absolute;
   top: calc(100% + 4px);
   left: 50%;
+  right: auto;
   transform: translateX(-50%);
-  z-index: 10;
+  z-index: 100;
   display: none;
+  box-sizing: border-box;
   width: max-content;
-  max-width: 190px;
+  max-width: 80vw;
   padding: 8px 10px;
   border: 1px solid var(--border);
   border-radius: 6px;
@@ -185,17 +229,53 @@ h1 {
   -webkit-backdrop-filter: blur(2px);
   box-shadow: 0 4px 14px var(--light-shadow);
   color: var(--muted);
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  white-space: pre-line;
+}
+
+.status-tooltip {
   font-size: .7rem;
   line-height: 1.5;
-  overflow-wrap: anywhere;
-  pointer-events: none;
-  white-space: pre-line;
   /* Grid (not flex) so the label column is one `max-content` track shared
      via subgrid across every row - it sizes to that tooltip instance's own
      widest label ("Last error" vs. just "Plan") instead of a fixed width
      sized for the longest label anywhere. */
   grid-template-columns: max-content 1fr;
   column-gap: 8px;
+}
+
+.details-tooltip {
+  font-size: .67rem;
+  line-height: 1.4;
+}
+
+.status-tooltip::before,
+.details-tooltip::before {
+  content: "";
+  position: absolute;
+  top: -8px;
+  left: -30px;
+  right: -30px;
+  height: 8px;
+}
+
+.status-tooltip a,
+.details-tooltip a {
+  color: var(--base-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.status-tooltip a:hover,
+.details-tooltip a:hover {
+  filter: brightness(1.15);
+}
+
+.status-tooltip code,
+.details-tooltip code {
+  font-size: .95em;
 }
 
 .heading:hover .status-tooltip,
@@ -347,6 +427,13 @@ button {
   background: transparent;
 }
 
+.usage-card:hover,
+.usage-card:focus-within,
+.usage-card:has(.details-open) {
+  position: relative;
+  z-index: 20;
+}
+
 .usage-card>.heading,
 .usage-card>.provider-error {
   width: 100%;
@@ -418,6 +505,10 @@ button {
   font-size: .72rem;
   line-height: 1.4;
   overflow-wrap: anywhere;
+}
+
+.provider-error p {
+  margin: 0;
 }
 
 @keyframes text-blink {
@@ -534,7 +625,8 @@ button {
      breathing room to match .shell's own edge padding. */
   top: 31px;
   bottom: 12px;
-  width: 220px;
+  width: min(220px, calc(100vw - 12px));
+  max-width: calc(100vw - 12px);
   padding: 0;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -608,7 +700,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
 }
 
 .provider-setting {
@@ -617,6 +709,7 @@ button {
   gap: 7px;
   color: var(--muted);
   font-size: .75rem;
+  white-space: nowrap;
   cursor: pointer;
 }
 
@@ -660,7 +753,7 @@ button {
 }
 
 .threshold-setting+.threshold-setting {
-  margin-top: 8px;
+  margin-top: 4px;
 }
 
 .threshold-value {
@@ -674,6 +767,7 @@ button {
   display: flex;
   align-items: center;
   gap: 6px;
+  white-space: nowrap;
   cursor: pointer;
   user-select: none;
 }
@@ -741,8 +835,9 @@ button {
 }
 
 .refresh-setting-row select {
-  flex: 1;
-  min-width: 65px;
+  flex: 0 0 60px;
+  width: 60px;
+  min-width: 60px;
   height: 24px;
   box-sizing: border-box;
   padding: 2px 6px;
@@ -861,24 +956,294 @@ button {
   user-select: none;
 }
 
-.no-providers {
+/* The first-run screen. Everything here is laid out in a single column and
+   left-aligned rather than centered: at 250px wide, sentences long enough to
+   explain what the app needs read far better ragged-right than centered. */
+.setup-screen {
+  padding: 14px 12px 16px;
+}
+
+.setup-heading {
+  margin: 0 0 8px;
+  font-size: .82rem;
+  font-weight: 650;
+}
+
+.setup-intro {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: .7rem;
+  line-height: 1.45;
+}
+
+.setup-provider-message code,
+.provider-error code {
+  font-size: .95em;
+}
+
+.setup-provider-message a,
+.provider-error a {
+  color: var(--base-accent);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.setup-provider-message a:hover,
+.provider-error a:hover {
+  filter: brightness(1.15);
+}
+
+.setup-providers {
   display: flex;
   flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+}
+
+/* One provider's readiness. The name and the short status badge share the
+   first line; the explanation and any actions wrap onto their own lines,
+   because a badge plus a full sentence never fits across 250px. */
+.setup-provider {
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 9px;
+}
+
+.setup-provider:hover,
+.setup-provider:focus-within,
+.setup-provider:has(.details-open),
+.setup-provider:has(.details-wrap:hover) {
+  position: relative;
+  z-index: 20;
+}
+
+.setup-provider-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.setup-provider-name {
+  font-size: .75rem;
+  font-weight: 650;
+}
+
+.setup-provider-badge {
+  color: var(--muted);
+  font-size: .62rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.setup-provider-badge.is-ready {
+  color: var(--base-accent);
+}
+
+.setup-provider-badge.is-blocked {
+  color: var(--base-critical);
+}
+
+.setup-provider-message {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: .67rem;
+  line-height: 1.4;
+}
+
+.setup-provider-actions {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.setup-provider-actions:hover,
+.setup-provider-actions:focus-within,
+.setup-provider-actions:has(.details-open) {
+  z-index: 30;
+}
+
+/* Keep controls usable at the native window's 200px minimum width. The
+   regular 250px layout remains unchanged; secondary rows that cannot fit in
+   the narrow viewport stack vertically. Provider toggles/move controls and
+   threshold values stay on one line so their relationship remains clear. */
+@media (max-width: 230px) {
+  .shell {
+    padding-right: 8px;
+    padding-left: 8px;
+  }
+
+  .titlebar {
+    margin-right: -8px;
+    margin-left: -8px;
+    padding-left: 6px;
+  }
+
+  .brand-name {
+    display: none;
+  }
+
+  .window-buttons button {
+    width: 30px;
+  }
+
+  .settings-form {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+
+  .refresh-setting-row,
+  .theme-setting-row,
+  .setup-provider-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .refresh-setting-row select {
+    flex: 0 0 auto;
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+.setup-provider-actions button {
+  padding: 3px 8px;
+  font-size: .67rem;
+}
+
+.setup-provider-actions button:disabled {
+  opacity: .6;
+  cursor: default;
+}
+
+.details-wrap {
+  display: inline-flex;
+  align-items: center;
+}
+
+.details-wrap:hover,
+.details-wrap:focus-within,
+.details-wrap.details-open {
+  position: relative;
+  z-index: 40;
+}
+
+.details-info-btn {
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 24px 8px;
-  text-align: center;
-}
-
-.no-providers p {
-  margin: 0 0 12px;
+  width: 20px;
+  height: 20px;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 4px;
+  background: transparent !important;
   color: var(--muted);
-  font-size: .8rem;
+  cursor: pointer;
+  line-height: 1;
+  transition: color .15s ease, background-color .15s ease;
+  animation: details-fade-in .5s ease-out both;
 }
 
-.open-settings-btn {
-  padding: 5px 12px;
+@keyframes details-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.details-info-btn svg {
+  width: 15px;
+  height: 15px;
+}
+
+.details-info-btn:hover,
+.details-wrap.details-open .details-info-btn {
+  color: var(--base-accent);
+  background: color-mix(in srgb, var(--base-accent) 15%, transparent) !important;
+}
+
+.details-info-btn:focus-visible {
+  color: var(--base-accent);
+  outline: 2px solid var(--base-accent);
+  outline-offset: 1px;
+}
+
+.details-wrap:hover .details-tooltip,
+.details-wrap:focus-within .details-tooltip,
+.details-wrap.details-open .details-tooltip {
+  display: block;
+}
+
+.details-wrap:hover .details-tooltip.tooltip-suppressed,
+.details-wrap:focus-within .details-tooltip.tooltip-suppressed {
+  display: none;
+}
+
+.setup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.setup-primary-btn {
+  padding: 6px 12px;
+  border-color: var(--base-accent);
+  color: var(--base-accent);
   font-size: .75rem;
+  font-weight: 650;
+}
+
+.setup-hint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: .65rem;
+  line-height: 1.4;
+}
+
+/* Kept visible for the whole preview so sample numbers can never be mistaken
+   for a real account's, and carrying the only way back out of it. */
+/* An author `display` declaration outranks the UA stylesheet's rule for
+   [hidden], so this element needs to opt back out explicitly - without it the
+   bar stays on screen outside the preview. */
+.sample-bar[hidden] {
+  display: none;
+}
+
+.sample-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 6px 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+/* Carries the "this is not your real usage" signal on its own, so the
+   titlebar keeps its full "AI Gauge" wordmark: at 250px a chip up there
+   wrapped the brand onto two lines to say what this bar already says. */
+.sample-bar-label {
+  color: #fff;
+  background: var(--base-accent);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font-size: .62rem;
+  font-weight: 650;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+
+.sample-bar-btn {
+  padding: 3px 8px;
+  font-size: .66rem;
+  white-space: nowrap;
 }
 
 :root[data-theme="system"] {
@@ -914,6 +1279,7 @@ button {
 }
 
 :root[data-resolved-theme="light"] {
+  color-scheme: light;
   --text: var(--light-text);
   --surface: var(--light-surface);
   --muted: var(--light-muted);
@@ -966,7 +1332,8 @@ button {
     background: color-mix(in srgb, var(--light-button-hover) 50%, transparent);
   }
 
-  .status-tooltip {
+  .status-tooltip,
+  .details-tooltip {
     border-color: var(--border);
     color: var(--muted);
   }
@@ -995,6 +1362,7 @@ button {
 }
 
 :root[data-resolved-theme="dark"] {
+  color-scheme: dark;
   --text: var(--dark-text);
   --surface: var(--dark-surface);
   --muted: var(--dark-muted);
@@ -1048,7 +1416,8 @@ button {
     background: color-mix(in srgb, var(--dark-button-hover) 50%, transparent);
   }
 
-  .status-tooltip {
+  .status-tooltip,
+  .details-tooltip {
     border-color: var(--border);
     color: var(--muted);
     box-shadow: 0 4px 14px var(--dark-shadow);
@@ -1068,7 +1437,8 @@ button {
 @media (prefers-reduced-motion: reduce) {
 
   .status-dot.loading,
-  .loading-text {
+  .loading-text,
+  .details-info-btn {
     animation: none;
   }
 }

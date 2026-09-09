@@ -1,10 +1,9 @@
 package providers
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -15,7 +14,10 @@ type CodexUsage struct {
 	FiveHourIn int     `json:"fiveHourResetIn"`
 	SevenDayIn int     `json:"sevenDayResetIn"`
 	FetchedAt  string  `json:"fetchedAt"`
-	Error      string  `json:"error,omitempty"`
+
+	// See DiagnosisFields in status.go: it carries the structured diagnosis,
+	// shared by all three providers so applyDiagnosis is defined exactly once.
+	DiagnosisFields
 }
 
 type codexAuth struct {
@@ -66,39 +68,41 @@ func parseCodexUsage(data []byte) (CodexUsage, error) {
 	}, nil
 }
 
-func GetCodexUsage() CodexUsage {
-	usage := CodexUsage{FetchedAt: time.Now().Format(time.RFC3339)}
-	home, err := os.UserHomeDir()
-	if err != nil {
-		usage.Error = fmt.Sprintf("Failed to get home directory: %v", err)
-		return usage
-	}
+// findCodexCredentials reads only the access token the usage request needs.
+// See findCredentials in diagnose.go for what "found" means.
+func findCodexCredentials(homeDir func() (string, error), readFile func(string) ([]byte, error)) (codexAuth, bool) {
+	return findCredentials(homeDir, readFile, codexCredentialRelPath, func(a codexAuth) bool {
+		return a.Tokens.AccessToken != ""
+	})
+}
 
-	authPath := filepath.Join(home, ".codex", "auth.json")
-	authData, err := os.ReadFile(authPath)
-	if err != nil {
-		usage.Error = "Codex login information not found (~/.codex/auth.json)"
-		return usage
-	}
-	var auth codexAuth
-	if err := json.Unmarshal(authData, &auth); err != nil || auth.Tokens.AccessToken == "" {
-		usage.Error = "Unable to read Codex access token"
+func GetCodexUsage() CodexUsage {
+	return getCodexUsage(context.Background(), defaultDeps(), true)
+}
+
+func getCodexUsage(ctx context.Context, deps providerDeps, active bool) CodexUsage {
+	usage := CodexUsage{FetchedAt: time.Now().Format(time.RFC3339)}
+
+	diagnosis, credentials, ok := diagnoseCodex(ctx, deps, active)
+	if !ok {
+		usage.applyDiagnosis(diagnosis)
 		return usage
 	}
 
 	body, err := fetchAuthorizedJSON("https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
-		"Authorization": "Bearer " + auth.Tokens.AccessToken,
+		"Authorization": "Bearer " + credentials.Tokens.AccessToken,
 	})
 	if err != nil {
-		usage.Error = err.Error()
+		usage.applyDiagnosis(usageFailureDiagnosis("Codex", err))
 		return usage
 	}
 
 	parsed, err := parseCodexUsage(body)
 	if err != nil {
-		usage.Error = fmt.Sprintf("Unable to parse Codex usage response: %v", err)
+		usage.applyDiagnosis(usageUnreadableDiagnosis("Codex", ReasonUnsupportedResponse, err))
 		return usage
 	}
 	parsed.FetchedAt = usage.FetchedAt
+	parsed.Status = StatusConnected
 	return parsed
 }

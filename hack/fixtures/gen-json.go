@@ -1,14 +1,20 @@
-// Command gensample fetches real usage data from Codex, Claude, and
+//go:build ignore
+
+// Command gen-json fetches real usage data from Codex, Claude, and
 // Antigravity using the same providers the shipped app uses, and writes it
-// to frontend/fixtures/sample-codex.json, sample-claude.json, and
+// to hack/fixtures/sample-codex.json, sample-claude.json, and
 // sample-antigravity.json - the exact fixtures the live-server preview
 // (hack/live-server.ps1) serves back for each provider's RPC method, with no
-// conversion step in between.
+// conversion step in between. A separate step, hack/fixtures/gen-go, then
+// compiles these into internal/app/fixtures/fixtures.go for the app's
+// sample-data preview (internal/app.App) - `.\build.ps1 fixtures` runs both
+// this and that in sequence.
 //
-// Run via `.\build.ps1 fixtures` from the repository root. Because it uses
-// the real local Codex/Claude session and the local `agy` CLI, the output
-// reflects the developer's own account (plan tier, usage percentages,
-// timestamps) - review before committing frontend/fixtures/sample-*.json.
+// Run via `.\build.ps1 fixtures-json` (or `.\build.ps1 fixtures` for the
+// full pipeline) from the repository root. Because it uses the real local
+// Codex/Claude session and the local `agy` CLI, the output reflects the
+// developer's own account (plan tier, usage percentages, timestamps) -
+// review before committing hack/fixtures/sample-*.json.
 package main
 
 import (
@@ -21,9 +27,9 @@ import (
 )
 
 func main() {
-	fixturesDir := filepath.Join("frontend", "fixtures")
+	fixturesDir := filepath.Join("hack", "fixtures")
 	if _, err := os.Stat(fixturesDir); err != nil {
-		fmt.Fprintln(os.Stderr, "gensample: run this from the repository root:", err)
+		fmt.Fprintln(os.Stderr, "gen-json: run this from the repository root:", err)
 		os.Exit(1)
 	}
 
@@ -54,11 +60,11 @@ func main() {
 func writeJSON(path string, v any) {
 	data, err := json.MarshalIndent(v, "", "  ")
 	if err != nil {
-		fmt.Fprintln(os.Stderr, "gensample: marshal", path, err)
+		fmt.Fprintln(os.Stderr, "gen-json: marshal", path, err)
 		os.Exit(1)
 	}
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
-		fmt.Fprintln(os.Stderr, "gensample: write", path, err)
+		fmt.Fprintln(os.Stderr, "gen-json: write", path, err)
 		os.Exit(1)
 	}
 }

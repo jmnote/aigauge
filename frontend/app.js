@@ -1,3 +1,10 @@
+import {
+  parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
+  shouldCountFailure, shouldScheduleRetry, isExpectedSetupState,
+  shouldKeepStaleData, retryDelay, badgeClass, providerVisibilityAction,
+  normalizeWindowWidth,
+} from '/logic.mjs';
+
 const wails = await import('/wails/runtime.js');
 if (globalThis.__AIGAUGE_LIVE__) {
   const watchLiveResource = url => {
@@ -12,27 +19,7 @@ if (globalThis.__AIGAUGE_LIVE__) {
   watchLiveResource('/__live-version');
 }
 
-const validThemes = new Set(['light', 'dark', 'system']);
 const settingsStorageKey = 'aigauge-settings-v1';
-
-function parseIntervalToSeconds(val) {
-  if (typeof val === 'number') {
-    return Number.isFinite(val) ? Math.max(1, Math.min(3600, Math.round(val))) : 120;
-  }
-  if (typeof val === 'string') {
-    const str = val.trim().toLowerCase();
-    let total = 0;
-    let matched = false;
-    const mMatch = str.match(/(\d+)\s*m/);
-    const sMatch = str.match(/(\d+)\s*s/);
-    if (mMatch) { total += parseInt(mMatch[1], 10) * 60; matched = true; }
-    if (sMatch) { total += parseInt(sMatch[1], 10); matched = true; }
-    if (matched) return Math.max(1, Math.min(3600, total));
-    const rawNum = Number(str);
-    if (str !== '' && Number.isFinite(rawNum)) return Math.max(1, Math.min(3600, Math.round(rawNum)));
-  }
-  return 120;
-}
 
 function saveCurrentConfig() {
   try {
@@ -49,29 +36,50 @@ function saveCurrentConfig() {
 const PROVIDERS = [
   {
     id: 'codex', label: 'Codex', rpcMethod: 'GetCodexUsage',
+    sampleRpcMethod: 'GetSampleCodexUsage', diagnoseRpcMethod: 'DiagnoseCodex',
     cardId: 'codex-card', groupsId: 'codex-groups',
     dotId: 'codex-dot', tooltipId: 'codex-tooltip', errorId: 'codex-error',
     render: renderUsage
   },
   {
     id: 'claude', label: 'Claude', rpcMethod: 'GetClaudeUsage',
+    sampleRpcMethod: 'GetSampleClaudeUsage', diagnoseRpcMethod: 'DiagnoseClaude',
     cardId: 'claude-card', groupsId: 'claude-groups',
     dotId: 'claude-dot', tooltipId: 'claude-tooltip', errorId: 'claude-error',
     render: renderClaude
   },
   {
     id: 'antigravity', label: 'Antigravity', rpcMethod: 'GetAntigravityUsage',
+    sampleRpcMethod: 'GetSampleAntigravityUsage', diagnoseRpcMethod: 'DiagnoseAntigravity',
     cardId: 'agy-card', groupsId: 'agy-groups',
     dotId: 'agy-dot', tooltipId: 'agy-tooltip', errorId: 'agy-error',
     render: renderAntigravity
   }
 ];
 const PROVIDERS_BY_ID = new Map(PROVIDERS.map(p => [p.id, p]));
+
+// The short badge text for each backend status code. Deliberately short: the
+// badge has to stay readable beside the provider name in a 250px window, so
+// the reason behind a status ("Credentials found", "Logged in locally") goes
+// in the message line underneath rather than into the badge.
+const rpc = (method, ...args) =>
+  wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${method}`, ...args);
+
+// 'live' shows the user's real providers; 'sample' shows the bundled preview.
+// The preview is a screen, not a mode: nothing below writes config while it is
+// open, so entering and leaving it leaves every provider setting untouched.
+let viewMode = 'live';
 const providerIds = PROVIDERS.map(p => p.id);
 
 const defaultConfig = {
-  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: true }])),
+  // Providers start disabled so a fresh install never probes for local CLI
+  // tools/credentials on its own - the first screen is "No providers
+  // enabled" with "Open Settings" and "Demo" buttons instead of raw
+  // not-found errors. This only affects genuinely first runs: normalizeConfig
+  // (below) falls back to enabled once localStorage holds any saved config.
+  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
   providerOrder: providerIds.slice(),
+  windowWidth: 250,
   theme: 'system',
   refreshInterval: 120,
   thresholds: {
@@ -80,53 +88,16 @@ const defaultConfig = {
   }
 };
 
-function normalizeProviderOrder(value) {
-  const known = Array.isArray(value) ? value.filter(id => providerIds.includes(id)) : [];
-  const order = [...new Set(known)];
-  for (const id of providerIds) {
-    if (!order.includes(id)) order.push(id);
-  }
-  return order;
-}
-
-function normalizeThreshold(raw, defaultThreshold, min, max) {
-  const isObj = typeof raw === 'object' && raw !== null;
-  const rawInput = isObj ? raw.value : raw;
-  const num = typeof rawInput === 'string' && rawInput.trim() === '' ? NaN : Number(rawInput);
-  const rounded = Number.isFinite(num) ? Math.round(num) : NaN;
-  const value = Number.isFinite(rounded) && rounded >= min && rounded <= max
-    ? rounded : defaultThreshold.value;
-  const enabled = isObj && typeof raw.enabled === 'boolean' ? raw.enabled : true;
-  return { enabled, value };
-}
-
-function normalizeConfig(value) {
-  const warning = normalizeThreshold(value?.thresholds?.warning, defaultConfig.thresholds.warning, 1, 100);
-  const critical = normalizeThreshold(value?.thresholds?.critical, defaultConfig.thresholds.critical, 0, 99);
-  if (warning.enabled && critical.enabled && critical.value >= warning.value) {
-    critical.value = Math.max(0, warning.value - 1);
-  }
-
-  const theme = value?.theme === 'auto' ? 'system' : value?.theme;
-  return {
-    providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
-    providerOrder: normalizeProviderOrder(value?.providerOrder),
-    theme: validThemes.has(theme) ? theme : defaultConfig.theme,
-    refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
-    thresholds: { warning, critical }
-  };
-}
-
-let config = normalizeConfig(defaultConfig);
+let config = normalizeConfig(defaultConfig, providerIds, defaultConfig);
 
 try {
   const storedSettings = localStorage.getItem(settingsStorageKey);
   if (storedSettings !== null) {
-    config = normalizeConfig(JSON.parse(storedSettings));
+    config = normalizeConfig(JSON.parse(storedSettings), providerIds, defaultConfig);
   }
 } catch (e) {
   console.warn('Failed to load settings:', e);
-  config = normalizeConfig(defaultConfig);
+  config = normalizeConfig(defaultConfig, providerIds, defaultConfig);
 }
 
 function applyLimitState(barElement, remaining) {
@@ -159,17 +130,18 @@ const formatTimeRemaining = (seconds, targetDate) => {
 
 // "Now", for reset-time math, is the moment this usage was fetched rather
 // than whenever it happens to be rendered - every provider's payload carries
-// a `fetchedAt` (see hack/gensample and internal/providers), set right
+// a `fetchedAt` (see hack/fixtures/gen-json and internal/providers), set right
 // before that fetch went out. For a live fetch the two are milliseconds
 // apart (network latency, basically), so this changes nothing normal users
-// would notice. It matters for fixture data - the live-server preview
-// (hack/live-server.ps1) and the native app run with --fixtures= (see
-// hack/screenshot.ps1) both render whatever `.\build.ps1 fixtures` last
-// saved - which can be arbitrarily old by the time it's viewed: without
+// would notice. It matters for the live-server preview (hack/live-server.ps1),
+// which serves whatever `.\build.ps1 fixtures-json` last saved as-is, with no
+// correction - that can be arbitrarily old by the time it's viewed: without
 // anchoring to fetchedAt, a Codex reset (reported as a relative "seconds
 // from now") would silently push further into the future every reload, and
 // an absolute reset time (Claude/Antigravity) could drift into the past and
-// render as already-elapsed.
+// render as already-elapsed. The native sample preview does not depend on
+// this: internal/app.App already re-anchors fetchedAt and every resetTime to
+// "now" server-side before the frontend ever sees them.
 function referenceNow(usage) {
   const fetchedAt = new Date(usage?.fetchedAt).getTime();
   return Number.isNaN(fetchedAt) ? Date.now() : fetchedAt;
@@ -203,14 +175,21 @@ const providerState = new Map(providerIds.map(id => [id, {
   failureCount: 0,
   lastSuccessAt: 0,
   lastError: '',
+  status: '',
   plan: ''
 }]));
 
-function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan) {
+function updateStatus(dotId, tooltipId, status, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan) {
   const dot = document.getElementById(dotId);
   dot.classList.remove('connected', 'warning');
-  if (lastSuccessAt && failureCount < 3) dot.classList.add('connected');
-  else if (lastSuccessAt && failureCount < 6) dot.classList.add('warning');
+  // An expected setup state (login_required, not_installed, ...) is never
+  // "still connected", no matter how long ago the last real success was:
+  // failureCount is deliberately never incremented for these states (see
+  // shouldCountFailure) and lastSuccessAt is never cleared, so without this
+  // gate a provider whose session expired kept a permanently green dot.
+  const stale = lastSuccessAt && !isExpectedSetupState(status);
+  if (stale && failureCount < 3) dot.classList.add('connected');
+  else if (stale && failureCount < 6) dot.classList.add('warning');
 
   const tooltip = document.getElementById(tooltipId);
   const successValue = lastSuccessAt ? formatAgo(lastSuccessAt) : 'None';
@@ -227,7 +206,7 @@ function updateStatus(dotId, tooltipId, failureCount, lastSuccessAt, nextRefresh
 function updateProviderStatus(id) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  updateStatus(meta.dotId, meta.tooltipId, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan);
+  updateStatus(meta.dotId, meta.tooltipId, state.status, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan);
 }
 
 function createTooltipRow(labelText, valueText) {
@@ -238,7 +217,7 @@ function createTooltipRow(labelText, valueText) {
   label.textContent = labelText;
   const value = document.createElement('span');
   value.className = 'status-tooltip-value';
-  value.textContent = valueText;
+  renderFormattedMessage(value, valueText);
   row.append(label, value);
   return row;
 }
@@ -253,15 +232,15 @@ function formatUntil(timestamp) {
   return `in ${seconds}s`;
 }
 
-function retryDelay(failureCount) {
-  return Math.min(refreshInterval * (2 ** Math.min(failureCount, 4)), 1800);
-}
-
 function scheduleProvider(id) {
   const state = providerState.get(id);
   clearTimeout(state.timerId);
+  state.timerId = null;
+  // The sample preview is static, so there is nothing to poll for.
+  if (viewMode !== 'live') return;
   if (!config.providers[id].enabled) return;
-  const delay = retryDelay(state.failureCount);
+  if (!shouldScheduleRetry(state.status)) return;
+  const delay = retryDelay(state.failureCount, refreshInterval);
   state.nextRefreshAt = Date.now() + delay * 1000;
   state.timerId = setTimeout(() => fetchProvider(id), delay * 1000);
 }
@@ -274,10 +253,211 @@ function clearLoadingText(cardId) {
   document.querySelectorAll(`#${cardId} .loading-text`).forEach(element => element.classList.remove('loading-text'));
 }
 
-function showProviderError(errorId, message) {
+function renderFormattedMessage(element, text) {
+  element.replaceChildren();
+  if (!text) return;
+  const parts = text.split(/(<code>.*?<\/code>|<a\s+[^>]*>.*?<\/a>)/g);
+  for (const part of parts) {
+    if (part.startsWith('<code>') && part.endsWith('</code>')) {
+      const code = document.createElement('code');
+      code.textContent = part.slice(6, -7);
+      element.appendChild(code);
+    } else if (part.startsWith('<a ') && part.endsWith('</a>')) {
+      const match = part.match(/^<a\s+href="([^"]*)">(.*?)<\/a>$/);
+      if (match) {
+        const a = document.createElement('a');
+        const href = match[1];
+        a.href = href;
+        a.target = '_blank';
+        a.rel = 'noopener noreferrer';
+        a.textContent = match[2];
+        a.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          if (wails && wails.Browser && typeof wails.Browser.OpenURL === 'function') {
+            wails.Browser.OpenURL(href).catch(err => console.error('Failed to open URL:', err));
+          } else {
+            window.open(href, '_blank', 'noopener,noreferrer');
+          }
+        });
+        element.appendChild(a);
+      } else {
+        element.appendChild(document.createTextNode(part));
+      }
+    } else if (part) {
+      element.appendChild(document.createTextNode(part));
+    }
+  }
+}
+
+function createInfoIcon() {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('width', '15');
+  svg.setAttribute('height', '15');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+
+  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+  circle.setAttribute('cx', '12');
+  circle.setAttribute('cy', '12');
+  circle.setAttribute('r', '10');
+
+  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  line.setAttribute('x1', '12');
+  line.setAttribute('y1', '16');
+  line.setAttribute('x2', '12');
+  line.setAttribute('y2', '12');
+
+  const dot = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+  dot.setAttribute('x1', '12');
+  dot.setAttribute('y1', '8');
+  dot.setAttribute('x2', '12.01');
+  dot.setAttribute('y2', '8');
+
+  svg.append(circle, line, dot);
+  return svg;
+}
+
+function closeOpenDetailsTooltips() {
+  let changed = false;
+  document.querySelectorAll('.details-wrap.details-open').forEach(el => {
+    el.classList.remove('details-open');
+    const btn = el.querySelector('.details-info-btn');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    changed = true;
+  });
+  if (changed) requestWindowResize();
+}
+
+function createDiagnosisActions(diagnosis, onCheck) {
+  const actions = document.createElement('div');
+  actions.className = 'setup-provider-actions';
+  const primary = document.createElement('button');
+  primary.type = 'button';
+  if (diagnosis.status === 'auth_check_required') {
+    primary.textContent = 'Check connection';
+  } else if (diagnosis.status === 'not_installed' || diagnosis.status === 'unsupported_cli') {
+    primary.textContent = 'Check CLI';
+  } else {
+    primary.textContent = 'Check again';
+  }
+  actions.append(primary);
+
+  let detailsWrap = null;
+  let detailsBtn = null;
+
+  if (diagnosis.details) {
+    detailsWrap = document.createElement('span');
+    detailsWrap.className = 'details-wrap';
+
+    detailsBtn = document.createElement('button');
+    detailsBtn.type = 'button';
+    detailsBtn.className = 'details-info-btn';
+    detailsBtn.title = 'Details';
+    detailsBtn.setAttribute('aria-label', 'Details');
+    detailsBtn.setAttribute('aria-expanded', 'false');
+    detailsBtn.append(createInfoIcon());
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'details-tooltip';
+    tooltip.setAttribute('role', 'tooltip');
+    renderFormattedMessage(tooltip, diagnosis.details);
+
+    detailsBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const wasOpen = detailsWrap.classList.contains('details-open');
+      closeOpenDetailsTooltips();
+      if (!wasOpen) {
+        detailsWrap.classList.add('details-open');
+        detailsBtn.setAttribute('aria-expanded', 'true');
+      }
+      requestWindowResize();
+    });
+
+    tooltip.addEventListener('click', (e) => {
+      e.stopPropagation();
+    });
+
+    detailsWrap.addEventListener('mouseenter', () => requestWindowResize());
+    detailsWrap.addEventListener('mouseleave', () => {
+      if (!detailsWrap.classList.contains('details-open')) {
+        requestWindowResize();
+      }
+    });
+
+    detailsWrap.append(detailsBtn, tooltip);
+    actions.append(detailsWrap);
+  }
+
+  primary.addEventListener('click', async () => {
+    if (primary.disabled) return;
+    primary.disabled = true;
+    closeOpenDetailsTooltips();
+    if (detailsWrap) {
+      detailsWrap.style.display = 'none';
+    }
+    try {
+      if (onCheck) await onCheck();
+    } finally {
+      if (primary.isConnected) {
+        primary.disabled = false;
+        if (detailsWrap) {
+          detailsWrap.style.display = '';
+          detailsWrap.style.animation = 'none';
+          void detailsWrap.offsetWidth;
+          detailsWrap.style.animation = '';
+        }
+      }
+    }
+  });
+
+  return [actions];
+}
+
+function showProviderError(errorId, message, diagnosis, onCheck) {
   const element = document.getElementById(errorId);
-  element.textContent = message;
-  element.hidden = !message;
+  if (!element) return;
+  element.replaceChildren();
+  if (!message) {
+    element.hidden = true;
+    return;
+  }
+  element.hidden = false;
+  const p = document.createElement('p');
+  p.className = 'provider-error-message';
+  renderFormattedMessage(p, message);
+  element.append(p);
+
+  if (diagnosis && diagnosis.status && onCheck) {
+    element.append(...createDiagnosisActions(diagnosis, onCheck));
+  }
+}
+
+// Draws a provider that came back with something other than usable numbers.
+//
+// A temporary network or service failure is the one case that keeps whatever
+// was already on screen: the data is stale, not wrong, and blanking the card
+// throws away the only thing the user opened the app to see. It is labelled
+// with its age so nobody reads month-old numbers as current. Every other
+// non-connected state (no CLI, not logged in, connection not checked) has no
+// prior data to keep, so its card clears to the guidance instead.
+function renderNonUsageState(id, usage) {
+  const meta = PROVIDERS_BY_ID.get(id);
+  const state = providerState.get(id);
+  const message = String(usage.message || usage.error || '');
+  const onCheck = () => fetchProvider(id);
+  if (shouldKeepStaleData(usage.status, state.lastSuccessAt)) {
+    showProviderError(meta.errorId, `${message} Showing data from ${formatAgo(state.lastSuccessAt)}.`, usage, onCheck);
+  } else {
+    document.getElementById(meta.groupsId).replaceChildren();
+    showProviderError(meta.errorId, message, usage, onCheck);
+  }
+  updateProviderStatus(id);
+  requestWindowResize();
 }
 
 function renderUsage(id, usage) {
@@ -285,10 +465,7 @@ function renderUsage(id, usage) {
   const state = providerState.get(id);
   const groups = document.getElementById(meta.groupsId);
   if (usage.error) {
-    groups.replaceChildren();
-    showProviderError(meta.errorId, usage.error);
-    updateProviderStatus(id);
-    requestWindowResize();
+    renderNonUsageState(id, usage);
     return;
   }
   showProviderError(meta.errorId, '');
@@ -376,10 +553,7 @@ function renderAntigravity(id, usage) {
   const state = providerState.get(id);
   const groups = document.getElementById(meta.groupsId);
   if (usage.error) {
-    groups.replaceChildren();
-    showProviderError(meta.errorId, usage.error);
-    updateProviderStatus(id);
-    requestWindowResize();
+    renderNonUsageState(id, usage);
     return;
   }
   showProviderError(meta.errorId, '');
@@ -415,10 +589,7 @@ function renderClaude(id, usage) {
   const state = providerState.get(id);
   const groups = document.getElementById(meta.groupsId);
   if (usage.error) {
-    groups.replaceChildren();
-    showProviderError(meta.errorId, usage.error);
-    updateProviderStatus(id);
-    requestWindowResize();
+    renderNonUsageState(id, usage);
     return;
   }
   showProviderError(meta.errorId, '');
@@ -440,13 +611,20 @@ function renderClaude(id, usage) {
 async function fetchProvider(id) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  if (!config.providers[id].enabled || state.fetching) return;
+  const sampleMode = viewMode === 'sample';
+  if (state.fetching) return;
+  if (!sampleMode && !config.providers[id].enabled) return;
   state.fetching = true;
   setLoading(meta.dotId, true);
   try {
-    const usage = await wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${meta.rpcMethod}`);
+    const usage = await rpc(sampleMode ? meta.sampleRpcMethod : meta.rpcMethod);
     clearLoadingText(meta.cardId);
-    if (usage.error) {
+    state.status = usage.status || '';
+    if (state.status && state.status !== 'connected') {
+      state.lastError = String(usage.message || usage.error || '').slice(0, 120);
+      // Only a genuine failure moves the counter - see EXPECTED_SETUP_STATES.
+      if (shouldCountFailure(state.status)) state.failureCount += 1;
+    } else if (usage.error) {
       state.failureCount += 1;
       state.lastError = String(usage.error).slice(0, 120);
     } else {
@@ -457,6 +635,7 @@ async function fetchProvider(id) {
     meta.render(id, usage);
   } catch (error) {
     clearLoadingText(meta.cardId);
+    state.status = '';
     state.failureCount += 1;
     state.lastError = `Frontend call failed: ${error}`.slice(0, 120);
     meta.render(id, { error: state.lastError });
@@ -484,6 +663,9 @@ const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 
 let isAlwaysOnTop = false;
+// True while the first-run screen's diagnosis rows are already rendered, so
+// reopening Settings does not re-probe every provider.
+let setupRendered = false;
 
 function updateAlwaysOnTopUI(isTop) {
   pinWindowBtn.classList.toggle('active', isTop);
@@ -495,30 +677,50 @@ function toggleAlwaysOnTop() {
   isAlwaysOnTop = !isAlwaysOnTop;
   updateAlwaysOnTopUI(isAlwaysOnTop);
   wails.Window.SetAlwaysOnTop(isAlwaysOnTop);
-  wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetAlwaysOnTop', isAlwaysOnTop).catch(() => {});
+  wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetAlwaysOnTop', isAlwaysOnTop).catch(() => { });
 }
 
 pinWindowBtn.addEventListener('click', toggleAlwaysOnTop);
 updateAlwaysOnTopUI(isAlwaysOnTop);
 
 function updateProvidersVisibility() {
-  const noProviders = document.getElementById('no-providers');
+  const sampleMode = viewMode === 'sample';
   let anyEnabled = false;
 
   for (const provider of PROVIDERS) {
     const enabled = config.providers[provider.id].enabled !== false;
     anyEnabled = anyEnabled || enabled;
-    document.getElementById(provider.cardId).style.display = enabled ? '' : 'none';
+    // The preview shows all three cards regardless of what the user has
+    // enabled - and without consulting that setting for anything else.
+    document.getElementById(provider.cardId).style.display = (sampleMode || enabled) ? '' : 'none';
 
     const state = providerState.get(provider.id);
-    if (enabled) {
-      if (!state.timerId) fetchProvider(provider.id);
-    } else {
+    const action = providerVisibilityAction(sampleMode, enabled, Boolean(state.timerId));
+    if (action === 'restart') {
+      clearTimeout(state.timerId);
+      state.timerId = null;
+      fetchProvider(provider.id);
+    } else if (action === 'fetch') {
+      fetchProvider(provider.id);
+    } else if (action === 'stop') {
       clearTimeout(state.timerId);
       state.timerId = null;
     }
   }
-  noProviders.style.display = anyEnabled ? 'none' : 'flex';
+
+  const showSetup = !sampleMode && !anyEnabled;
+  document.getElementById('setup-screen').hidden = !showSetup;
+  document.getElementById('sample-bar').hidden = !sampleMode;
+  if (showSetup) {
+    // Re-run the diagnoses only on the way into the screen, not on every
+    // visibility recalculation, so opening Settings does not re-probe.
+    if (!setupRendered) {
+      setupRendered = true;
+      renderSetupProviders();
+    }
+  } else {
+    setupRendered = false;
+  }
 
   const visibleCards = config.providerOrder
     .map(id => document.getElementById(PROVIDERS_BY_ID.get(id).cardId))
@@ -642,7 +844,7 @@ try {
   console.warn('Unable to read the theme override:', error);
 }
 const activeTheme = forcedTheme || config.theme || 'system';
-applyTheme(validThemes.has(activeTheme) ? activeTheme : 'system', !forcedTheme);
+applyTheme(VALID_THEMES.has(activeTheme) ? activeTheme : 'system', !forcedTheme);
 
 systemTheme.addEventListener('change', () => {
   if (document.documentElement.dataset.theme === 'system') applyTheme('system', false);
@@ -678,7 +880,141 @@ function openSettings() {
 }
 
 document.getElementById('settings').addEventListener('click', openSettings);
-document.getElementById('open-settings-btn').addEventListener('click', openSettings);
+
+// ---------------------------------------------------------------------------
+// First-run screen
+//
+// Replaces the old bare "No providers enabled" message. It explains what the
+// app does and what it needs, then shows each provider's readiness with the
+// one action that moves it forward. Everything it calls is local-only: the
+// Diagnose* RPCs read installed files and run no-network status commands, so
+// opening AI Gauge on a machine that was never configured contacts nobody.
+// ---------------------------------------------------------------------------
+
+function setupRow(provider) {
+  return document.querySelector(`.setup-provider[data-provider-id="${provider.id}"]`);
+}
+
+function buildSetupRow(provider, diagnosis) {
+  const row = document.createElement('div');
+  row.className = 'setup-provider';
+  row.dataset.providerId = provider.id;
+
+  const head = document.createElement('div');
+  head.className = 'setup-provider-head';
+  const name = document.createElement('span');
+  name.className = 'setup-provider-name';
+  name.textContent = provider.label;
+  const badge = document.createElement('span');
+  badge.className = `setup-provider-badge ${badgeClass(diagnosis.status)}`.trim();
+  badge.textContent = STATUS_BADGES[diagnosis.status] || 'Checking...';
+  head.append(name, badge);
+
+  const message = document.createElement('p');
+  message.className = 'setup-provider-message';
+  renderFormattedMessage(message, diagnosis.message || '');
+  row.append(head, message);
+
+  if (!diagnosis.status) return row; // still checking: no actions to offer yet
+
+  const onCheck = diagnosis.status === 'auth_check_required'
+    ? () => checkConnection(provider)
+    : () => diagnoseProvider(provider);
+
+  row.append(...createDiagnosisActions(diagnosis, onCheck));
+  return row;
+}
+
+function showSetupRow(provider, diagnosis) {
+  const existing = setupRow(provider);
+  if (!existing) return;
+  existing.replaceWith(buildSetupRow(provider, diagnosis));
+  requestWindowResize();
+}
+
+async function diagnoseProvider(provider) {
+  try {
+    const diagnosis = await rpc(provider.diagnoseRpcMethod);
+    showSetupRow(provider, diagnosis || {});
+  } catch {
+    showSetupRow(provider, {
+      status: 'temporary_error',
+      message: 'Could not check this provider. Try again.',
+    });
+  }
+}
+
+// Each provider resolves independently so one slow diagnosis never holds up
+// the others - or the sample preview, which stays clickable throughout.
+function renderSetupProviders() {
+  const container = document.getElementById('setup-providers');
+  container.replaceChildren(...PROVIDERS.map(provider =>
+    buildSetupRow(provider, { status: '', message: 'Checking...' })));
+  requestWindowResize();
+  for (const provider of PROVIDERS) diagnoseProvider(provider);
+}
+
+// The one place the first-run screen is allowed to reach the network, and only
+// because the user just asked it to. A provider that answers with real usage is
+// enabled and the window switches to the live dashboard; anything else just
+// updates that provider's row and leaves the configuration alone.
+async function checkConnection(provider) {
+  try {
+    const usage = await rpc(provider.rpcMethod);
+    if (usage.status === 'connected') {
+      config.providers[provider.id].enabled = true;
+      saveCurrentConfig();
+      renderProviderList();
+      updateProvidersVisibility();
+      return;
+    }
+    showSetupRow(provider, usage || {});
+  } catch (error) {
+    showSetupRow(provider, {
+      status: 'temporary_error',
+      message: 'Could not reach this provider. Retry in a moment.',
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Sample-data preview
+//
+// Lets anyone - a Store reviewer on a clean machine, or a curious new user -
+// see the gauges, countdowns, thresholds and themes working without installing
+// a CLI or logging in to anything. It is a separate screen fed by separate
+// RPCs, not a mode layered over the real providers: nothing here reads or
+// writes the provider settings, so leaving the preview restores exactly the
+// setup the user came from.
+// ---------------------------------------------------------------------------
+
+function resetProviderRuntimeState() {
+  for (const id of providerIds) {
+    const state = providerState.get(id);
+    clearTimeout(state.timerId);
+    state.timerId = null;
+    state.failureCount = 0;
+    state.lastError = '';
+    state.lastSuccessAt = 0;
+    state.status = '';
+    state.plan = '';
+  }
+}
+
+function openSamplePreview() {
+  viewMode = 'sample';
+  resetProviderRuntimeState();
+  updateProvidersVisibility();
+}
+
+function closeSamplePreview() {
+  viewMode = 'live';
+  resetProviderRuntimeState();
+  updateProvidersVisibility();
+}
+
+document.getElementById('sample-preview-btn').addEventListener('click', openSamplePreview);
+document.getElementById('back-to-setup-btn').addEventListener('click', closeSamplePreview);
 
 document.querySelectorAll('.dialog-close').forEach(button => {
   button.addEventListener('click', () => button.closest('dialog').close('cancel'));
@@ -781,7 +1117,9 @@ function requestWindowResize() {
     }
     if (height > 0 && Math.abs(height - lastReportedHeight) >= 2) {
       lastReportedHeight = height;
-      wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetContentHeight', height).catch(() => {});
+      // The backend preserves the window's current user-selected width and
+      // changes only its height to fit the reflowed content.
+      wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetContentHeight', height).catch(() => { });
     }
   });
 }
@@ -791,7 +1129,39 @@ const resizeObserver = new ResizeObserver(() => {
 });
 resizeObserver.observe(document.querySelector('.shell'));
 
-applyProviderOrder();
+// Restore width before starting provider rendering so text wraps and content
+// height are measured against the user's chosen size from the outset.
+try {
+  await rpc('SetWindowWidth', config.windowWidth);
+} catch (error) {
+  console.warn('Unable to restore the saved window width:', error);
+}
+
+let widthSaveTimer = null;
+let widthIndicatorTimer = null;
+let lastObservedWidth = window.innerWidth;
+const widthIndicator = document.getElementById('window-size-indicator');
+window.addEventListener('resize', () => {
+  const width = normalizeWindowWidth(window.innerWidth);
+  if (width === normalizeWindowWidth(lastObservedWidth)) return;
+  lastObservedWidth = window.innerWidth;
+  widthIndicator.textContent = `${width} px`;
+  widthIndicator.classList.add('is-visible');
+  clearTimeout(widthIndicatorTimer);
+  widthIndicatorTimer = setTimeout(() => widthIndicator.classList.remove('is-visible'), 700);
+  if (width === config.windowWidth) return;
+  config.windowWidth = width;
+  clearTimeout(widthSaveTimer);
+  widthSaveTimer = setTimeout(saveCurrentConfig, 250);
+});
+
+// The live server may deep-link into the sample screen for visual development.
+// Production navigation always goes through the visible preview button.
+if (globalThis.__AIGAUGE_LIVE__ && new URLSearchParams(location.search).get('view') === 'sample') {
+  openSamplePreview();
+} else {
+  applyProviderOrder();
+}
 
 function refreshStatusTooltips() {
   for (const provider of PROVIDERS) {
@@ -806,6 +1176,7 @@ function refreshStatusTooltips() {
 // lifts the suppression so whatever's still legitimately hovered/focused (if
 // anything) can show again on its own.
 function setActiveTooltip(tooltip) {
+  closeOpenDetailsTooltips();
   document.querySelectorAll('.status-tooltip').forEach(element => {
     element.classList.toggle('tooltip-suppressed', element !== tooltip);
   });
@@ -825,56 +1196,18 @@ function clearActiveTooltip() {
 // picks up its extent regardless, so each show/hide needs its own explicit
 // call, same as every other content change.
 //
-// The status tooltip is triggered by the whole provider heading. Tooltips
-// ignore pointer events, so moving away from the heading closes them even
-// when the pointer moves directly onto the tooltip box.
-//
-// Horizontally the cursor is the tooltip's right edge - it hangs down and to
-// the left of the pointer, like a native tooltip would - clamped so it never
-// slides past the heading's own edges. When there isn't enough room left of
-// the cursor for the tooltip's full width (e.g. the cursor is near the
-// heading's own left edge), the clamp just holds it against that edge
-// instead; it can no longer track the cursor exactly, but that's fine here.
-// .status-tooltip is sized to its own content (width: max-content, capped by
-// max-width), so its width is measured live off the element rather than
-// assumed - it differs per provider depending on how long that row's
-// label/value text is. A keyboard-focused tooltip has no cursor position to
-// follow, so it's left alone to keep the CSS default of dead-center
-// (left: 50%; transform: translateX(-50%)) - positionTooltip overrides both
-// of those inline, and mouseleave clears the overrides so a later
-// keyboard-triggered show isn't left pinned at the last mouse position.
-//
-// The heading itself sits flush against the window's edges (see the
-// negative-margin comment on .heading above), and .shell clips overflow-x -
-// so the clamp also leaves EDGE_MARGIN of clearance beyond the tooltip's own
-// box on each side, room for its box-shadow/backdrop-filter blur to render
-// without getting cut off when the tooltip is pinned all the way to one end.
-const EDGE_MARGIN = 12;
-function positionTooltip(heading, tooltip, clientX) {
-  const rect = heading.getBoundingClientRect();
-  const width = tooltip.offsetWidth || rect.width;
-  const desiredLeft = clientX - rect.left - width;
-  const minLeft = EDGE_MARGIN;
-  const maxLeft = Math.max(rect.width - width - EDGE_MARGIN, minLeft);
-  tooltip.style.left = `${Math.min(Math.max(desiredLeft, minLeft), maxLeft)}px`;
-  tooltip.style.transform = 'none';
-}
-
+// The status tooltip is triggered by the provider heading and anchored at a
+// fixed position below the status area. Moving the mouse cursor over the
+// tooltip keeps it open so users can read details and click links.
 document.querySelectorAll('.heading').forEach(element => {
   const tooltip = element.querySelector('.status-tooltip');
-  element.addEventListener('mouseenter', event => {
+  element.addEventListener('mouseenter', () => {
     refreshStatusTooltips();
     setActiveTooltip(tooltip);
-    positionTooltip(element, tooltip, event.clientX);
     requestWindowResize();
-  });
-  element.addEventListener('mousemove', event => {
-    positionTooltip(element, tooltip, event.clientX);
   });
   element.addEventListener('mouseleave', () => {
     clearActiveTooltip();
-    tooltip.style.left = '';
-    tooltip.style.transform = '';
     requestWindowResize();
   });
 });
@@ -891,6 +1224,16 @@ document.querySelectorAll('.status-area').forEach(element => {
     clearActiveTooltip();
     requestWindowResize();
   });
+});
+
+document.addEventListener('click', () => {
+  closeOpenDetailsTooltips();
+});
+
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape') {
+    closeOpenDetailsTooltips();
+  }
 });
 
 // .inline-reset elements swap their text content in place to the full date

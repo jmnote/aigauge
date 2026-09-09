@@ -55,63 +55,95 @@ func TestParseAntigravityUsage(t *testing.T) {
 	}
 }
 
-func TestResolveAgyPathReturnsLookupPathWhenFound(t *testing.T) {
+func TestResolveExecutableReturnsLookupPathWhenFound(t *testing.T) {
 	calledFallback := false
-	path, err := resolveAgyPath("/usr/bin/agy", nil, func() (string, error) {
+	deps := providerDeps{
+		lookPath: foundPath("/usr/bin/agy"),
+		homeDir: func() (string, error) {
+			calledFallback = true
+			return "", nil
+		},
+	}
+	path, fallback := resolveExecutable("agy", func(string) (string, bool) {
 		calledFallback = true
-		return "", nil
-	}, func(string) bool {
-		calledFallback = true
-		return false
-	})
-	if err != nil || path != "/usr/bin/agy" {
-		t.Errorf("resolveAgyPath() = (%q, %v), want (\"/usr/bin/agy\", nil)", path, err)
+		return "", false
+	}, deps)
+	if path != "/usr/bin/agy" || fallback != "" {
+		t.Errorf("resolveExecutable() = (%q, %q), want (\"/usr/bin/agy\", \"\")", path, fallback)
 	}
 	if calledFallback {
-		t.Error("resolveAgyPath() consulted the fallback path when the lookup already succeeded")
+		t.Error("resolveExecutable() consulted the fallback path when the lookup already succeeded")
 	}
 }
 
-func TestResolveAgyPathErrorsWhenHomeDirFails(t *testing.T) {
-	_, err := resolveAgyPath("", errors.New("not found"), func() (string, error) {
-		return "", errors.New("no home dir")
-	}, func(string) bool { return true })
-	if err == nil {
-		t.Fatal("resolveAgyPath() error = nil, want an error when the home directory can't be determined")
+func TestResolveExecutableReturnsEmptyWhenHomeDirFails(t *testing.T) {
+	deps := providerDeps{
+		lookPath: missingPath(),
+		homeDir:  func() (string, error) { return "", errors.New("no home dir") },
+	}
+	path, fallback := resolveExecutable("agy", antigravityFallbackPath, deps)
+	if path != "" || fallback != "" {
+		t.Errorf("resolveExecutable() = (%q, %q), want (\"\", \"\") when the home directory can't be determined", path, fallback)
 	}
 }
 
-func TestResolveAgyPathFallsBackWhenLookupFails(t *testing.T) {
+func TestResolveExecutableFallsBackWhenLookupFails(t *testing.T) {
 	home := filepath.Join("C:", "Users", "test")
-	wantPath, supported := antigravityFallbackPath(home)
+	wantCodex, codexSupported := codexFallbackPath(home)
+	wantClaude, claudeSupported := claudeFallbackPath(home)
+	wantAgy, agySupported := antigravityFallbackPath(home)
 
-	path, err := resolveAgyPath("", errors.New("not found"), func() (string, error) {
-		return home, nil
-	}, func(string) bool { return true })
+	deps := providerDeps{
+		lookPath:   missingPath(),
+		homeDir:    func() (string, error) { return home, nil },
+		pathExists: func(p string) bool { return p == wantCodex || p == wantClaude || p == wantAgy },
+	}
 
-	if !supported {
-		if err == nil {
-			t.Fatal("resolveAgyPath() error = nil, want an error on platforms without a fallback path")
+	if codexSupported {
+		path, _ := resolveExecutable("codex", codexFallbackPath, deps)
+		if path != wantCodex {
+			t.Errorf("resolveExecutable(codex) = %q, want %q", path, wantCodex)
 		}
-		return
 	}
-	if err != nil || path != wantPath {
-		t.Errorf("resolveAgyPath() = (%q, %v), want (%q, nil)", path, err, wantPath)
+	if claudeSupported {
+		path, _ := resolveExecutable("claude", claudeFallbackPath, deps)
+		if path != wantClaude {
+			t.Errorf("resolveExecutable(claude) = %q, want %q", path, wantClaude)
+		}
+	}
+	if agySupported {
+		path, _ := resolveExecutable("agy", antigravityFallbackPath, deps)
+		if path != wantAgy {
+			t.Errorf("resolveExecutable(agy) = %q, want %q", path, wantAgy)
+		}
 	}
 }
 
-func TestResolveAgyPathErrorsWhenFallbackDoesNotExist(t *testing.T) {
+func TestResolveExecutableReportsTheFallbackPathWhenItDoesNotExist(t *testing.T) {
 	home := filepath.Join("C:", "Users", "test")
-	_, supported := antigravityFallbackPath(home)
+	wantAgy, supported := antigravityFallbackPath(home)
 	if !supported {
 		t.Skip("no fallback path is defined for this platform")
 	}
 
-	_, err := resolveAgyPath("", errors.New("not found"), func() (string, error) {
-		return home, nil
-	}, func(string) bool { return false })
-	if err == nil {
-		t.Fatal("resolveAgyPath() error = nil, want an error when the fallback binary doesn't exist on disk")
+	deps := providerDeps{
+		lookPath:   missingPath(),
+		homeDir:    func() (string, error) { return home, nil },
+		pathExists: func(string) bool { return false },
+	}
+	path, fallback := resolveExecutable("agy", antigravityFallbackPath, deps)
+	if path != "" || fallback != wantAgy {
+		t.Errorf("resolveExecutable() = (%q, %q), want (\"\", %q) when the fallback binary doesn't exist on disk", path, fallback, wantAgy)
+	}
+}
+
+func TestNotFoundDetails(t *testing.T) {
+	if got := notFoundDetails(""); got != "CLI Not Found: PATH" {
+		t.Errorf("notFoundDetails(\"\") = %q, want %q", got, "CLI Not Found: PATH")
+	}
+	want := "CLI Not Found: C:\\bin\\tool.exe"
+	if got := notFoundDetails("C:\\bin\\tool.exe"); got != want {
+		t.Errorf("notFoundDetails(...) = %q, want %q", got, want)
 	}
 }
 

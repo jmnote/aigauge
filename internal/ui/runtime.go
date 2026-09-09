@@ -20,9 +20,16 @@ type runtime struct {
 	icon        []byte
 }
 
+const (
+	initialWindowWidth  = 250
+	initialWindowHeight = 250
+	minWindowWidth      = 200
+	maxWindowWidth      = 600
+)
+
 func Run(frontendAssets fs.FS, icon []byte) error {
 	rt := &runtime{icon: icon}
-	appService := usageapp.NewApp(rt.setWindowSize, rt.setAlwaysOnTop, rt.hideToTray)
+	appService := usageapp.NewApp(rt.setContentHeight, rt.setWindowWidth, rt.setAlwaysOnTop, rt.hideToTray)
 
 	rt.application = application.New(application.Options{
 		Name: "AI Gauge",
@@ -43,9 +50,13 @@ func Run(frontendAssets fs.FS, icon []byte) error {
 	})
 	rt.window = rt.application.Window.NewWithOptions(application.WebviewWindowOptions{
 		Title:         "AI Gauge",
-		Width:         250,
-		Height:        250,
-		DisableResize: true,
+		Width:         initialWindowWidth,
+		Height:        initialWindowHeight,
+		MinWidth:      minWindowWidth,
+		MinHeight:     initialWindowHeight,
+		MaxWidth:      maxWindowWidth,
+		MaxHeight:     initialWindowHeight,
+		DisableResize: false,
 		Frameless:     true,
 		Windows: application.WindowsWindow{
 			NonClientRegionSupport: true,
@@ -56,10 +67,30 @@ func Run(frontendAssets fs.FS, icon []byte) error {
 	return rt.application.Run()
 }
 
-func (rt *runtime) setWindowSize(width, height int) {
+func (rt *runtime) setContentHeight(height int) {
 	if rt.window == nil {
 		return
 	}
+	width, currentHeight := rt.window.Size()
+	// Resizing is enabled so the user can choose a width, but height remains
+	// content-driven. Update the equal min/max height constraints in an order
+	// that never temporarily crosses them, then apply the new content height.
+	if height >= currentHeight {
+		rt.window.SetMaxSize(maxWindowWidth, height)
+		rt.window.SetMinSize(minWindowWidth, height)
+	} else {
+		rt.window.SetMinSize(minWindowWidth, height)
+		rt.window.SetMaxSize(maxWindowWidth, height)
+	}
+	rt.window.SetSize(width, height)
+	rt.clampWindow()
+}
+
+func (rt *runtime) setWindowWidth(width int) {
+	if rt.window == nil {
+		return
+	}
+	_, height := rt.window.Size()
 	rt.window.SetSize(width, height)
 	rt.clampWindow()
 }

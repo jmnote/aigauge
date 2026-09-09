@@ -3,37 +3,96 @@ $Port = 8080
 $root = Split-Path -Parent $PSScriptRoot
 $frontendRoot = (Resolve-Path -LiteralPath (Join-Path $root 'frontend')).Path.TrimEnd([IO.Path]::DirectorySeparatorChar)
 $frontendPrefix = $frontendRoot + [IO.Path]::DirectorySeparatorChar
+# sample-*.json lives under hack/fixtures (hack/fixtures/gen-json.go writes it there;
+# hack/fixtures/gen-go.go separately compiles it into
+# internal/app/fixtures/fixtures.go for the app's sample-data preview) rather
+# than under frontend/, so it needs its own prefix/route below instead of
+# falling out of the generic frontend$path mapping.
+$fixturesRoot = (Resolve-Path -LiteralPath (Join-Path $root 'hack/fixtures')).Path.TrimEnd([IO.Path]::DirectorySeparatorChar)
+$fixturesPrefix = $fixturesRoot + [IO.Path]::DirectorySeparatorChar
 $listener = [System.Net.HttpListener]::new()
 $listener.Prefixes.Add("http://localhost:$Port/")
 
-function Get-FrontendSnapshot {
-    (Get-ChildItem (Join-Path $root 'frontend') -Recurse -File |
+function Get-WatchedSnapshot {
+    (Get-ChildItem @((Join-Path $root 'frontend'), $fixturesRoot) -Recurse -File |
         Sort-Object FullName |
         ForEach-Object { "$($_.FullName)|$($_.Length)|$($_.LastWriteTimeUtc.Ticks)" }) -join "`n"
 }
 
 $runtime = @'
 globalThis.__AIGAUGE_LIVE__ = true;
+const params = new URLSearchParams(location.search);
+const theme = params.get('theme');
+
 // Each provider's fixture file holds exactly what its Wails RPC method
 // returns - no combined/wrapper file - so it doubles as a raw per-provider
-// snapshot (see hack/gensample) and the live-server fixture with no
+// snapshot (see hack/fixtures/gen-json.go) and the live-server fixture with no
 // conversion step between the two.
-const fixtureFiles = {
-  GetCodexUsage: 'sample-codex.json',
-  GetAntigravityUsage: 'sample-antigravity.json',
-  GetClaudeUsage: 'sample-claude.json',
+const providers = {
+  Codex: 'sample-codex.json',
+  Claude: 'sample-claude.json',
+  Antigravity: 'sample-antigravity.json',
 };
-const theme = new URLSearchParams(location.search).get('theme');
+
+// Every provider state the real app can show, reproducible here with no CLI,
+// no account and no network:
+//
+//   /?state=login_required                        all three cards at once
+//   /?codex=not_installed&claude=connected       one provider at a time
+//   /?view=sample                                open in the sample preview
+//
+// The wording only has to be close enough to lay out like the real thing; the
+// authoritative copy lives in internal/providers.
+const stateMessages = {
+  not_installed: 'Install the CLI and log in to monitor your quota.',
+  auth_check_required: 'Credentials found. Connect to verify usage.',
+  login_required: 'Log in to view quota information.',
+  usage_unavailable: 'Quota information is not available for this account.',
+  temporary_error: 'Could not reach the service right now. Retry in a moment.',
+  unsupported_cli: 'This CLI version is not supported. Update the CLI.',
+  connected: '',
+};
+
+const stateFor = key => params.get(key.toLowerCase()) || params.get('state') || '';
+
+const fixture = async key => {
+  const response = await fetch(`/fixtures/${providers[key]}`, { cache: 'no-store' });
+  const usage = await response.json();
+  usage.status = 'connected';
+  return usage;
+};
+
+const diagnosisFor = key => {
+  // Without an explicit state, show the case a configured machine actually
+  // lands on: everything found locally, nothing verified over the network yet.
+  const status = stateFor(key) || 'auth_check_required';
+  return {
+    status,
+    message: stateMessages[status] ?? '',
+    details: status === 'not_installed' ? 'live-server: synthetic provider state' : '',
+  };
+};
+
+const usageFor = async key => {
+  const status = stateFor(key);
+  if (status && status !== 'connected') {
+    const message = stateMessages[status] ?? '';
+    return { status, message, error: message };
+  }
+  return fixture(key);
+};
+
 export const Call = {
   ByName: async name => {
-    const fixtureFile = Object.entries(fixtureFiles).find(([method]) => name.endsWith(method))?.[1];
-    if (fixtureFile) {
-      const response = await fetch(`/fixtures/${fixtureFile}`, { cache: 'no-store' });
-      return response.json();
+    for (const key of Object.keys(providers)) {
+      if (name.endsWith(`GetSample${key}Usage`)) return fixture(key);
+      if (name.endsWith(`Diagnose${key}`)) return diagnosisFor(key);
+      if (name.endsWith(`Get${key}Usage`)) return usageFor(key);
     }
     if (name.endsWith('GetThemeOverride')) return ['light', 'dark', 'system'].includes(theme) ? theme : '';
     if (name.endsWith('GetVersion')) return 'vDEV';
     if (name.endsWith('SetContentHeight')) return null;
+    if (name.endsWith('SetWindowWidth')) return null;
     if (name.endsWith('SetAlwaysOnTop')) return null;
     if (name.endsWith('HideToTray')) return null;
     return null;
@@ -42,6 +101,7 @@ export const Call = {
 export const Events = { On: () => () => {} };
 export const Window = { Close: () => {}, Hide: () => {}, SetAlwaysOnTop: () => {} };
 export const Application = { Quit: () => {} };
+export const Browser = { OpenURL: async url => { window.open(url, '_blank'); } };
 '@
 
 try {
@@ -88,6 +148,9 @@ try {
         exit 1
     }
     Write-Host "Live server: http://localhost:$Port/?theme=light"
+    Write-Host "  Provider states: ?state=login_required (all) or ?codex=not_installed (one)"
+    Write-Host "  States: connected, not_installed, auth_check_required, login_required, usage_unavailable, temporary_error, unsupported_cli"
+    Write-Host "  Sample preview: ?view=sample"
     Write-Host "Press Ctrl+C to stop."
     while ($listener.IsListening) {
         $contextTask = $listener.GetContextAsync()
@@ -95,11 +158,26 @@ try {
         $context = $contextTask.Result
         $path = [Uri]::UnescapeDataString($context.Request.Url.AbsolutePath)
         if ($path -eq '/__live-version') {
-            $content = Get-FrontendSnapshot
+            $content = Get-WatchedSnapshot
             $contentType = 'text/plain; charset=utf-8'
         } elseif ($path -eq '/wails/runtime.js') {
             $content = $runtime
             $contentType = 'text/javascript; charset=utf-8'
+        } elseif ($path.StartsWith('/fixtures/')) {
+            $file = Join-Path $fixturesRoot $path.Substring('/fixtures/'.Length)
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) {
+                $context.Response.StatusCode = 404
+                $context.Response.Close()
+                continue
+            }
+            $resolvedFile = (Resolve-Path -LiteralPath $file).Path
+            if (-not $resolvedFile.StartsWith($fixturesPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                $context.Response.StatusCode = 404
+                $context.Response.Close()
+                continue
+            }
+            $content = [IO.File]::ReadAllBytes($resolvedFile)
+            $contentType = 'application/json; charset=utf-8'
         } else {
             $relative = if ($path -eq '/') { 'frontend/index.html' } else { "frontend$path" }
             $file = Join-Path $root $relative.TrimStart('/')
@@ -118,6 +196,7 @@ try {
             $contentType = switch ([IO.Path]::GetExtension($file).ToLowerInvariant()) {
                 '.html' { 'text/html; charset=utf-8' }
                 '.js' { 'text/javascript; charset=utf-8' }
+                '.mjs' { 'text/javascript; charset=utf-8' }
                 '.css' { 'text/css; charset=utf-8' }
                 '.json' { 'application/json; charset=utf-8' }
                 '.png' { 'image/png' }

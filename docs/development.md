@@ -32,7 +32,22 @@ Before submitting changes, run:
 ```powershell
 gofmt -w main.go internal
 go test ./...
+node --test "frontend/*.test.mjs"
 git diff --check
+```
+
+The frontend's pure rules live in `frontend/logic.mjs` (which provider states may be counted as
+failures, how a stored config is normalized, how the retry backoff is capped) and are covered by
+`frontend/logic.test.mjs` under node's built-in test runner - no test framework and no browser
+stand-in. `.uild.ps1 test` runs the Go and JavaScript suites in sequence.
+
+`hack/live-server.ps1` reproduces every provider state the UI can show without a CLI, an account,
+or a network:
+
+```text
+/?state=login_required                  all three cards at once
+/?codex=not_installed&claude=connected     one provider at a time
+/?view=sample                              open in the sample preview
 ```
 
 Before opening a PR, the combined local gate can be run with:
@@ -68,20 +83,37 @@ Start the fixture-backed browser preview:
 ```
 
 Open `http://localhost:8080/?theme=light` or `http://localhost:8080/?theme=dark`.
-The preview uses `frontend/fixtures/sample-codex.json`, `sample-claude.json`, and
+The preview uses `hack/fixtures/sample-codex.json`, `sample-claude.json`, and
 `sample-antigravity.json` - one fixture per provider, each holding exactly what that provider's
-Wails RPC method returns - does not call Codex or Antigravity, and watches the entire `frontend/`
-directory. Saving any frontend file (including a fixture) causes the browser preview to reload.
+Wails RPC method returns - does not call Codex or Antigravity, and watches both the `frontend/`
+and `hack/fixtures/` directories. Saving any frontend file or fixture causes the browser preview
+to reload.
 
 To refresh those fixtures with real data (using your own local Codex/Claude session and the local
 `agy` CLI), run:
 
 ```powershell
-.\build.ps1 fixtures
+.\build.ps1 fixtures-json
 ```
 
 Because the output reflects your own account (plan tier, usage percentages, reset times), review
-the diff before committing `frontend/fixtures/sample-*.json`.
+the diff before committing `hack/fixtures/sample-*.json`.
+
+The app's sample-data preview does not read `hack/fixtures/*.json` directly - it imports
+`internal/app/fixtures`, a small generated package (`internal/app/fixtures/fixtures.go`) that
+embeds each fixture's JSON as a Go byte-slice constant, so the sample data compiles straight into
+the binary with no file read of any kind at runtime. Regenerate it after changing
+`hack/fixtures/*.json`:
+
+```powershell
+.\build.ps1 fixtures-go
+```
+
+Unlike `fixtures-json`, this is a pure local transform (no accounts, no network), so it's safe to
+run in CI or by any contributor. `.\build.ps1 fixtures` runs both `fixtures-json` and `fixtures-go`
+in sequence. `internal/app/fixtures/fixtures.go` is generated code and is committed to git like any
+other generated file - `go build`/`go test` do not regenerate it on their own, so remember to run
+`fixtures-go` and commit the result whenever `hack/fixtures/*.json` changes.
 
 ## Listing screenshots
 
@@ -91,10 +123,12 @@ Capture the native Wails window in both themes:
 .\build.ps1 screenshot
 ```
 
-`screenshot-light`/`screenshot-dark` launch the app with `--fixtures=frontend\fixtures`, so the
-window renders the same `sample-*.json` fixtures the frontend preview uses instead of calling the
-real provider APIs - no logged-in Codex/Claude/Antigravity account needed on the capturing machine,
-and no waiting on a live fetch. Run `.\build.ps1 fixtures` first if those fixtures don't exist yet.
+`screenshot-light`/`screenshot-dark` launch the app in its current configured state. The
+application intentionally has no startup switch that bypasses its user-visible navigation. To
+capture the sample-data preview, first disable all providers in Settings. Then run the individual
+capture helper with a long enough render wait and select **Preview with sample data** in the window
+it launches before the capture occurs. For automated browser-based visual work, the live server's
+`?view=sample` route remains available.
 
 This runs the Light and Dark captures sequentially and writes:
 
@@ -102,14 +136,14 @@ This runs the Light and Dark captures sequentially and writes:
 - `docs/screenshots/aigauge-native-dark.png`
 
 Individual captures can be run with `screenshot-light` or `screenshot-dark`. To adjust the render
-wait or point at a different fixture set, invoke the capture helper directly, for example:
+wait, invoke the capture helper directly, for example:
 
 ```powershell
-.\hack\screenshot.ps1 -Theme light -RenderWaitSeconds 5 -FixturesDir frontend\fixtures
+.\hack\screenshot.ps1 -Theme light -RenderWaitSeconds 5
 ```
 
-Omit `-FixturesDir` to capture against live provider data instead (needs real logged-in accounts,
-and a longer `-RenderWaitSeconds` to give the real fetch time to finish).
+Capturing live provider data needs real logged-in accounts and a sufficiently long
+`-RenderWaitSeconds` to give the fetch time to finish.
 
 ## MSIX packaging
 
@@ -129,6 +163,14 @@ package Publisher.
 The packaging script locates `makeappx.exe` from the Windows SDK. If it is not on `PATH`, pass its
 full path through the existing packaging script parameter. `signtool.exe` is only needed when
 creating a locally signed package.
+
+The `Release` GitHub Actions workflow (`.github/workflows/release.yml`) additionally copies the
+same build's `aigauge.exe` into `dist/` under the MSIX's own name (e.g. `aigauge_0.5.1.0_x64.exe`
+alongside `aigauge_0.5.1.0_x64.msix`) and attaches both, plus `SHA256SUMS.txt`, to the GitHub
+release. It runs unsigned and needs no installation - unlike the MSIX, which either goes through
+Store certification or needs a certificate matching the package Publisher installed and trusted
+first. Running the portable `.exe` still triggers SmartScreen on a machine that has not seen it
+before; that is a separate, much smaller prompt than installing a certificate.
 
 ## Theme behavior
 

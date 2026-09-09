@@ -4,9 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 )
@@ -14,7 +11,10 @@ import (
 type AntigravityUsage struct {
 	Groups    []AntigravityUsageGroup `json:"groups"`
 	FetchedAt string                  `json:"fetchedAt"`
-	Error     string                  `json:"error,omitempty"`
+
+	// See DiagnosisFields in status.go: it carries the structured diagnosis,
+	// shared by all three providers so applyDiagnosis is defined exactly once.
+	DiagnosisFields
 }
 
 type AntigravityUsageGroup struct {
@@ -67,77 +67,184 @@ func parseAntigravityUsage(output []byte) (AntigravityUsage, error) {
 	return usage, nil
 }
 
-// resolveAgyPath returns the agy executable to run: lookupPath as found by
-// exec.LookPath("agy") when lookupErr is nil, otherwise the fallback install
-// location under homeDir(), verified to exist via pathExists. Accepting
-// homeDir/pathExists as functions (rather than calling os.UserHomeDir/os.Stat
-// directly) keeps this pure and unit-testable without touching the real
-// filesystem, and returning the resolved path as a single value (instead of
-// reassigning an outer variable from a nested scope) rules out the kind of
-// shadowing bug this used to have, where a `:=` inside the fallback branch
-// silently left the caller's lookupPath untouched.
-func resolveAgyPath(lookupPath string, lookupErr error, homeDir func() (string, error), pathExists func(string) bool) (string, error) {
-	if lookupErr == nil {
-		return lookupPath, nil
-	}
-	home, err := homeDir()
-	if err != nil {
-		return "", errors.New("agy command not found")
-	}
-	fallbackPath, ok := antigravityFallbackPath(home)
-	if !ok {
-		return "", errors.New("agy command not found in PATH")
-	}
-	if !pathExists(fallbackPath) {
-		return "", errors.New("agy command not found in PATH or the default installation directory")
-	}
-	return fallbackPath, nil
+const (
+	// antigravityUsageTimeout bounds the whole `/usage` run. It stays well above
+	// the 30s --print-timeout handed to agy itself so the CLI gets the chance to
+	// report its own timeout before this one kills it.
+	antigravityUsageTimeout = 45 * time.Second
+
+	// antigravityModelsTimeout bounds the optional `agy models` follow-up, which
+	// only ever runs to disambiguate a failure that already happened.
+	antigravityModelsTimeout = 30 * time.Second
+)
+
+// antigravityAuthMarkers are the phrases that let a failed agy command be read
+// as "signed out" rather than "something went wrong". The list is deliberately
+// short: an unrecognized failure must fall through to a temporary error, since
+// telling a signed-in user they are signed out is the worse mistake and the
+// action plan forbids inferring a sign-out from an unknown result.
+var antigravityAuthMarkers = []string{
+	"not logged in",
+	"not signed in",
+	"unauthorized",
+	"authentication required",
+	"authentication failed",
+	"please log in",
+	"please sign in",
+	"login required",
+	"401",
 }
 
 func GetAntigravityUsage() AntigravityUsage {
+	return getAntigravityUsage(context.Background(), defaultDeps(), true)
+}
+
+// findAgy resolves the executable, the same way findExecutable resolves
+// claude/codex: PATH first, then the platform's fallback install location.
+// The raw lookup failure is kept under Details for transparency, while
+// Message provides clear guidance.
+func findAgy(deps providerDeps) (string, Diagnosis, bool) {
+	path, fallback := resolveExecutable("agy", antigravityFallbackPath, deps)
+	if path == "" {
+		return "", Diagnosis{
+			Status:  StatusNotInstalled,
+			Message: `Install the Antigravity CLI (<code>agy</code>) and log in to monitor your quota. <a href="` + antigravityInstallGuideURL + `">Installation guide</a>`,
+			Details: technicalDetails(notFoundDetails(fallback)),
+		}, false
+	}
+	return path, Diagnosis{}, true
+}
+
+// diagnoseAntigravityLocal answers with what can be known offline: whether agy
+// is installed and whether its version is supported. It never runs `/usage`,
+// which makes it the safe call for the onboarding screen.
+func diagnoseAntigravityLocal(ctx context.Context, deps providerDeps) Diagnosis {
+	agyPath, notInstalled, ok := findAgy(deps)
+	if !ok {
+		return notInstalled
+	}
+	diagnosis, _ := diagnoseAntigravity(ctx, deps.runner, agyPath, false)
+	return diagnosis
+}
+
+// getAntigravityUsage backs both "Check connection" and the recurring poll.
+// It checks `--version` first (via diagnoseAntigravity) even when active, so
+// a broken or incompatible CLI is reported without ever attempting the
+// heavier `/usage` request - see diagnoseAntigravity's doc comment.
+func getAntigravityUsage(ctx context.Context, deps providerDeps, active bool) AntigravityUsage {
 	usage := AntigravityUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
-	lookupPath, lookupErr := exec.LookPath("agy")
-	agyPath, err := resolveAgyPath(lookupPath, lookupErr, os.UserHomeDir, func(path string) bool {
-		_, statErr := os.Stat(path)
-		return statErr == nil
-	})
-	if err != nil {
-		usage.Error = err.Error()
+	agyPath, notInstalled, found := findAgy(deps)
+	if !found {
+		usage.applyDiagnosis(notInstalled)
 		return usage
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	diagnosis, ok := diagnoseAntigravity(ctx, deps.runner, agyPath, active)
+	if !ok {
+		usage.applyDiagnosis(diagnosis)
+		return usage
+	}
+
+	usageCtx, cancel := context.WithTimeout(ctx, antigravityUsageTimeout)
 	defer cancel()
-	command := exec.CommandContext(ctx, agyPath, "-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
-	configureAntigravityCommand(command)
-	output, err := command.Output()
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			usage.Error = "agy usage request timed out (45s)"
-		} else {
-			errMsg := ""
-			var exitError *exec.ExitError
-			if errors.As(err, &exitError) {
-				errMsg = strings.TrimSpace(string(exitError.Stderr))
-			}
-			if errMsg != "" {
-				usage.Error = fmt.Sprintf("agy failed: %s", errMsg)
-			} else {
-				usage.Error = fmt.Sprintf("Failed to fetch agy usage: %v", err)
-			}
-		}
+	result, runErr := deps.runner.run(usageCtx, agyPath,
+		"-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
+	if runErr != nil {
+		usage.applyDiagnosis(Diagnosis{
+			Status:  StatusTemporaryError,
+			Message: "Could not reach Antigravity right now. Retry in a moment.",
+			Details: technicalDetails(runErr.Error() + " " + result.Stderr),
+		})
 		return usage
 	}
 
-	parsed, err := parseAntigravityUsage(output)
-	if err != nil {
-		usage.Error = fmt.Sprintf("Unable to parse agy usage response: %v", err)
-		return usage
+	groups, diagnosis := classifyAntigravityUsage(ctx, deps, agyPath, result)
+	if diagnosis.Status == StatusConnected {
+		usage.Groups = groups
 	}
-	usage.Groups = parsed.Groups
-	if len(usage.Groups) == 0 {
-		usage.Error = "No agy usage data found"
-	}
+	usage.applyDiagnosis(diagnosis)
 	return usage
+}
+
+// classifyAntigravityUsage turns one `/usage` run into a state. `/usage` is the
+// single path that proves sign-in and usage access at once, so a clean run with
+// at least one group is the only thing that yields StatusConnected.
+func classifyAntigravityUsage(ctx context.Context, deps providerDeps, agyPath string, result commandResult) ([]AntigravityUsageGroup, Diagnosis) {
+	if result.ExitCode == 0 {
+		parsed, err := parseAntigravityUsage([]byte(result.Stdout))
+		if err == nil && len(parsed.Groups) > 0 {
+			return parsed.Groups, Diagnosis{Status: StatusConnected}
+		}
+		// Exit 0 means agy authenticated and answered; we just cannot show it.
+		reason := ReasonNoUsageData
+		if err != nil {
+			reason = ReasonUnsupportedResponse
+		}
+		return nil, usageUnreadableDiagnosis("Antigravity", reason, err)
+	}
+
+	output := result.Stdout + " " + result.Stderr
+	if containsAnyMarker(output, antigravityAuthMarkers) {
+		return nil, Diagnosis{
+			Status:  StatusLoginRequired,
+			Message: "Log in to the Antigravity CLI to view quota information.",
+			Details: technicalDetails(output),
+		}
+	}
+	if containsAnyMarker(output, unsupportedCLIMarkers) {
+		return nil, Diagnosis{
+			Status:  StatusUnsupportedCLI,
+			Message: unsupportedCLIMessage("Antigravity CLI", antigravityInstallGuideURL),
+			Details: technicalDetails(output),
+		}
+	}
+	return nil, classifyAntigravityWithModels(ctx, deps, agyPath, output)
+}
+
+// classifyAntigravityWithModels is the optional secondary diagnostic. It runs
+// only for a `/usage` failure we could not read, and only to answer one
+// question: was that an authentication problem, or a usage response this
+// version cannot handle? A working `agy models` proves the session is fine and
+// narrows the failure to the response itself.
+func classifyAntigravityWithModels(ctx context.Context, deps providerDeps, agyPath, usageOutput string) Diagnosis {
+	modelsCtx, cancel := context.WithTimeout(ctx, antigravityModelsTimeout)
+	defer cancel()
+	result, err := deps.runner.run(modelsCtx, agyPath, "models")
+	if err != nil {
+		return Diagnosis{
+			Status:  StatusTemporaryError,
+			Message: "Could not reach Antigravity right now. Retry in a moment.",
+			Details: technicalDetails(usageOutput),
+		}
+	}
+
+	// The output is not structured JSON, so nothing here depends on model names:
+	// a zero exit plus at least one non-empty stdout line is the whole test.
+	// Progress chatter like "Fetching available models..." goes to stderr and is
+	// kept apart from this check.
+	if result.ExitCode == 0 && hasListRow(result.Stdout) {
+		return usageUnreadableDiagnosis("Antigravity", ReasonUnsupportedResponse, errors.New(usageOutput))
+	}
+	if containsAnyMarker(result.Stdout+" "+result.Stderr, antigravityAuthMarkers) {
+		return Diagnosis{
+			Status:  StatusLoginRequired,
+			Message: "Log in to the Antigravity CLI to view quota information.",
+			Details: technicalDetails(usageOutput),
+		}
+	}
+	return Diagnosis{
+		Status:  StatusTemporaryError,
+		Message: "Could not reach Antigravity right now. Retry in a moment.",
+		Details: technicalDetails(usageOutput),
+	}
+}
+
+func hasListRow(stdout string) bool {
+	for _, line := range strings.Split(stdout, "\n") {
+		if strings.TrimSpace(line) != "" {
+			return true
+		}
+	}
+	return false
 }
