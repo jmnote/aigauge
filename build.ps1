@@ -194,7 +194,7 @@ switch ($Task) {
         & $PSCommandPath -Task build -Version $Version
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         $screenshotScript = Join-Path $PSScriptRoot "hack\screenshot.ps1"
-        $arguments = @{ Theme = "light"; SamplePreview = $true; RenderWaitSeconds = 3 }
+        $arguments = @{ Theme = "light"; RenderWaitSeconds = 20 }
         if (-not [string]::IsNullOrWhiteSpace($ScreenshotPath)) { $arguments.OutputPath = $ScreenshotPath }
         & $screenshotScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -203,7 +203,7 @@ switch ($Task) {
         & $PSCommandPath -Task build -Version $Version
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         $screenshotScript = Join-Path $PSScriptRoot "hack\screenshot.ps1"
-        $arguments = @{ Theme = "dark"; SamplePreview = $true; RenderWaitSeconds = 3 }
+        $arguments = @{ Theme = "dark"; RenderWaitSeconds = 20 }
         if (-not [string]::IsNullOrWhiteSpace($ScreenshotPath)) { $arguments.OutputPath = $ScreenshotPath }
         & $screenshotScript @arguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

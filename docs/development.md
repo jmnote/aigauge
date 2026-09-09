@@ -123,13 +123,12 @@ Capture the native Wails window in both themes:
 .\build.ps1 screenshot
 ```
 
-`screenshot-light`/`screenshot-dark` launch the app with `--sample-preview`, so the window opens
-straight into the sample-data preview instead of calling the real provider APIs - no logged-in
-Codex/Claude/Antigravity account needed on the capturing machine, and no waiting on a live fetch.
-Because that data is compiled in (`internal/app/fixtures/fixtures.go`), run `.\build.ps1
-fixtures-go` first if you've changed `hack/fixtures/*.json` and want screenshots to reflect it -
-`screenshot-light`/`screenshot-dark` already rebuild the binary before capturing, so a stale
-`fixtures.go` is the only way the two can drift.
+`screenshot-light`/`screenshot-dark` launch the app in its current configured state. The
+application intentionally has no startup switch that bypasses its user-visible navigation. To
+capture the sample-data preview, first disable all providers in Settings. Then run the individual
+capture helper with a long enough render wait and select **Preview with sample data** in the window
+it launches before the capture occurs. For automated browser-based visual work, the live server's
+`?view=sample` route remains available.
 
 This runs the Light and Dark captures sequentially and writes:
 
@@ -140,11 +139,11 @@ Individual captures can be run with `screenshot-light` or `screenshot-dark`. To 
 wait, invoke the capture helper directly, for example:
 
 ```powershell
-.\hack\screenshot.ps1 -Theme light -RenderWaitSeconds 5 -SamplePreview
+.\hack\screenshot.ps1 -Theme light -RenderWaitSeconds 5
 ```
 
-Omit `-SamplePreview` to capture against live provider data instead (needs real logged-in
-accounts, and a longer `-RenderWaitSeconds` to give the real fetch time to finish).
+Capturing live provider data needs real logged-in accounts and a sufficiently long
+`-RenderWaitSeconds` to give the fetch time to finish.
 
 ## MSIX packaging
 

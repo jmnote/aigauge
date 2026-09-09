@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 import {
   DEFAULT_REFRESH_SECONDS,
+  DEFAULT_WINDOW_WIDTH,
   MAX_REFRESH_SECONDS,
   MAX_RETRY_DELAY_SECONDS,
   MIN_REFRESH_SECONDS,
@@ -16,7 +17,9 @@ import {
   normalizeConfig,
   normalizeProviderOrder,
   normalizeThreshold,
+  normalizeWindowWidth,
   parseIntervalToSeconds,
+  providerVisibilityAction,
   retryDelay,
   shouldCountFailure,
   shouldKeepStaleData,
@@ -27,10 +30,18 @@ const providerIds = ['codex', 'claude', 'antigravity'];
 const defaultConfig = {
   providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
   providerOrder: providerIds.slice(),
+  windowWidth: DEFAULT_WINDOW_WIDTH,
   theme: 'system',
   refreshInterval: DEFAULT_REFRESH_SECONDS,
   thresholds: { warning: { enabled: true, value: 30 }, critical: { enabled: true, value: 10 } },
 };
+
+test('window width is restored within the supported range', () => {
+  assert.equal(normalizeWindowWidth(320), 320);
+  assert.equal(normalizeWindowWidth(100), 160);
+  assert.equal(normalizeWindowWidth(900), 600);
+  assert.equal(normalizeWindowWidth('invalid'), DEFAULT_WINDOW_WIDTH);
+});
 
 const EXPECTED = ['not_installed', 'auth_check_required', 'login_required', 'sign_in_required', 'unsupported_cli'];
 const FAILURES = ['temporary_error', 'usage_unavailable'];
@@ -91,6 +102,13 @@ test('retry delay backs off from the refresh interval and stays capped', () => {
   assert.equal(retryDelay(4, 60), 960);
   assert.equal(retryDelay(99, 60), 960, 'the exponent stops growing after 4 failures');
   assert.equal(retryDelay(4, 1800), MAX_RETRY_DELAY_SECONDS, 'and the delay itself is capped');
+});
+
+test('visibility changes preserve an existing live refresh timer', () => {
+  assert.equal(providerVisibilityAction(false, true, true), 'preserve');
+  assert.equal(providerVisibilityAction(false, true, false), 'fetch');
+  assert.equal(providerVisibilityAction(false, false, true), 'stop');
+  assert.equal(providerVisibilityAction(true, false, true), 'restart');
 });
 
 // --- corrupted or foreign settings -----------------------------------------

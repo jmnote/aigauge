@@ -25,9 +25,6 @@ func main() {
 				usageapp.ThemeOverride = theme
 			}
 		}
-		if arg == "--sample-preview" {
-			usageapp.SamplePreviewAtStartup = true
-		}
 	}
 	frontendAssets, err := fs.Sub(embeddedFrontend, "frontend")
 	if err != nil {

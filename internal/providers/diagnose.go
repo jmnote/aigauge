@@ -18,6 +18,30 @@ import (
 // rather than sit on a spinner.
 const statusCommandTimeout = 10 * time.Second
 
+// unsupportedCLIMarkers are the common ways provider CLIs reject a command or
+// option they do not implement. Command-line parsers normally return a non-zero
+// exit code for these errors, so recognize them before the generic login or
+// temporary-error branches.
+var unsupportedCLIMarkers = []string{
+	"unknown flag",
+	"unknown command",
+	"unknown subcommand",
+	"unrecognized command",
+	"unrecognized subcommand",
+	"unexpected argument",
+	"no such command",
+}
+
+func containsAnyMarker(text string, markers []string) bool {
+	lowered := strings.ToLower(text)
+	for _, marker := range markers {
+		if strings.Contains(lowered, marker) {
+			return true
+		}
+	}
+	return false
+}
+
 // providerDeps holds every seam a diagnosis touches outside its own process:
 // running a CLI, resolving one on PATH, and reading the credential files. They
 // travel together because a test that describes "signed in, but no credential
@@ -201,6 +225,14 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 		}
 	}
 
+	output := result.Stdout + " " + result.Stderr
+	if containsAnyMarker(output, unsupportedCLIMarkers) {
+		return Diagnosis{
+			Status:  StatusUnsupportedCLI,
+			Message: "This Codex version is not supported. Update the CLI.",
+			Details: technicalDetails(output),
+		}
+	}
 	if result.ExitCode != 0 {
 		// The exact logged-out exit code is still to be captured as a fixture
 		// (see the release gate), so anything non-zero is read as logged out
@@ -210,7 +242,7 @@ func diagnoseCodexCLI(ctx context.Context, deps providerDeps, active bool) Diagn
 		return Diagnosis{
 			Status:  StatusLoginRequired,
 			Message: "Log in to Codex to view quota information.",
-			Details: technicalDetails(result.Stdout + " " + result.Stderr),
+			Details: technicalDetails(output),
 		}
 	}
 	if !active {
@@ -300,8 +332,9 @@ func unsupportedCredentialSourceDiagnosis(label string) Diagnosis {
 // because the action plan forbids inferring a logout from an unrecognized
 // failure.
 func unreadableStatusDiagnosis(label string, result commandResult) Diagnosis {
-	details := technicalDetails(result.Stdout + " " + result.Stderr)
-	if result.ExitCode == 0 {
+	output := result.Stdout + " " + result.Stderr
+	details := technicalDetails(output)
+	if containsAnyMarker(output, unsupportedCLIMarkers) || result.ExitCode == 0 {
 		return Diagnosis{
 			Status:  StatusUnsupportedCLI,
 			Message: "This " + label + " version is not supported. Update the CLI.",

@@ -169,8 +169,8 @@ func TestDiagnoseClaudeTrustsReadableJSONOverExitCode(t *testing.T) {
 	}
 }
 
-func TestDiagnoseClaudeReportsUnsupportedCLIForUnreadableSuccess(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stdout: "unknown command: auth"}}
+func TestDiagnoseClaudeReportsUnsupportedCLIForRejectedCommand(t *testing.T) {
+	runner := &fakeRunner{result: commandResult{Stderr: "unknown command: auth", ExitCode: 2}}
 	diagnosis, _, _ := diagnoseClaude(context.Background(), testDeps(runner, foundPath("claude"), nil), true)
 	if diagnosis.Status != StatusUnsupportedCLI {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusUnsupportedCLI)
@@ -230,6 +230,14 @@ func TestDiagnoseCodexReportsSignInRequiredOnNonZeroExit(t *testing.T) {
 	diagnosis, _, _ := diagnoseCodex(context.Background(), testDeps(runner, foundPath("codex"), nil), true)
 	if diagnosis.Status != StatusSignInRequired {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusSignInRequired)
+	}
+}
+
+func TestDiagnoseCodexReportsUnsupportedCLIForRejectedCommand(t *testing.T) {
+	runner := &fakeRunner{result: commandResult{Stderr: "error: unknown subcommand 'status'", ExitCode: 2}}
+	diagnosis, _, _ := diagnoseCodex(context.Background(), testDeps(runner, foundPath("codex"), nil), true)
+	if diagnosis.Status != StatusUnsupportedCLI {
+		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusUnsupportedCLI)
 	}
 }
 

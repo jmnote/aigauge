@@ -11,11 +11,20 @@ export const MIN_REFRESH_SECONDS = 1;
 export const MAX_REFRESH_SECONDS = 3600;
 export const DEFAULT_REFRESH_SECONDS = 120;
 export const MAX_RETRY_DELAY_SECONDS = 1800;
+export const MIN_WINDOW_WIDTH = 160;
+export const MAX_WINDOW_WIDTH = 600;
+export const DEFAULT_WINDOW_WIDTH = 250;
 
 export const VALID_THEMES = new Set(['light', 'dark', 'system']);
 
 const clampSeconds = seconds =>
   Math.max(MIN_REFRESH_SECONDS, Math.min(MAX_REFRESH_SECONDS, seconds));
+
+export function normalizeWindowWidth(value) {
+  const width = Number(value);
+  if (!Number.isFinite(width)) return DEFAULT_WINDOW_WIDTH;
+  return Math.max(MIN_WINDOW_WIDTH, Math.min(MAX_WINDOW_WIDTH, Math.round(width)));
+}
 
 // Accepts what a settings file might actually hold after hand-editing or an
 // older version: a number, "90", "2m", "1m30s". Anything unreadable falls back
@@ -76,6 +85,7 @@ export function normalizeConfig(value, providerIds, defaultConfig) {
   return {
     providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
     providerOrder: normalizeProviderOrder(value?.providerOrder, providerIds),
+    windowWidth: normalizeWindowWidth(value?.windowWidth),
     theme: VALID_THEMES.has(theme) ? theme : defaultConfig.theme,
     refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
     thresholds: { warning, critical }
@@ -125,6 +135,15 @@ export const shouldKeepStaleData = (status, lastSuccessAt) =>
 
 export const retryDelay = (failureCount, refreshInterval) =>
   Math.min(refreshInterval * (2 ** Math.min(failureCount, 4)), MAX_RETRY_DELAY_SECONDS);
+
+// Decides how a visibility recalculation should treat a provider's refresh
+// timer. In live mode an existing timer must survive unrelated settings/order
+// changes; in sample mode live timers are replaced by one sample fetch.
+export function providerVisibilityAction(sampleMode, enabled, hasTimer) {
+  if (sampleMode) return 'restart';
+  if (!enabled) return 'stop';
+  return hasTimer ? 'preserve' : 'fetch';
+}
 
 // "Ready" means the only thing left is to confirm the connection; "blocked"
 // means something is actually wrong. Neither an expected setup state nor a

@@ -134,25 +134,6 @@ var antigravityAuthMarkers = []string{
 	"401",
 }
 
-// antigravityUnsupportedMarkers are how agy rejects a command or flag it does
-// not have. `agy auth status` on 1.1.28 answers with the second of these.
-var antigravityUnsupportedMarkers = []string{
-	"unknown flag",
-	"unexpected argument",
-	"unknown command",
-	"unknown subcommand",
-}
-
-func containsAnyMarker(text string, markers []string) bool {
-	lowered := strings.ToLower(text)
-	for _, marker := range markers {
-		if strings.Contains(lowered, marker) {
-			return true
-		}
-	}
-	return false
-}
-
 func GetAntigravityUsage() AntigravityUsage {
 	return getAntigravityUsage(context.Background(), defaultDeps(), true)
 }
@@ -245,7 +226,7 @@ func classifyAntigravityUsage(ctx context.Context, deps providerDeps, agyPath st
 			Details: technicalDetails(output),
 		}
 	}
-	if containsAnyMarker(output, antigravityUnsupportedMarkers) {
+	if containsAnyMarker(output, unsupportedCLIMarkers) {
 		return nil, Diagnosis{
 			Status:  StatusUnsupportedCLI,
 			Message: "This Antigravity CLI version is not supported. Update the CLI.",

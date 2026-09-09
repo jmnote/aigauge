@@ -90,10 +90,10 @@ export const Call = {
       if (name.endsWith(`Diagnose${key}`)) return diagnosisFor(key);
       if (name.endsWith(`Get${key}Usage`)) return usageFor(key);
     }
-    if (name.endsWith('GetSamplePreviewAtStartup')) return params.get('view') === 'sample';
     if (name.endsWith('GetThemeOverride')) return ['light', 'dark', 'system'].includes(theme) ? theme : '';
     if (name.endsWith('GetVersion')) return 'vDEV';
     if (name.endsWith('SetContentHeight')) return null;
+    if (name.endsWith('SetWindowWidth')) return null;
     if (name.endsWith('SetAlwaysOnTop')) return null;
     if (name.endsWith('HideToTray')) return null;
     return null;

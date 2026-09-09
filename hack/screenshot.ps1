@@ -4,15 +4,7 @@ param(
     [int]$WaitSeconds = 15,
     [int]$RenderWaitSeconds = 20,
     [ValidateSet("light", "dark", "system")]
-    [string]$Theme = "light",
-    # When set, launches the app with --sample-preview so it opens straight
-    # into the sample-data preview (see internal/app/fixtures, generated from
-    # hack/fixtures/*.json) instead of calling the real Codex/Claude/
-    # Antigravity APIs - no live accounts or network round-trips needed, and
-    # $RenderWaitSeconds can be turned way down since there's no real fetch
-    # to wait on. It only picks the screen the window opens on; the saved
-    # provider settings are left untouched.
-    [switch]$SamplePreview
+    [string]$Theme = "light"
 )
 
 $ErrorActionPreference = "Stop"
@@ -117,7 +109,6 @@ function Add-RoundedShadow {
 }
 
 $processArgs = @("--theme=$Theme")
-if ($SamplePreview) { $processArgs += "--sample-preview" }
 $process = Start-Process -FilePath $Executable -ArgumentList $processArgs -PassThru
 try {
     $deadline = (Get-Date).AddSeconds($WaitSeconds)

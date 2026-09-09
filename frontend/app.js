@@ -1,7 +1,8 @@
 import {
   parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
   shouldCountFailure, shouldScheduleRetry,
-  shouldKeepStaleData, retryDelay, badgeClass,
+  shouldKeepStaleData, retryDelay, badgeClass, providerVisibilityAction,
+  normalizeWindowWidth,
 } from '/logic.mjs';
 
 const wails = await import('/wails/runtime.js');
@@ -61,7 +62,8 @@ const PROVIDERS_BY_ID = new Map(PROVIDERS.map(p => [p.id, p]));
 // badge has to stay readable beside the provider name in a 250px window, so
 // the reason behind a status ("Credentials found", "Logged in locally") goes
 // in the message line underneath rather than into the badge.
-const rpc = method => wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${method}`);
+const rpc = (method, ...args) =>
+  wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${method}`, ...args);
 
 // 'live' shows the user's real providers; 'sample' shows the bundled preview.
 // The preview is a screen, not a mode: nothing below writes config while it is
@@ -77,6 +79,7 @@ const defaultConfig = {
   // (below) falls back to enabled once localStorage holds any saved config.
   providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
   providerOrder: providerIds.slice(),
+  windowWidth: 250,
   theme: 'system',
   refreshInterval: 120,
   thresholds: {
@@ -136,10 +139,9 @@ const formatTimeRemaining = (seconds, targetDate) => {
 // anchoring to fetchedAt, a Codex reset (reported as a relative "seconds
 // from now") would silently push further into the future every reload, and
 // an absolute reset time (Claude/Antigravity) could drift into the past and
-// render as already-elapsed. (The native app's own sample preview, --sample-preview
-// - see hack/screenshot.ps1 - doesn't depend on this: internal/app.App already
-// re-anchors fetchedAt and every resetTime to "now" server-side before the
-// frontend ever sees them.)
+// render as already-elapsed. The native sample preview does not depend on
+// this: internal/app.App already re-anchors fetchedAt and every resetTime to
+// "now" server-side before the frontend ever sees them.
 function referenceNow(usage) {
   const fetchedAt = new Date(usage?.fetchedAt).getTime();
   return Number.isNaN(fetchedAt) ? Date.now() : fetchedAt;
@@ -687,10 +689,15 @@ function updateProvidersVisibility() {
     document.getElementById(provider.cardId).style.display = (sampleMode || enabled) ? '' : 'none';
 
     const state = providerState.get(provider.id);
-    clearTimeout(state.timerId);
-    if (sampleMode || enabled) {
-      if (sampleMode || !state.timerId) fetchProvider(provider.id);
-    } else {
+    const action = providerVisibilityAction(sampleMode, enabled, Boolean(state.timerId));
+    if (action === 'restart') {
+      clearTimeout(state.timerId);
+      state.timerId = null;
+      fetchProvider(provider.id);
+    } else if (action === 'fetch') {
+      fetchProvider(provider.id);
+    } else if (action === 'stop') {
+      clearTimeout(state.timerId);
       state.timerId = null;
     }
   }
@@ -1069,14 +1076,6 @@ wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetVersion').then(
   document.getElementById('version').textContent = version || 'v—';
 });
 
-// Covers launching with --sample-preview (see hack/screenshot.ps1), which
-// opens the window straight into the preview so a screenshot run needs no
-// live account. It picks a screen and nothing else - the saved provider
-// settings are read and written exactly as they would be without the flag.
-rpc('GetSamplePreviewAtStartup').then(open => {
-  if (open) openSamplePreview();
-}).catch(() => { });
-
 let lastReportedHeight = 0;
 let resizeTimer = null;
 function requestWindowResize() {
@@ -1112,6 +1111,8 @@ function requestWindowResize() {
     }
     if (height > 0 && Math.abs(height - lastReportedHeight) >= 2) {
       lastReportedHeight = height;
+      // The backend preserves the window's current user-selected width and
+      // changes only its height to fit the reflowed content.
       wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.SetContentHeight', height).catch(() => { });
     }
   });
@@ -1122,7 +1123,39 @@ const resizeObserver = new ResizeObserver(() => {
 });
 resizeObserver.observe(document.querySelector('.shell'));
 
-applyProviderOrder();
+// Restore width before starting provider rendering so text wraps and content
+// height are measured against the user's chosen size from the outset.
+try {
+  await rpc('SetWindowWidth', config.windowWidth);
+} catch (error) {
+  console.warn('Unable to restore the saved window width:', error);
+}
+
+let widthSaveTimer = null;
+let widthIndicatorTimer = null;
+let lastObservedWidth = window.innerWidth;
+const widthIndicator = document.getElementById('window-size-indicator');
+window.addEventListener('resize', () => {
+  const width = normalizeWindowWidth(window.innerWidth);
+  if (width === normalizeWindowWidth(lastObservedWidth)) return;
+  lastObservedWidth = window.innerWidth;
+  widthIndicator.textContent = `${width} px`;
+  widthIndicator.classList.add('is-visible');
+  clearTimeout(widthIndicatorTimer);
+  widthIndicatorTimer = setTimeout(() => widthIndicator.classList.remove('is-visible'), 700);
+  if (width === config.windowWidth) return;
+  config.windowWidth = width;
+  clearTimeout(widthSaveTimer);
+  widthSaveTimer = setTimeout(saveCurrentConfig, 250);
+});
+
+// The live server may deep-link into the sample screen for visual development.
+// Production navigation always goes through the visible preview button.
+if (globalThis.__AIGAUGE_LIVE__ && new URLSearchParams(location.search).get('view') === 'sample') {
+  openSamplePreview();
+} else {
+  applyProviderOrder();
+}
 
 function refreshStatusTooltips() {
   for (const provider of PROVIDERS) {

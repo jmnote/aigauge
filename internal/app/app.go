@@ -12,33 +12,38 @@ import (
 var AppVersion = "v0.0.0"
 var ThemeOverride string
 
-// SamplePreviewAtStartup opens the sample-data preview as soon as the window
-// loads. It exists for hack/screenshot.ps1, which needs a populated window
-// without depending on the developer being signed in to anything. It is a
-// developer entry point into a screen the user can open themselves, not a mode:
-// it changes which screen is shown and nothing else, so no provider setting is
-// read or written on account of it.
-var SamplePreviewAtStartup bool
-
 type App struct {
-	onResize         func(width, height int)
+	onContentHeight  func(height int)
+	onWindowWidth    func(width int)
 	onSetAlwaysOnTop func(alwaysOnTop bool)
 	onHideToTray     func()
 }
 
-func NewApp(onResize func(width, height int), onSetAlwaysOnTop func(alwaysOnTop bool), onHideToTray func()) *App {
+func NewApp(onContentHeight func(height int), onWindowWidth func(width int), onSetAlwaysOnTop func(alwaysOnTop bool), onHideToTray func()) *App {
 	return &App{
-		onResize:         onResize,
+		onContentHeight:  onContentHeight,
+		onWindowWidth:    onWindowWidth,
 		onSetAlwaysOnTop: onSetAlwaysOnTop,
 		onHideToTray:     onHideToTray,
 	}
 }
 
+func (a *App) SetWindowWidth(width int) {
+	if a.onWindowWidth == nil {
+		return
+	}
+	if width < 160 {
+		width = 160
+	}
+	if width > 600 {
+		width = 600
+	}
+	a.onWindowWidth(width)
+}
+
 func (a *App) GetVersion() string { return AppVersion }
 
 func (a *App) GetThemeOverride() string { return ThemeOverride }
-
-func (a *App) GetSamplePreviewAtStartup() bool { return SamplePreviewAtStartup }
 
 func (a *App) SetAlwaysOnTop(alwaysOnTop bool) {
 	if a.onSetAlwaysOnTop != nil {
@@ -53,7 +58,7 @@ func (a *App) HideToTray() {
 }
 
 func (a *App) SetContentHeight(height int) {
-	if a.onResize == nil {
+	if a.onContentHeight == nil {
 		return
 	}
 	if height < 80 {
@@ -62,7 +67,7 @@ func (a *App) SetContentHeight(height int) {
 	if height > 1600 {
 		height = 1600
 	}
-	a.onResize(250, height)
+	a.onContentHeight(height)
 }
 
 // Diagnose* report what can be determined about a provider without contacting

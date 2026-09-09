@@ -32,13 +32,11 @@ func (rt *runtime) configureWindow() {
 	rt.application.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(_ *application.ApplicationEvent) {
 		placeInitially()
 	})
-	// Wails' WM_EXITSIZEMOVE handler (as of v3.0.0-beta.15) picks WindowEndMove
-	// vs WindowEndResize by checking whether the left mouse button is still
-	// down - but by the time WM_EXITSIZEMOVE fires, the button that ended the
-	// drag has already been released, so it always reports WindowEndResize
-	// instead. This window has DisableResize set, so a resize can never
-	// actually happen here; either event only ever means "a drag just ended",
-	// so handle both rather than depend on which one the framework picks.
+	// Wails' WM_EXITSIZEMOVE handler (as of v3.0.0-beta.15) may report a move as
+	// WindowEndResize because it checks the mouse button after it was released.
+	// Clamp after either event so both window moves and horizontal user resizes
+	// remain inside the current screen's work area. Height is constrained to the
+	// value reported by the frontend's content measurement.
 	onDragEnd := func(_ *application.WindowEvent) {
 		rt.clampWindow()
 	}

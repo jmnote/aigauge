@@ -11,7 +11,7 @@ func TestAppGetVersionAndThemeOverride(t *testing.T) {
 	AppVersion = "v1.2.3"
 	ThemeOverride = "dark"
 
-	app := NewApp(nil, nil, nil)
+	app := NewApp(nil, nil, nil, nil)
 	if app.GetVersion() != "v1.2.3" {
 		t.Errorf("GetVersion() = %q, want %q", app.GetVersion(), "v1.2.3")
 	}
@@ -22,7 +22,7 @@ func TestAppGetVersionAndThemeOverride(t *testing.T) {
 
 func TestAppSetAlwaysOnTop(t *testing.T) {
 	var onTopState bool
-	app := NewApp(nil, func(top bool) {
+	app := NewApp(nil, nil, func(top bool) {
 		onTopState = top
 	}, nil)
 
@@ -38,16 +38,15 @@ func TestAppSetAlwaysOnTop(t *testing.T) {
 }
 
 func TestAppSetContentHeight(t *testing.T) {
-	var capturedWidth, capturedHeight int
-	onResize := func(w, h int) {
-		capturedWidth = w
-		capturedHeight = h
+	var capturedHeight int
+	onContentHeight := func(height int) {
+		capturedHeight = height
 	}
 
-	app := NewApp(onResize, nil, nil)
+	app := NewApp(onContentHeight, nil, nil, nil)
 	app.SetContentHeight(350)
-	if capturedWidth != 250 || capturedHeight != 350 {
-		t.Errorf("Resize captured (%d, %d), want (250, 350)", capturedWidth, capturedHeight)
+	if capturedHeight != 350 {
+		t.Errorf("Height captured = %d, want 350", capturedHeight)
 	}
 
 	app.SetContentHeight(10) // below min
@@ -61,9 +60,31 @@ func TestAppSetContentHeight(t *testing.T) {
 	}
 }
 
+func TestAppSetWindowWidth(t *testing.T) {
+	var capturedWidth int
+	app := NewApp(nil, func(width int) {
+		capturedWidth = width
+	}, nil, nil)
+
+	app.SetWindowWidth(320)
+	if capturedWidth != 320 {
+		t.Errorf("Width captured = %d, want 320", capturedWidth)
+	}
+
+	app.SetWindowWidth(100)
+	if capturedWidth != 160 {
+		t.Errorf("Minimum width = %d, want 160", capturedWidth)
+	}
+
+	app.SetWindowWidth(900)
+	if capturedWidth != 600 {
+		t.Errorf("Maximum width = %d, want 600", capturedWidth)
+	}
+}
+
 func TestAppHideToTray(t *testing.T) {
 	called := false
-	app := NewApp(nil, nil, func() {
+	app := NewApp(nil, nil, nil, func() {
 		called = true
 	})
 
@@ -79,7 +100,7 @@ func TestAppHideToTray(t *testing.T) {
 // data, so it also catches the fixtures themselves becoming malformed or
 // unparseable.
 func TestSampleUsageShiftsFixtureTimestampsToNow(t *testing.T) {
-	app := NewApp(nil, nil, nil)
+	app := NewApp(nil, nil, nil, nil)
 	before := time.Now()
 
 	codex := app.GetSampleCodexUsage()
@@ -139,7 +160,7 @@ func TestSampleUsageShiftsFixtureTimestampsToNow(t *testing.T) {
 // connected-state path as a real provider, so the reviewer sees the actual
 // gauges rather than an empty or error-shaped card.
 func TestSampleUsageReportsConnected(t *testing.T) {
-	app := NewApp(nil, nil, nil)
+	app := NewApp(nil, nil, nil, nil)
 	for name, status := range map[string]providers.Status{
 		"codex":       app.GetSampleCodexUsage().Status,
 		"claude":      app.GetSampleClaudeUsage().Status,
@@ -148,20 +169,6 @@ func TestSampleUsageReportsConnected(t *testing.T) {
 		if status != providers.StatusConnected {
 			t.Errorf("%s sample Status = %q, want %q", name, status, providers.StatusConnected)
 		}
-	}
-}
-
-// TestSamplePreviewAtStartup covers the --sample-preview launch flag (main.go
-// sets SamplePreviewAtStartup before calling NewApp), which lets
-// hack/screenshot.ps1 capture a populated window without signing in to
-// anything. It selects a screen and nothing else - no provider setting is
-// touched - so it is only ever read back by the frontend.
-func TestSamplePreviewAtStartup(t *testing.T) {
-	SamplePreviewAtStartup = true
-	defer func() { SamplePreviewAtStartup = false }()
-
-	if !NewApp(nil, nil, nil).GetSamplePreviewAtStartup() {
-		t.Error("GetSamplePreviewAtStartup() = false, want true when the launch flag was set")
 	}
 }
 
