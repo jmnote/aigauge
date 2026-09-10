@@ -1,7 +1,5 @@
 # AI Gauge — Microsoft Partner Center Listing Content
 
-This document records only the content directly entered/selected by the developer in the [Microsoft Partner Center](https://partner.microsoft.com/dashboard) submission form for **AI Gauge** (system-generated identifiers, submission status, and validation results are intentionally omitted). Recorded on: 2026-09-02. Draft fields reviewed on: 2026-09-04.
-
 ## Product
 
 - **Product name**: AI Gauge
