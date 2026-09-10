@@ -71,27 +71,27 @@ Enter the following text in **Supplemental info → Additional Testing Informati
 >
 > Thank you for reviewing AI Gauge.
 >
-> AI Gauge is an independently developed Windows system tray utility that displays remaining quotas and reset times for locally configured AI development tools: OpenAI Codex, Anthropic Claude Code, and Google Antigravity.
+> AI Gauge is an independently developed Windows system tray utility that displays remaining quotas and reset times for supported AI development tools: OpenAI Codex, Anthropic Claude Code, and Google Antigravity.
 >
-> A certification device is not expected to have those third-party tools installed or signed in. This submission includes a built-in sample-data preview so the app's primary functionality can be evaluated on a clean device without installing anything or supplying account credentials.
+> The supported third-party tools are not required for certification testing. AI Gauge includes a built-in sample-data preview so its primary functionality can be evaluated on a clean device without installing third-party tools, signing in, or providing account credentials.
 >
 > Testing instructions:
 >
 > 1. Launch AI Gauge. The first-run screen, "Quota usage and reset times", explains what the app displays and what live monitoring requires.
-> 2. On a clean device, confirm that Codex, Claude, and Antigravity each show a supported "Not installed" state with setup guidance - not raw file paths, command errors, or an indefinite loading state.
+> 2. On a clean device, confirm that Codex, Claude Code, and Antigravity each show a clear "Not installed" state with setup guidance, rather than raw file paths, command errors, or an indefinite loading state.
 > 3. Select **Preview with sample data**.
-> 4. Confirm that a **Sample data** badge is shown and stays visible for the whole preview.
+> 4. Confirm that the **Sample data** badge remains visible throughout the preview.
 > 5. Verify the quota gauges, remaining percentages, reset countdowns, and last-updated information.
-> 6. Select a provider's refresh control and confirm the preview refreshes without requesting credentials or network access.
+> 6. Select a provider's refresh control and confirm that the sample data refreshes without requesting credentials or network access.
 > 7. Open Settings and verify the warning and critical thresholds and the Light, Dark, and System themes.
-> 8. Select **Back to setup** and confirm the first-run screen returns without a crash or a raw system error.
+> 8. Select **Back to setup** and confirm that the first-run screen returns without a crash or raw system error.
 > 9. Verify the Always-on-top control and the system tray minimize and restore behavior.
 >
-> The preview uses data bundled inside the application and requires no network access, third-party tool installation, login, or credentials. No credentials are required for certification testing.
+> The preview uses data bundled with the application and requires no network access, third-party tool installation, login, or credentials.
 >
-> AI Gauge contacts a provider service only when the user asks it to. On the first-run screen, a provider that is ready to be verified offers a **Check connection** button, and no network request is made for that provider until it is selected. Until then each provider reports only what was determined locally: "Not installed", "Check connection", or "Login required".
+> For live providers, AI Gauge contacts a provider service only when the user explicitly requests a connection check. On the first-run screen, a provider that is ready for verification offers a **Check connection** button. No network request is made for that provider until the button is selected. Before then, each provider reports only the state determined locally: "Not installed", "Check connection", or "Login required".
 >
-> The first-run screen, sample preview, and explicit provider-state handling are included so certification testers can evaluate the app on a clean device without installing or signing in to any supported AI provider.
+> The first-run screen, sample-data preview, and explicit provider states allow certification testers to evaluate the app's primary functionality on a clean device without installing or signing in to any supported AI provider.
 >
 - **Credentials for certification**: Leave empty. The sample preview must be testable without credentials.
 - **Pre-entry verification**:
