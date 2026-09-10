@@ -15,7 +15,6 @@ This document records only the content directly entered/selected by the develope
   - **Partner Center URL**: https://github.com/jmnote/aigauge/blob/main/docs/privacy-policy.md
 - **Product declarations** checked:
   - Customers can install this product to alternate drives or removable storage.
-  - Windows can include this product's data in automatic backups to OneDrive.
   - Customers can use Windows 10/11 features to record and broadcast clips of this product.
 - **System requirements**: None specified
 - **Support info**:
