@@ -37,7 +37,7 @@
   > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. It shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; and choose a light, dark, or system theme. Live monitoring uses what is already on your PC: Codex and Claude Code are read from their existing local login, and Antigravity uses the locally installed agy command-line tool, so those providers need the corresponding tool set up and logged in. A built-in sample preview lets you see how the app works before configuring anything - the preview shows bundled example data, not usage from any account. AI Gauge runs locally, does not store a separate copy of your credentials, and does not retain usage data on a remote server.
 - **Short description**: Monitor AI service usage, quotas, reset times, and connection status from your Windows system tray.
 - **Product features**:
-  1. Real-time quota and reset countdown monitoring
+  1. Automatic quota and reset-time monitoring
   2. Multiple AI usage providers with visibility and ordering controls
   3. Configurable background refresh intervals
   4. Windows system tray access with light, dark, and system themes
@@ -46,7 +46,7 @@
   1. AI Gauge usage dashboard in dark mode.
   2. AI Gauge usage dashboard in light mode.
 - **Keywords**: AI usage monitor, system tray, quota tracker, usage dashboard, background usage refresher
-- **Copyright/trademark info**: Apache License 2.0
+- **Copyright/trademark info**: © 2026 jmnote. Licensed under the Apache License 2.0.
 - **Developed by**: jmnote
 
 ## Submission options
@@ -78,7 +78,7 @@ Enter the following text in **Supplemental info → Additional Testing Informati
 > 2. On a clean device, confirm that Codex, Claude Code, and Antigravity each show a clear "Not installed" state with setup guidance, rather than raw file paths, command errors, or an indefinite loading state.
 > 3. Select **Preview with sample data**.
 > 4. Confirm that the **Sample data** badge remains visible throughout the preview.
-> 5. Verify the quota gauges, remaining percentages, reset countdowns, and last-updated information.
+> 5. Verify the quota gauges, remaining percentages, reset times, and last-updated information.
 > 6. Select a provider's refresh control and confirm that the sample data refreshes without requesting credentials or network access.
 > 7. Open Settings and verify the warning and critical thresholds and the Light, Dark, and System themes.
 > 8. Select **Back to setup** and confirm that the first-run screen returns without a crash or raw system error.
@@ -86,7 +86,7 @@ Enter the following text in **Supplemental info → Additional Testing Informati
 >
 > The preview uses data bundled with the application and requires no network access, third-party tool installation, login, or credentials.
 >
-> For live providers, AI Gauge contacts a provider service only when the user explicitly requests a connection check. On the first-run screen, a provider that is ready for verification offers a **Check connection** button. No network request is made for that provider until the button is selected. Before then, each provider reports only the state determined locally: "Not installed", "Check connection", or "Login required".
+> On the first-run screen, AI Gauge performs only local readiness checks. A provider that is ready for verification offers a **Check connection** button, and no usage request is made for that provider until the button is selected. A successful connection enables the provider and starts periodic usage requests at the configured refresh interval. Enabling a provider in Settings also starts periodic usage requests. Before a usage request is made, each provider reports a locally determined readiness state, such as "Not installed", "Check connection", or "Login required".
 >
 > The first-run screen, sample-data preview, and explicit provider states allow certification testers to evaluate the app's primary functionality on a clean device without installing or signing in to any supported AI provider.
 >

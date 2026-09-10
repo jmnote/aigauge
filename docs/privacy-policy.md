@@ -12,7 +12,7 @@ AI Gauge does not request or persist passwords, payment information, or authenti
 
 ## Third-party services
 
-When a provider is enabled, AI Gauge may send a request directly to OpenAI, Anthropic, or Google Antigravity to retrieve usage information. Those services receive the authentication information and request data needed to answer that request, and process it under their own privacy policies.
+When Codex or Claude Code is enabled, AI Gauge may send a direct HTTPS request to OpenAI or Anthropic to retrieve usage information. When Google Antigravity is enabled, AI Gauge invokes the locally installed `agy` command-line tool, which handles the request to Google Antigravity. Those services and tools receive the authentication information and request data needed to answer the request, and process it under their own privacy policies.
 
 ## Local storage
 
