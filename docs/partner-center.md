@@ -60,7 +60,7 @@
 
 ### Certification notes for the sample-preview release
 
-> **Status:** Draft text only. Do not enter this text in Partner Center until the first-run screen and the sample-data preview described below are present in the uploaded MSIX package. Version `v0.5.0` has neither: it exposes fixtures only through the developer-only `--fixtures` flag.
+> **Status:** Ready to enter. The first-run screen and the sample-data preview described below now ship in the normal app UI (not gated behind the developer-only `--fixtures` flag). Still confirm against the actual uploaded MSIX package before entering this text, per the pre-entry verification checklist below.
 
 Enter the following text in **Supplemental info → Additional Testing Information → Notes for Certification → Description** after uploading the package:
 
