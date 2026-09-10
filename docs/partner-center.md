@@ -93,10 +93,6 @@ Enter the following text in **Supplemental info → Additional Testing Informati
 >
 > The first-run screen, the sample preview, and this provider-state handling were added in response to the previous 10.1.2.10 Functionality result, in which AI detection could not be evaluated on a clean certification device.
 >
-> Product ID: 9MT65KM56P99
->
-> For questions, please contact the publisher through the support information in the Store listing. Thank you.
-
 - **Credentials for certification**: Leave empty. The sample preview must be testable without credentials.
 - **Pre-entry verification**:
   1. Confirm the sample preview opens from the first-run screen in the packaged app, with no command-line arguments.
