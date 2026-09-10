@@ -8,7 +8,7 @@ AI Gauge reads existing local Codex and Claude Code login sessions and invokes t
 
 ## Credentials
 
-AI Gauge does not request or persist passwords, payment information, or authentication credentials in its own storage. It uses access tokens maintained by existing Codex and Claude Code login sessions and authentication managed by `agy`. Credentials are sent only to the corresponding service endpoints as required and are not logged or uploaded to the developer.
+AI Gauge does not request or persist passwords, payment information, or authentication credentials in its own storage. It uses access tokens maintained by existing Codex and Claude Code login sessions, and authentication handled by the locally installed `agy` command-line tool for Google Antigravity. Credentials are sent only to the corresponding service endpoints as required and are not logged or uploaded to the developer.
 
 ## Third-party services
 
