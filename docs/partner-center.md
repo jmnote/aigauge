@@ -91,7 +91,7 @@ Enter the following text in **Supplemental info → Additional Testing Informati
 >
 > AI Gauge contacts a provider service only when the user asks it to. On the first-run screen, a provider that is ready to be verified offers a **Check connection** button, and no network request is made for that provider until it is selected. Until then each provider reports only what was determined locally: "Not installed", "Check connection", or "Login required".
 >
-> The first-run screen, the sample preview, and this provider-state handling were added in response to the previous 10.1.2.10 Functionality result, in which AI detection could not be evaluated on a clean certification device.
+> The first-run screen, sample preview, and explicit provider-state handling are included so certification testers can evaluate the app on a clean device without installing or signing in to any supported AI provider.
 >
 - **Credentials for certification**: Leave empty. The sample preview must be testable without credentials.
 - **Pre-entry verification**:
