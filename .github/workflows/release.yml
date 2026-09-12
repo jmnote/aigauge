@@ -19,6 +19,15 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
+      - name: Validate release tag
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release tags must use the stable vX.Y.Z format: $env:RELEASE_TAG"
+          }
+
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
@@ -150,14 +159,18 @@ jobs:
       - name: Set up Microsoft Store Developer CLI
         uses: microsoft/microsoft-store-apppublisher@v1.4
 
-      - name: Convert Store submission overrides
+      - name: Set up Ruby for submission metadata
+        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Validate and convert Store submission overrides
         if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
         shell: pwsh
         run: |
-          # mikefarah/yq is preinstalled on GitHub-hosted runners; the
-          # mikefarah/yq@v4 action is a Linux-only Docker container action
-          # and cannot run on windows-latest, so invoke the binary directly.
-          yq -o=json '.' docs/partner-center/submission-overrides.yaml | Out-File -Encoding utf8 -LiteralPath submission-overrides.json
+          ruby hack/validate-store-submission.rb `
+            docs/partner-center/submission-overrides.yaml submission-overrides.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Configure Microsoft Store credentials

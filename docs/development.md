@@ -158,7 +158,7 @@ to `dist/` and ignored by Git.
 
 ### Release and Microsoft Store publishing
 
-The release workflow runs only when a `v*` tag is pushed. Create and push a tag manually after
+The release workflow accepts only stable `vX.Y.Z` tags. Create and push a tag manually after
 merging the release commit:
 
 ```powershell
