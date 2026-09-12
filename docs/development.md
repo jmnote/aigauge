@@ -162,6 +162,19 @@ The package uses the Partner Center identity in `Package.appxmanifest`. Do not r
 submission handles Store package signing; local sideloading requires a certificate matching the
 package Publisher.
 
+The manifest's `runFullTrust` capability is required because AI Gauge is a native Wails/Win32
+application with a system tray UI and it invokes the locally installed `agy` CLI.
+
+### Optional Store certification smoke test
+
+When preparing a Microsoft Store resubmission, the following quick checks may be useful. They are
+guidance only and are not a required gate for ordinary pull requests:
+
+- On a clean device, verify that providers without local setup show clear guidance.
+- Open the sample preview and confirm it works without credentials or network access.
+- Check quota percentages, reset times, refresh, settings, themes, and always-on-top behavior.
+- Confirm setup-screen navigation and system-tray minimize/restore behavior.
+
 The packaging script locates `makeappx.exe` from the Windows SDK. If it is not on `PATH`, pass its
 full path through the existing packaging script parameter. `signtool.exe` is only needed when
 creating a locally signed package.

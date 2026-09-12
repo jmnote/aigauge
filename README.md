@@ -7,6 +7,12 @@
 <p align="center">A lightweight Windows tray widget for monitoring OpenAI Codex, Claude Code, and Google Antigravity usage.</p>
 
 <p align="center">
+  <a href="https://apps.microsoft.com/detail/9MT65KM56P99">
+    <img src="https://get.microsoft.com/images/en-us%20dark.svg" width="200" alt="Get AI Gauge from Microsoft Store">
+  </a>
+</p>
+
+<p align="center">
   <img src="docs/screenshots/aigauge-native-light.png" width="320" alt="AI Gauge Light theme">
   <img src="docs/screenshots/aigauge-native-dark.png" width="320" alt="AI Gauge Dark theme">
 </p>
