@@ -43,7 +43,7 @@
 
 - **Device family availability**: Windows 10/11 Desktop
 - **Package**: `aigauge_0.6.1.0_x64.msix`
-- **Version**: v0.6.1.0
+- **Version**: 0.6.1.0
 - **Architecture**: X64
 - **Device families**: Windows.Desktop min version 10.0.17763.0
 
