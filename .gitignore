@@ -40,3 +40,6 @@ go.work.sum
 /hack/node_modules/
 /hack/docs/
 /hack/temp/
+
+# Legacy backup manifest remains restorable after moving new manifests to hack/temp/.
+/.ai-credentials-backup.local.json
