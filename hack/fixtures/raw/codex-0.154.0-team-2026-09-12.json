@@ -1,0 +1,59 @@
+{
+  "user_id": "user_abc",
+  "account_id": "",
+  "email": "user@example.com",
+  "plan_type": "team",
+  "rate_limit": {
+    "allowed": true,
+    "limit_reached": false,
+    "primary_window": {
+      "used_percent": 0,
+      "limit_window_seconds": 18000,
+      "reset_after_seconds": 18000,
+      "reset_at": 1789222439
+    },
+    "secondary_window": {
+      "used_percent": 0,
+      "limit_window_seconds": 604800,
+      "reset_after_seconds": 604800,
+      "reset_at": 1789809239
+    }
+  },
+  "code_review_rate_limit": null,
+  "additional_rate_limits": null,
+  "model_usage": {
+    "gpt-6-astra": {
+      "available": true,
+      "available_at": null,
+      "credits_would_enable": false
+    }
+  },
+  "credits": {
+    "has_credits": false,
+    "unlimited": false,
+    "overage_limit_reached": false,
+    "balance": null,
+    "approx_local_messages": null,
+    "approx_cloud_messages": null
+  },
+  "spend_control": {
+    "reached": true,
+    "individual_limit": {
+      "source": "workspace_spend_controls",
+      "unit": "credit",
+      "limit": "0",
+      "used": "2.40628719329834",
+      "remaining": "0",
+      "used_percent": 100,
+      "remaining_percent": 0,
+      "reset_after_seconds": 1608362,
+      "reset_at": 1790812801
+    }
+  },
+  "rate_limit_reached_type": null,
+  "promo": null,
+  "rate_limit_reset_credits": {
+    "available_count": 3,
+    "applicable_available_count": 0
+  }
+}
