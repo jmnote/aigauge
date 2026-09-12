@@ -13,10 +13,10 @@ var AppVersion = "v0.0.0"
 var ThemeOverride string
 
 type App struct {
-	onContentHeight  func(height int)
-	onWindowWidth    func(width int)
-	onSetAlwaysOnTop func(alwaysOnTop bool)
-	onHideToTray     func()
+	onContentHeight   func(height int)
+	onWindowWidth     func(width int)
+	onSetAlwaysOnTop  func(alwaysOnTop bool)
+	onHideToTray      func()
 	onSetGlobalHotkey func(enabled bool, shortcut string) error
 }
 
