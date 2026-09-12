@@ -198,14 +198,14 @@ jobs:
           }
           $overridesPath = Join-Path $env:GITHUB_WORKSPACE "submission-overrides.json"
           if (-not (Test-Path -LiteralPath $overridesPath -PathType Leaf)) {
-            msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID
+            msstore publish --inputDirectory $msix.Directory.FullName --appId $env:STORE_APP_ID
             exit $LASTEXITCODE
           }
 
           # Keep the submission in draft state while adding the certification
           # notes, then commit the complete submission. The CLI's submission
           # metadata command accepts the full JSON returned by `submission get`.
-          msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID --noCommit
+          msstore publish --inputDirectory $msix.Directory.FullName --appId $env:STORE_APP_ID --noCommit
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           function Invoke-MsStore([string[]]$Arguments) {
