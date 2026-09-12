@@ -15,9 +15,17 @@ export const MIN_WINDOW_WIDTH = 200;
 export const MAX_WINDOW_WIDTH = 600;
 export const DEFAULT_WINDOW_WIDTH = 250;
 export const HOTKEY_OPTIONS = [
+  { value: 'Ctrl+Shift+G', label: 'Ctrl + Shift + G' },
   { value: 'Ctrl+Shift+Q', label: 'Ctrl + Shift + Q' },
   { value: 'Ctrl+Shift+E', label: 'Ctrl + Shift + E' },
 ];
+
+export function formatHotkeyError(error, enabled = true) {
+  const msg = (typeof error === 'string' ? error : error?.message || String(error || '')).trim();
+  const fallback = enabled ? 'Registration failed' : 'Unregistration failed';
+  if (!msg) return fallback;
+  return `${fallback}: ${msg}`;
+}
 
 export const VALID_THEMES = new Set(['light', 'dark', 'system']);
 
@@ -86,16 +94,15 @@ export function normalizeConfig(value, providerIds, defaultConfig) {
   }
 
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
-  const hotkeyEnabled = value?.hotkey?.enabled === true;
-  const hotkeyValue = HOTKEY_OPTIONS.some(option => option.value === value?.hotkey?.shortcut)
-    ? value.hotkey.shortcut : HOTKEY_OPTIONS[0].value;
+  const hotkeyValue = HOTKEY_OPTIONS.some(option => option.value === value?.hotkeyShortcut)
+    ? value.hotkeyShortcut : null;
   return {
     providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
     providerOrder: normalizeProviderOrder(value?.providerOrder, providerIds),
     windowWidth: normalizeWindowWidth(value?.windowWidth),
     theme: VALID_THEMES.has(theme) ? theme : defaultConfig.theme,
     refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
-    hotkey: { enabled: hotkeyEnabled, shortcut: hotkeyValue },
+    hotkeyShortcut: hotkeyValue,
     thresholds: { warning, critical }
   };
 }

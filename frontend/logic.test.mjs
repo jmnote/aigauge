@@ -12,9 +12,9 @@ import {
   MAX_REFRESH_SECONDS,
   MAX_RETRY_DELAY_SECONDS,
   MIN_REFRESH_SECONDS,
-  HOTKEY_OPTIONS,
   STATUS_BADGES,
   badgeClass,
+  formatHotkeyError,
   normalizeConfig,
   normalizeProviderOrder,
   normalizeThreshold,
@@ -33,24 +33,47 @@ const defaultConfig = {
   providerOrder: providerIds.slice(),
   windowWidth: DEFAULT_WINDOW_WIDTH,
   theme: 'system',
-  hotkey: { enabled: false, shortcut: HOTKEY_OPTIONS[0].value },
+  hotkeyShortcut: null,
   refreshInterval: DEFAULT_REFRESH_SECONDS,
   thresholds: { warning: { enabled: true, value: 30 }, critical: { enabled: true, value: 10 } },
 };
 
+test('fresh install config keeps providers disabled by default', () => {
+  const fresh = normalizeConfig(defaultConfig, providerIds, defaultConfig);
+  assert.equal(fresh.providers.codex.enabled, false);
+  assert.equal(fresh.providers.claude.enabled, false);
+  assert.equal(fresh.providers.antigravity.enabled, false);
+  assert.equal(fresh.hotkeyShortcut, null);
+});
+
 test('hotkey settings normalize to the supported choices', () => {
+  const primary = normalizeConfig({ hotkeyShortcut: 'Ctrl+Shift+G' }, providerIds, defaultConfig);
+  assert.equal(primary.hotkeyShortcut, 'Ctrl+Shift+G');
+
   for (const shortcut of ['Ctrl+Shift+Q', 'Ctrl+Shift+E']) {
-    const selected = normalizeConfig({ hotkey: { enabled: true, shortcut } }, providerIds, defaultConfig);
-    assert.deepEqual(selected.hotkey, { enabled: true, shortcut });
+    const selected = normalizeConfig({ hotkeyShortcut: shortcut }, providerIds, defaultConfig);
+    assert.equal(selected.hotkeyShortcut, shortcut);
   }
 
-  const invalid = normalizeConfig({ hotkey: { enabled: 'yes', shortcut: 'Ctrl+Alt+X' } }, providerIds, defaultConfig);
-  assert.deepEqual(invalid.hotkey, { enabled: false, shortcut: HOTKEY_OPTIONS[0].value });
+  const invalid = normalizeConfig({ hotkeyShortcut: 'Ctrl+Alt+X' }, providerIds, defaultConfig);
+  assert.equal(invalid.hotkeyShortcut, null);
+});
+
+test('formatHotkeyError formats messages with informative fallback', () => {
+  assert.equal(formatHotkeyError('failed to register global shortcut: hotkey already registered'), 'Registration failed: failed to register global shortcut: hotkey already registered');
+  assert.equal(formatHotkeyError('The hotkey is already registered'), 'Registration failed: The hotkey is already registered');
+  assert.equal(formatHotkeyError('Unable to claim shortcut'), 'Registration failed: Unable to claim shortcut');
+  assert.equal(formatHotkeyError('Access is denied'), 'Registration failed: Access is denied');
+  assert.equal(formatHotkeyError(new Error('Access is denied')), 'Registration failed: Access is denied');
+  assert.equal(formatHotkeyError(''), 'Registration failed');
+  assert.equal(formatHotkeyError(null), 'Registration failed');
+  assert.equal(formatHotkeyError('Access is denied', false), 'Unregistration failed: Access is denied');
+  assert.equal(formatHotkeyError('', false), 'Unregistration failed');
 });
 
 test('the first hotkey option is the default', () => {
   const normalized = normalizeConfig({}, providerIds, defaultConfig);
-  assert.equal(normalized.hotkey.shortcut, 'Ctrl+Shift+Q');
+  assert.equal(normalized.hotkeyShortcut, null);
 });
 
 test('window width is restored within the supported range', () => {
