@@ -99,6 +99,7 @@ switch ($Task) {
 
         $checkVersion = if ([string]::IsNullOrWhiteSpace($Version)) { "0.0.0" } else { $Version }
         $checkVersion = $checkVersion.TrimStart('v', 'V')
+        $checkVersion = ($checkVersion -split '[-+]', 2)[0]
         $checkParts = @($checkVersion.Split('.'))
         while ($checkParts.Count -lt 4) { $checkParts += '0' }
         $checkVersion = $checkParts -join '.'

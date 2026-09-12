@@ -152,9 +152,13 @@ jobs:
 
       - name: Convert Store submission overrides
         if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
-        uses: mikefarah/yq@v4
-        with:
-          cmd: yq -o=json '.' docs/partner-center/submission-overrides.yaml > submission-overrides.json
+        shell: pwsh
+        run: |
+          # mikefarah/yq is preinstalled on GitHub-hosted runners; the
+          # mikefarah/yq@v4 action is a Linux-only Docker container action
+          # and cannot run on windows-latest, so invoke the binary directly.
+          yq -o=json '.' docs/partner-center/submission-overrides.yaml | Out-File -Encoding utf8 -LiteralPath submission-overrides.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Configure Microsoft Store credentials
         shell: pwsh
@@ -211,13 +215,41 @@ jobs:
             }
           }
 
+          function Get-JsonObjectText([string]$Text) {
+            # Find the first top-level JSON object in $Text by counting brace
+            # depth (ignoring braces inside string literals) instead of just
+            # matching the first '{' against the last '}' in the whole
+            # output, which breaks if the CLI prints extra text containing
+            # braces before or after the JSON.
+            $start = $Text.IndexOf('{')
+            if ($start -lt 0) { return $null }
+            $depth = 0
+            $inString = $false
+            $escaped = $false
+            for ($i = $start; $i -lt $Text.Length; $i++) {
+              $char = $Text[$i]
+              if ($inString) {
+                if ($escaped) { $escaped = $false }
+                elseif ($char -eq '\') { $escaped = $true }
+                elseif ($char -eq '"') { $inString = $false }
+                continue
+              }
+              if ($char -eq '"') { $inString = $true; continue }
+              if ($char -eq '{') { $depth++ }
+              elseif ($char -eq '}') {
+                $depth--
+                if ($depth -eq 0) { return $Text.Substring($start, $i - $start + 1) }
+              }
+            }
+            return $null
+          }
+
           $raw = (Invoke-MsStore @("submission", "get", $env:STORE_APP_ID) | Out-String).Trim()
-          $start = $raw.IndexOf('{')
-          $end = $raw.LastIndexOf('}')
-          if ($start -lt 0 -or $end -le $start) {
+          $jsonText = Get-JsonObjectText $raw
+          if (-not $jsonText) {
             throw "Microsoft Store CLI did not return submission JSON."
           }
-          $submission = $raw.Substring($start, $end - $start + 1) | ConvertFrom-Json
+          $submission = $jsonText | ConvertFrom-Json
           $overrides = Get-Content -LiteralPath $overridesPath -Raw | ConvertFrom-Json
           function Merge-SubmissionOverrides($target, $source) {
             foreach ($property in $source.PSObject.Properties) {
