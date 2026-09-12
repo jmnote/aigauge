@@ -12,7 +12,6 @@ aigauge/
 ├── internal/ui/        # Window, tray, and runtime wiring
 ├── build.ps1           # Build task entrypoint
 ├── Package.appxmanifest
-├── VERSION
 └── wails.json
 ```
 
@@ -57,7 +56,7 @@ Before opening a PR, the combined local gate can be run with:
 ```
 
 This also creates a local MSIX and verifies that its package name and staged manifest version
-match `VERSION`. Local packages use an explicit suffix such as
+match the requested version (local builds default to `0.0.0`). Local packages use an explicit suffix such as
 `dist/aigauge_0.2.4.0_x64_local.msix`; the release workflow alone produces the canonical
 `aigauge_0.2.4.0_x64.msix` asset. The versioned local package remains in `dist/` for inspection.
 Remove generated packaging output explicitly when it is no longer needed:
@@ -153,9 +152,33 @@ Capturing live provider data needs real logged-in accounts and a sufficiently lo
 .\build.ps1 package
 ```
 
-`VERSION` is the application version source of truth. For example, `v0.2.1` becomes the four-part
-MSIX version `0.2.1.0`. The staging directory is `dist/staging/`; the generated package is written
+Release tags are the application version source of truth. For example, `v0.2.1` becomes the four-part
+MSIX version `0.2.1.0`; pass the same tag to `build.ps1 -Version` for a matching local package. The staging directory is `dist/staging/`; the generated package is written
 to `dist/` and ignored by Git.
+
+### Release and Microsoft Store publishing
+
+The release workflow runs only when a `v*` tag is pushed. Create and push a tag manually after
+merging the release commit:
+
+```powershell
+git tag v0.6.2
+git push origin v0.6.2
+```
+
+The workflow builds the MSIX using that tag, creates the GitHub Release, and publishes the package
+to Microsoft Store. Configure these repository or environment secrets before using Store publishing:
+
+- `PARTNER_CENTER_TENANT_ID`
+- `PARTNER_CENTER_SELLER_ID`
+- `PARTNER_CENTER_CLIENT_ID`
+- `PARTNER_CENTER_CLIENT_SECRET`
+- `PARTNER_CENTER_APP_ID`
+
+The first four values are the Partner Center app credentials used by `msstore reconfigure`; the last
+is the Store product ID passed to `msstore publish`. The workflow uses Microsoft's
+[`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action
+to install the Microsoft Store Developer CLI.
 
 The package uses the Partner Center identity in `Package.appxmanifest`. Do not replace its
 `Identity Name` or `Publisher` with an arbitrary certificate or publisher value. Microsoft Store

@@ -36,8 +36,10 @@ jobs:
         run: .\build.ps1 -Task test
 
       - name: Build MSIX
+        env:
+          BUILD_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '0.0.0' }}
         shell: pwsh
-        run: .\build.ps1 -Task package -Architecture x64 -SkipWindowsResources
+        run: .\build.ps1 -Task package -Architecture x64 -Version $env:BUILD_VERSION -SkipWindowsResources
 
       - name: Upload MSIX artifact
         uses: actions/upload-artifact@v4

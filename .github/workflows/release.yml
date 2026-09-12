@@ -2,7 +2,8 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    tags:
+      - "v*"
 
 permissions:
   contents: write
@@ -51,9 +52,9 @@ jobs:
           go vet ./...
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build MSIX
+      - name: Build MSIX from release tag
         shell: pwsh
-        run: .\build.ps1 -Task package -Architecture x64 -ReleaseArtifact
+        run: .\build.ps1 -Task package -Architecture x64 -Version "${{ github.ref_name }}" -ReleaseArtifact
 
       - name: Copy portable executable
         shell: pwsh
@@ -108,30 +109,19 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Read VERSION
-        id: version
-        shell: bash
-        run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid VERSION: $version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Download MSIX and executable
         uses: actions/download-artifact@v5
         with:
           name: release-msix
           path: dist
 
-      - name: Create tag and GitHub release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: ${{ github.ref_name }}
         shell: bash
         run: |
-          tag="$VERSION"
+          tag="$RELEASE_TAG"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; skipping."
             exit 0
@@ -143,3 +133,44 @@ jobs:
             dist/*.msix \
             dist/*.exe \
             dist/SHA256SUMS.txt
+
+  publish:
+    needs: package
+    runs-on: windows-latest
+    steps:
+      - name: Download release package
+        uses: actions/download-artifact@v5
+        with:
+          name: release-msix
+          path: dist
+
+      - name: Set up Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.4
+
+      - name: Configure Microsoft Store credentials
+        shell: pwsh
+        env:
+          PARTNER_CENTER_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
+          PARTNER_CENTER_SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
+          PARTNER_CENTER_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
+          PARTNER_CENTER_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+        run: |
+          msstore reconfigure `
+            --tenantId $env:PARTNER_CENTER_TENANT_ID `
+            --sellerId $env:PARTNER_CENTER_SELLER_ID `
+            --clientId $env:PARTNER_CENTER_CLIENT_ID `
+            --clientSecret $env:PARTNER_CENTER_CLIENT_SECRET
+
+      - name: Publish to Microsoft Store
+        shell: pwsh
+        env:
+          PARTNER_CENTER_APP_ID: ${{ secrets.PARTNER_CENTER_APP_ID }}
+        run: |
+          $msix = Get-ChildItem -LiteralPath dist -Filter *.msix -File | Select-Object -First 1
+          if (-not $msix) {
+            throw "No MSIX package was downloaded."
+          }
+          if ([string]::IsNullOrWhiteSpace($env:PARTNER_CENTER_APP_ID)) {
+            throw "PARTNER_CENTER_APP_ID secret is required."
+          }
+          msstore publish $msix.FullName --appId $env:PARTNER_CENTER_APP_ID

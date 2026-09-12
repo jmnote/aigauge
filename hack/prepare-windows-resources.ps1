@@ -5,7 +5,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = (Get-Content -LiteralPath (Join-Path $repo "VERSION") -Raw).Trim()
+    $Version = "0.0.0"
 }
 $numericVersion = $Version.TrimStart('v')
 if ($numericVersion -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {

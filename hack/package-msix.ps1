@@ -14,7 +14,7 @@ $repo = Split-Path -Parent $PSScriptRoot
 function Resolve-Version {
     param([string]$Requested)
     if ([string]::IsNullOrWhiteSpace($Requested)) {
-        $Requested = (Get-Content -LiteralPath (Join-Path $repo "VERSION") -Raw).Trim()
+        $Requested = "0.0.0"
     }
     $value = $Requested.TrimStart('v', 'V')
     if ($value -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
@@ -62,7 +62,7 @@ function New-IconAsset {
 
 $appVersion = $Version
 if ([string]::IsNullOrWhiteSpace($appVersion)) {
-    $appVersion = (Get-Content -LiteralPath (Join-Path $repo "VERSION") -Raw).Trim()
+    $appVersion = "0.0.0"
 }
 $msixVersion = Resolve-Version $appVersion
 $sourceExe = Join-Path $repo "aigauge.exe"
