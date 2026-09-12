@@ -35,7 +35,10 @@
 ## Usage
 
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
-Click the pin button on the title bar to toggle **Always on top**. Use the Settings button to enable/disable and reorder providers, configure thresholds, change the refresh interval, or choose a theme.
+Click the pin button on the title bar to toggle **Always on top**. Open **Settings** to enable or
+disable providers and reorder their cards, configure Warning and Critical thresholds, change the
+refresh interval, choose Light, Dark, or System appearance, and optionally enable a global hotkey.
+The available hotkeys are **Ctrl+Shift+Q** (the default) and **Ctrl+Shift+E**.
 The widget's `×` button hides it to the tray. Closing it from the taskbar, pressing Alt+F4, or
 choosing **Exit** from the tray menu quits the application.
 
@@ -79,6 +82,20 @@ authentication and privacy policies.
 
 See [docs/development.md](docs/development.md) for build, test, frontend preview, screenshot,
 and MSIX packaging instructions.
+
+When building directly on Windows, run the build from PowerShell with a process-scoped execution
+policy override if script execution is blocked:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\build.ps1 build
+```
+
+The same build can be started as a single command:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; .\build.ps1 build
+```
 
 ## License
 

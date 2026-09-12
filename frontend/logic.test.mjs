@@ -39,11 +39,18 @@ const defaultConfig = {
 };
 
 test('hotkey settings normalize to the supported choices', () => {
-  const selected = normalizeConfig({ hotkey: { enabled: true, shortcut: 'Super+Shift+Q' } }, providerIds, defaultConfig);
-  assert.deepEqual(selected.hotkey, { enabled: true, shortcut: 'Super+Shift+Q' });
+  for (const shortcut of ['Ctrl+Shift+Q', 'Ctrl+Shift+E']) {
+    const selected = normalizeConfig({ hotkey: { enabled: true, shortcut } }, providerIds, defaultConfig);
+    assert.deepEqual(selected.hotkey, { enabled: true, shortcut });
+  }
 
   const invalid = normalizeConfig({ hotkey: { enabled: 'yes', shortcut: 'Ctrl+Alt+X' } }, providerIds, defaultConfig);
   assert.deepEqual(invalid.hotkey, { enabled: false, shortcut: HOTKEY_OPTIONS[0].value });
+});
+
+test('the first hotkey option is the default', () => {
+  const normalized = normalizeConfig({}, providerIds, defaultConfig);
+  assert.equal(normalized.hotkey.shortcut, 'Ctrl+Shift+Q');
 });
 
 test('window width is restored within the supported range', () => {
