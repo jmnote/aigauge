@@ -1,24 +1,45 @@
 name: Auto-assign pull requests
 
 on:
-  pull_request_target:
-    types: [opened, reopened, ready_for_review]
+  workflow_run:
+    workflows: ["Pull request checks"]
+    types: [completed]
 
 permissions:
-  contents: read
   pull-requests: write
 
 jobs:
   assign:
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     steps:
-      - name: Assign PR to repository owner
+      - name: Assign an unassigned pull request to repository owner
         uses: actions/github-script@v7
         with:
           script: |
+            const [pullRequest] = context.payload.workflow_run.pull_requests;
+            if (!pullRequest) {
+              core.notice('The completed workflow run is not associated with a pull request.');
+              return;
+            }
+
+            const { data: issue } = await github.rest.issues.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullRequest.number,
+            });
+            if (issue.state !== 'open') {
+              core.notice(`Pull request #${pullRequest.number} is no longer open.`);
+              return;
+            }
+            if (issue.assignees.length > 0) {
+              core.notice(`Pull request #${pullRequest.number} already has an assignee.`);
+              return;
+            }
+
             await github.rest.issues.addAssignees({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: context.issue.number,
+              issue_number: pullRequest.number,
               assignees: ['jmnote'],
             });
