@@ -2,7 +2,8 @@ name: Release
 
 on:
   push:
-    branches: [main]
+    tags:
+      - "v*"
 
 permissions:
   contents: write
@@ -17,6 +18,15 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v6
+
+      - name: Validate release tag
+        shell: pwsh
+        env:
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          if ($env:RELEASE_TAG -notmatch '^v\d+\.\d+\.\d+$') {
+            throw "Release tags must use the stable vX.Y.Z format: $env:RELEASE_TAG"
+          }
 
       - name: Set up Go
         uses: actions/setup-go@v7
@@ -51,9 +61,9 @@ jobs:
           go vet ./...
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-      - name: Build MSIX
+      - name: Build MSIX from release tag
         shell: pwsh
-        run: .\build.ps1 -Task package -Architecture x64 -ReleaseArtifact
+        run: .\build.ps1 -Task package -Architecture x64 -Version "${{ github.ref_name }}" -ReleaseArtifact
 
       - name: Copy portable executable
         shell: pwsh
@@ -108,30 +118,19 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Read VERSION
-        id: version
-        shell: bash
-        run: |
-          version="$(tr -d '[:space:]' < VERSION)"
-          if [[ ! "$version" =~ ^v[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.-]+)?$ ]]; then
-            echo "Invalid VERSION: $version" >&2
-            exit 1
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
       - name: Download MSIX and executable
         uses: actions/download-artifact@v5
         with:
           name: release-msix
           path: dist
 
-      - name: Create tag and GitHub release
+      - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          RELEASE_TAG: ${{ github.ref_name }}
         shell: bash
         run: |
-          tag="$VERSION"
+          tag="$RELEASE_TAG"
           if gh release view "$tag" >/dev/null 2>&1; then
             echo "Release $tag already exists; skipping."
             exit 0
@@ -143,3 +142,171 @@ jobs:
             dist/*.msix \
             dist/*.exe \
             dist/SHA256SUMS.txt
+
+  publish:
+    needs: package
+    runs-on: windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Download release package
+        uses: actions/download-artifact@v5
+        with:
+          name: release-msix
+          path: dist
+
+      - name: Set up Microsoft Store Developer CLI
+        uses: microsoft/microsoft-store-apppublisher@v1.4
+
+      - name: Set up Ruby for submission metadata
+        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Validate and convert Store submission overrides
+        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
+        shell: pwsh
+        run: |
+          ruby hack/validate-store-submission.rb `
+            docs/partner-center/submission-overrides.yaml submission-overrides.json
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Configure Microsoft Store credentials
+        shell: pwsh
+        env:
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
+        run: |
+          msstore reconfigure `
+            --tenantId $env:AZURE_AD_TENANT_ID `
+            --sellerId $env:SELLER_ID `
+            --clientId $env:AZURE_AD_APPLICATION_CLIENT_ID `
+            --clientSecret $env:AZURE_AD_APPLICATION_SECRET
+
+      - name: Publish to Microsoft Store
+        shell: pwsh
+        env:
+          STORE_APP_ID: 9MT65KM56P99
+        run: |
+          $msix = Get-ChildItem -LiteralPath dist -Filter *.msix -File | Select-Object -First 1
+          if (-not $msix) {
+            throw "No MSIX package was downloaded."
+          }
+          $overridesPath = Join-Path $env:GITHUB_WORKSPACE "submission-overrides.json"
+          if (-not (Test-Path -LiteralPath $overridesPath -PathType Leaf)) {
+            msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID
+            exit $LASTEXITCODE
+          }
+
+          # Keep the submission in draft state while adding the certification
+          # notes, then commit the complete submission. The CLI's submission
+          # metadata command accepts the full JSON returned by `submission get`.
+          msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID --noCommit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          function Invoke-MsStore([string[]]$Arguments) {
+            $info = [Diagnostics.ProcessStartInfo]::new()
+            $info.FileName = (Get-Command msstore).Source
+            $info.UseShellExecute = $false
+            $info.RedirectStandardOutput = $true
+            $info.RedirectStandardError = $true
+            foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
+            $process = [Diagnostics.Process]::new()
+            $process.StartInfo = $info
+            if (-not $process.Start()) { throw "Unable to start Microsoft Store CLI." }
+            # Consume both redirected streams concurrently. Reading either one
+            # synchronously first can deadlock when the other pipe fills up.
+            $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+            $stderrTask = $process.StandardError.ReadToEndAsync()
+            $process.WaitForExit()
+            $stdout = $stdoutTask.GetAwaiter().GetResult()
+            $stderr = $stderrTask.GetAwaiter().GetResult()
+            if ($stdout) { Write-Output $stdout }
+            if ($process.ExitCode -ne 0) {
+              if ($stderr) { Write-Error $stderr }
+              throw "Microsoft Store CLI failed with exit code $($process.ExitCode)."
+            }
+          }
+
+          function Find-JsonObjectEnd([string]$Text, [int]$Start) {
+            # Return the index of the '}' that closes the object opened at
+            # $Start, counting brace depth and ignoring braces inside string
+            # literals, or -1 if the object is never closed.
+            $depth = 0
+            $inString = $false
+            $escaped = $false
+            for ($i = $Start; $i -lt $Text.Length; $i++) {
+              $char = $Text[$i]
+              if ($inString) {
+                if ($escaped) { $escaped = $false }
+                elseif ($char -eq '\') { $escaped = $true }
+                elseif ($char -eq '"') { $inString = $false }
+                continue
+              }
+              if ($char -eq '"') { $inString = $true; continue }
+              if ($char -eq '{') { $depth++ }
+              elseif ($char -eq '}') {
+                $depth--
+                if ($depth -eq 0) { return $i }
+              }
+            }
+            return -1
+          }
+
+          function Get-SubmissionObject([string]$Text) {
+            # The msstore CLI may print diagnostic/log text containing
+            # braces before or after the actual submission JSON, so this
+            # cannot assume the JSON starts at the first '{' in the output.
+            # Instead, try every '{' as a possible start, extract the
+            # balanced object there, and return the first submission object.
+            $searchFrom = 0
+            while ($true) {
+              $start = $Text.IndexOf('{', $searchFrom)
+              if ($start -lt 0) { return $null }
+              $end = Find-JsonObjectEnd -Text $Text -Start $start
+              if ($end -lt 0) {
+                $searchFrom = $start + 1
+                continue
+              }
+              $candidate = $Text.Substring($start, $end - $start + 1)
+              try {
+                $parsed = $candidate | ConvertFrom-Json -ErrorAction Stop
+                if ($parsed -is [PSCustomObject] -and
+                    $parsed.PSObject.Properties['Id'] -and
+                    $parsed.PSObject.Properties['Listings']) {
+                  return $parsed
+                }
+              } catch {
+                # Not valid JSON - keep scanning from the next '{'.
+              }
+              $searchFrom = $start + 1
+            }
+          }
+
+          $raw = (Invoke-MsStore @("submission", "get", $env:STORE_APP_ID) | Out-String).Trim()
+          $submission = Get-SubmissionObject $raw
+          if (-not $submission) {
+            throw "Microsoft Store CLI did not return submission JSON."
+          }
+          $overrides = Get-Content -LiteralPath $overridesPath -Raw | ConvertFrom-Json
+          function Merge-SubmissionOverrides($target, $source) {
+            foreach ($property in $source.PSObject.Properties) {
+              $existing = $target.PSObject.Properties[$property.Name]
+              if ($property.Value -is [PSCustomObject] -and $existing -and $existing.Value -is [PSCustomObject]) {
+                Merge-SubmissionOverrides $existing.Value $property.Value
+              } elseif ($existing) {
+                $target.$($property.Name) = $property.Value
+              } else {
+                $target | Add-Member -NotePropertyName $property.Name -NotePropertyValue $property.Value
+              }
+            }
+            return $target
+          }
+          $submission = Merge-SubmissionOverrides $submission $overrides
+          $metadata = $submission | ConvertTo-Json -Depth 100 -Compress
+          Invoke-MsStore @("submission", "updateMetadata", $env:STORE_APP_ID, $metadata) | Write-Host
+          Invoke-MsStore @("submission", "publish", $env:STORE_APP_ID) | Write-Host

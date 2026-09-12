@@ -11,19 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 
-function Resolve-Version {
-    param([string]$Requested)
-    if ([string]::IsNullOrWhiteSpace($Requested)) {
-        $Requested = (Get-Content -LiteralPath (Join-Path $repo "VERSION") -Raw).Trim()
-    }
-    $value = $Requested.TrimStart('v', 'V')
-    if ($value -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
-        throw "Version must be semantic numeric version text such as 0.1.1 or 0.1.1.0. Received: $Requested"
-    }
-    $parts = @($value.Split('.'))
-    while ($parts.Count -lt 4) { $parts += '0' }
-    return ($parts -join '.')
-}
+. (Join-Path $PSScriptRoot "version.ps1")
 
 function Find-MakeAppx {
     param([string]$Requested)
@@ -62,7 +50,7 @@ function New-IconAsset {
 
 $appVersion = $Version
 if ([string]::IsNullOrWhiteSpace($appVersion)) {
-    $appVersion = (Get-Content -LiteralPath (Join-Path $repo "VERSION") -Raw).Trim()
+    $appVersion = "0.0.0"
 }
 $msixVersion = Resolve-Version $appVersion
 $sourceExe = Join-Path $repo "aigauge.exe"

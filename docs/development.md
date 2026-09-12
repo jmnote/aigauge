@@ -12,7 +12,6 @@ aigauge/
 ├── internal/ui/        # Window, tray, and runtime wiring
 ├── build.ps1           # Build task entrypoint
 ├── Package.appxmanifest
-├── VERSION
 └── wails.json
 ```
 
@@ -39,7 +38,7 @@ git diff --check
 The frontend's pure rules live in `frontend/logic.mjs` (which provider states may be counted as
 failures, how a stored config is normalized, how the retry backoff is capped) and are covered by
 `frontend/logic.test.mjs` under node's built-in test runner - no test framework and no browser
-stand-in. `.uild.ps1 test` runs the Go and JavaScript suites in sequence.
+stand-in. `.\build.ps1 test` runs the Go and JavaScript suites in sequence.
 
 `hack/live-server.ps1` reproduces every provider state the UI can show without a CLI, an account,
 or a network:
@@ -57,7 +56,7 @@ Before opening a PR, the combined local gate can be run with:
 ```
 
 This also creates a local MSIX and verifies that its package name and staged manifest version
-match `VERSION`. Local packages use an explicit suffix such as
+match the requested version (local builds default to `0.0.0`). Local packages use an explicit suffix such as
 `dist/aigauge_0.2.4.0_x64_local.msix`; the release workflow alone produces the canonical
 `aigauge_0.2.4.0_x64.msix` asset. The versioned local package remains in `dist/` for inspection.
 Remove generated packaging output explicitly when it is no longer needed:
@@ -153,9 +152,39 @@ Capturing live provider data needs real logged-in accounts and a sufficiently lo
 .\build.ps1 package
 ```
 
-`VERSION` is the application version source of truth. For example, `v0.2.1` becomes the four-part
-MSIX version `0.2.1.0`. The staging directory is `dist/staging/`; the generated package is written
+Release tags are the application version source of truth. For example, `v0.2.1` becomes the four-part
+MSIX version `0.2.1.0`; pass the same tag to `build.ps1 -Version` for a matching local package. The staging directory is `dist/staging/`; the generated package is written
 to `dist/` and ignored by Git.
+
+### Release and Microsoft Store publishing
+
+The release workflow accepts only stable `vX.Y.Z` tags. Create and push a tag manually after
+merging the release commit:
+
+```powershell
+git tag v0.6.2
+git push origin v0.6.2
+```
+
+The workflow builds the MSIX using that tag, creates the GitHub Release, and publishes the package
+to Microsoft Store. Configure these repository or environment secrets before using Store publishing:
+
+- `AZURE_AD_TENANT_ID`
+- `SELLER_ID`
+- `AZURE_AD_APPLICATION_CLIENT_ID`
+- `AZURE_AD_APPLICATION_SECRET`
+
+These four values are the Partner Center app credentials used by `msstore reconfigure`. The Store
+product ID passed to `msstore publish` is configured as the app's public Store ID in the workflow.
+The workflow uses Microsoft's
+[`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action
+to install the Microsoft Store Developer CLI.
+
+Store submission overrides and certification test instructions are maintained in
+[`docs/partner-center/submission-overrides.yaml`](partner-center/submission-overrides.yaml). When the YAML file exists,
+the workflow leaves the Store submission as a draft, applies only the declared overrides, and then
+commits the submission. This keeps the Partner Center metadata reviewable alongside the code while
+preserving undeclared Store settings.
 
 The package uses the Partner Center identity in `Package.appxmanifest`. Do not replace its
 `Identity Name` or `Publisher` with an arbitrary certificate or publisher value. Microsoft Store

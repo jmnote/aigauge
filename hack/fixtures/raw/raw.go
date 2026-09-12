@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?`)
-	httpClient     = &http.Client{Timeout: 15 * time.Second}
+	versionPattern     = regexp.MustCompile(`\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?`)
+	unsafeFilenameChar = regexp.MustCompile(`[^A-Za-z0-9.-]+`)
+	httpClient         = &http.Client{Timeout: 15 * time.Second}
 )
 
 func main() {
@@ -71,8 +72,14 @@ func capture(provider string) error {
 	if err != nil {
 		return fmt.Errorf("invalid JSON response: %w", err)
 	}
+
+	var planType string
 	if provider == "codex" {
 		formatted, err = redactCodex(formatted)
+		if err != nil {
+			return err
+		}
+		planType, err = codexPlanType(formatted)
 		if err != nil {
 			return err
 		}
@@ -82,7 +89,12 @@ func capture(provider string) error {
 	if !ok {
 		return fmt.Errorf("could not locate output directory")
 	}
-	filename := fmt.Sprintf("%s-%s_%s.json", provider, version, time.Now().Format("2006-01-02"))
+	var filename string
+	if provider == "codex" {
+		filename = fmt.Sprintf("%s-%s_%s_%s.json", provider, version, planType, time.Now().Format("2006-01-02"))
+	} else {
+		filename = fmt.Sprintf("%s-%s_%s.json", provider, version, time.Now().Format("2006-01-02"))
+	}
 	outputPath := filepath.Join(filepath.Dir(sourceFile), filename)
 	if err := os.WriteFile(outputPath, formatted, 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", outputPath, err)
@@ -194,6 +206,26 @@ func formatJSON(raw []byte) ([]byte, error) {
 	}
 	formatted.WriteByte('\n')
 	return formatted.Bytes(), nil
+}
+
+func codexPlanType(data []byte) (string, error) {
+	var response struct {
+		PlanType string `json:"plan_type"`
+	}
+	if err := json.Unmarshal(data, &response); err != nil {
+		return "", fmt.Errorf("parse plan_type: %w", err)
+	}
+	if response.PlanType == "" {
+		return "unknown", nil
+	}
+	// plan_type is interpolated straight into the output filename below, so
+	// strip anything that isn't a safe filename character (e.g. a path
+	// separator) rather than trusting the API response as-is.
+	sanitized := unsafeFilenameChar.ReplaceAllString(response.PlanType, "-")
+	if sanitized == "" {
+		return "unknown", nil
+	}
+	return sanitized, nil
 }
 
 func redactCodex(data []byte) ([]byte, error) {

@@ -1,0 +1,29 @@
+# `submission.md` documents the Partner Center submission.
+# This file contains the overrides applied by the release workflow.
+
+Listings:
+  en-us:
+    BaseListing:
+      ReleaseNotes: Global hotkey settings are now available. Choose a shortcut in Settings to show or hide AI Gauge from anywhere.
+      Features:
+        - Automatic quota and reset-time monitoring
+        - Multiple AI usage providers with visibility and ordering controls
+        - Configurable background refresh intervals
+        - Windows system tray access with light, dark, and system themes
+        - Built-in sample preview without provider setup
+        - Global hotkey toggle to show and hide the window
+
+NotesForCertification: |
+  AI Gauge is a Windows system tray utility that displays remaining quotas and reset times for OpenAI Codex, Anthropic Claude Code, and Google Antigravity. The third-party tools are not required for certification: the built-in sample preview works on a clean device without installation, sign-in, credentials, or network access.
+
+  Testing instructions:
+
+  1. Launch AI Gauge and confirm that the first-run screen appears.
+  2. On a clean device, confirm that each provider shows a clear "Not installed" state with setup guidance.
+  3. Select Preview with sample data.
+  4. Verify the Sample data badge, quota gauges, percentages, reset times, last-updated values, and manual refresh.
+  5. Open Settings and verify thresholds, Light/Dark/System themes, and the optional global hotkey. The default hotkey is Disabled; when enabled, it toggles window visibility. A shortcut conflict shows an error and Retry button.
+  6. Verify Always on top and system-tray minimize/restore behavior.
+  7. Select Back to setup and confirm that the first-run screen returns.
+
+  The first-run screen performs only local readiness checks. No provider usage request occurs until the user selects Check connection or enables that provider in Settings. A successful check enables periodic requests at the configured refresh interval.

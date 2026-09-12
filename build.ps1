@@ -11,6 +11,8 @@ param(
     [switch]$ReleaseArtifact
 )
 
+. (Join-Path $PSScriptRoot "hack\version.ps1")
+
 switch ($Task) {
     "run"   { Start-Process -FilePath "go" -ArgumentList "run ." -WorkingDirectory (Get-Location) -WindowStyle Hidden }
     "kill"  {
@@ -39,10 +41,7 @@ switch ($Task) {
     }
     "build" {
         if ([string]::IsNullOrWhiteSpace($Version)) {
-            $Version = (Get-Content -LiteralPath (Join-Path $PSScriptRoot "VERSION") -Raw).Trim()
-        }
-        if ([string]::IsNullOrWhiteSpace($Version)) {
-            throw "VERSION must not be empty"
+            $Version = "0.0.0"
         }
         if (-not $SkipWindowsResources) {
             & $PSCommandPath -Task logo
@@ -100,14 +99,7 @@ switch ($Task) {
         & $PSCommandPath @packageArguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-        $checkVersion = $Version
-        if ([string]::IsNullOrWhiteSpace($checkVersion)) {
-            $checkVersion = (Get-Content -LiteralPath (Join-Path $PSScriptRoot "VERSION") -Raw).Trim()
-        }
-        $checkVersion = $checkVersion.TrimStart('v', 'V')
-        $checkParts = @($checkVersion.Split('.'))
-        while ($checkParts.Count -lt 4) { $checkParts += '0' }
-        $checkVersion = $checkParts -join '.'
+        $checkVersion = Resolve-Version -Requested $Version
         $artifactSuffix = if ($ReleaseArtifact) { "" } else { "_local" }
         $packagePath = Join-Path $PSScriptRoot ("dist\aigauge_{0}_{1}{2}.msix" -f $checkVersion, $Architecture, $artifactSuffix)
         $manifestPath = Join-Path $PSScriptRoot ("dist\staging\{0}\AppxManifest.xml" -f $Architecture)
@@ -116,7 +108,7 @@ switch ($Task) {
         }
         $stagedManifest = Get-Content -LiteralPath $manifestPath -Raw
         if ($stagedManifest -notmatch ('Version="{0}"' -f [regex]::Escape($checkVersion))) {
-            throw "MSIX manifest version does not match VERSION: $checkVersion"
+            throw "MSIX manifest version does not match requested version: $checkVersion"
         }
         Write-Output "Checks passed: $packagePath"
     }

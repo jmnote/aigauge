@@ -20,6 +20,17 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Set up Ruby for submission metadata
+        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.3"
+
+      - name: Validate Store submission overrides
+        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
+        shell: pwsh
+        run: ruby hack/validate-store-submission.rb docs/partner-center/submission-overrides.yaml
+
       - name: Run tests
         shell: pwsh
         run: .\build.ps1 -Task test
