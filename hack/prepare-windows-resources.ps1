@@ -4,15 +4,9 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($Version)) {
-    $Version = "0.0.0"
-}
-$numericVersion = $Version.TrimStart('v')
-if ($numericVersion -notmatch '^\d+\.\d+\.\d+(\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$') {
-    throw "Version must contain three or four numeric components, optionally followed by a prerelease or build suffix: $Version"
-}
-$numericVersion = ($numericVersion -split '[-+]', 2)[0]
-if ($numericVersion.Split('.').Count -eq 3) { $numericVersion += ".0" }
+
+. (Join-Path $PSScriptRoot "version.ps1")
+$numericVersion = Resolve-Version -Requested $Version
 
 $winres = Get-Command go-winres -ErrorAction SilentlyContinue
 if (-not $winres) {

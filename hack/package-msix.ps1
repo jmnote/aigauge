@@ -11,20 +11,7 @@ param(
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
 
-function Resolve-Version {
-    param([string]$Requested)
-    if ([string]::IsNullOrWhiteSpace($Requested)) {
-        $Requested = "0.0.0"
-    }
-    $value = $Requested.TrimStart('v', 'V')
-    if ($value -notmatch '^\d+\.\d+\.\d+(\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$') {
-        throw "Version must be semantic version text such as 0.1.1 or 0.1.1-beta1. Received: $Requested"
-    }
-    $value = ($value -split '[-+]', 2)[0]
-    $parts = @($value.Split('.'))
-    while ($parts.Count -lt 4) { $parts += '0' }
-    return ($parts -join '.')
-}
+. (Join-Path $PSScriptRoot "version.ps1")
 
 function Find-MakeAppx {
     param([string]$Requested)

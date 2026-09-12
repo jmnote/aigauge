@@ -17,8 +17,9 @@ import (
 )
 
 var (
-	versionPattern = regexp.MustCompile(`\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?`)
-	httpClient     = &http.Client{Timeout: 15 * time.Second}
+	versionPattern     = regexp.MustCompile(`\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?`)
+	unsafeFilenameChar = regexp.MustCompile(`[^A-Za-z0-9.-]+`)
+	httpClient         = &http.Client{Timeout: 15 * time.Second}
 )
 
 func main() {
@@ -217,7 +218,14 @@ func codexPlanType(data []byte) (string, error) {
 	if response.PlanType == "" {
 		return "unknown", nil
 	}
-	return response.PlanType, nil
+	// plan_type is interpolated straight into the output filename below, so
+	// strip anything that isn't a safe filename character (e.g. a path
+	// separator) rather than trusting the API response as-is.
+	sanitized := unsafeFilenameChar.ReplaceAllString(response.PlanType, "-")
+	if sanitized == "" {
+		return "unknown", nil
+	}
+	return sanitized, nil
 }
 
 func redactCodex(data []byte) ([]byte, error) {

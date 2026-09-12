@@ -11,6 +11,8 @@ param(
     [switch]$ReleaseArtifact
 )
 
+. (Join-Path $PSScriptRoot "hack\version.ps1")
+
 switch ($Task) {
     "run"   { Start-Process -FilePath "go" -ArgumentList "run ." -WorkingDirectory (Get-Location) -WindowStyle Hidden }
     "kill"  {
@@ -97,12 +99,7 @@ switch ($Task) {
         & $PSCommandPath @packageArguments
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-        $checkVersion = if ([string]::IsNullOrWhiteSpace($Version)) { "0.0.0" } else { $Version }
-        $checkVersion = $checkVersion.TrimStart('v', 'V')
-        $checkVersion = ($checkVersion -split '[-+]', 2)[0]
-        $checkParts = @($checkVersion.Split('.'))
-        while ($checkParts.Count -lt 4) { $checkParts += '0' }
-        $checkVersion = $checkParts -join '.'
+        $checkVersion = Resolve-Version -Requested $Version
         $artifactSuffix = if ($ReleaseArtifact) { "" } else { "_local" }
         $packagePath = Join-Path $PSScriptRoot ("dist\aigauge_{0}_{1}{2}.msix" -f $checkVersion, $Architecture, $artifactSuffix)
         $manifestPath = Join-Path $PSScriptRoot ("dist\staging\{0}\AppxManifest.xml" -f $Architecture)

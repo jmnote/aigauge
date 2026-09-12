@@ -880,7 +880,15 @@ function setRefreshInterval(val) {
 }
 
 function updateHotkeyUI() {
-  const displayedShortcut = hotkeyPendingSettings ? hotkeyPendingSettings.shortcut : config.hotkeyShortcut;
+  // While a change is in flight (no error yet), show the target being
+  // applied optimistically. Once it fails, the backend leaves the
+  // previously active hotkey untouched (see setGlobalHotkey in
+  // internal/ui/runtime.go), so fall back to the true persisted state
+  // instead of the failed pending target - otherwise a failed "Disable"
+  // would show as disabled in the UI while the old hotkey stays live.
+  const displayedShortcut = hotkeyError
+    ? config.hotkeyShortcut
+    : (hotkeyPendingSettings ? hotkeyPendingSettings.shortcut : config.hotkeyShortcut);
   hotkeySelect.value = displayedShortcut || '';
   hotkeySelect.disabled = hotkeyBusy;
   hotkeyRetryBtn.disabled = hotkeyBusy;

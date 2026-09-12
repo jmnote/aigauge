@@ -228,18 +228,14 @@ jobs:
             }
           }
 
-          function Get-JsonObjectText([string]$Text) {
-            # Find the first top-level JSON object in $Text by counting brace
-            # depth (ignoring braces inside string literals) instead of just
-            # matching the first '{' against the last '}' in the whole
-            # output, which breaks if the CLI prints extra text containing
-            # braces before or after the JSON.
-            $start = $Text.IndexOf('{')
-            if ($start -lt 0) { return $null }
+          function Find-JsonObjectEnd([string]$Text, [int]$Start) {
+            # Return the index of the '}' that closes the object opened at
+            # $Start, counting brace depth and ignoring braces inside string
+            # literals, or -1 if the object is never closed.
             $depth = 0
             $inString = $false
             $escaped = $false
-            for ($i = $start; $i -lt $Text.Length; $i++) {
+            for ($i = $Start; $i -lt $Text.Length; $i++) {
               $char = $Text[$i]
               if ($inString) {
                 if ($escaped) { $escaped = $false }
@@ -251,18 +247,43 @@ jobs:
               if ($char -eq '{') { $depth++ }
               elseif ($char -eq '}') {
                 $depth--
-                if ($depth -eq 0) { return $Text.Substring($start, $i - $start + 1) }
+                if ($depth -eq 0) { return $i }
               }
             }
-            return $null
+            return -1
+          }
+
+          function Get-SubmissionObject([string]$Text) {
+            # The msstore CLI may print diagnostic/log text containing
+            # braces before or after the actual submission JSON, so this
+            # cannot assume the JSON starts at the first '{' in the output.
+            # Instead, try every '{' as a possible start, extract the
+            # balanced object there, and return the first one that parses
+            # as a non-empty JSON object.
+            $searchFrom = 0
+            while ($true) {
+              $start = $Text.IndexOf('{', $searchFrom)
+              if ($start -lt 0) { return $null }
+              $end = Find-JsonObjectEnd -Text $Text -Start $start
+              if ($end -lt 0) { return $null }
+              $candidate = $Text.Substring($start, $end - $start + 1)
+              try {
+                $parsed = $candidate | ConvertFrom-Json -ErrorAction Stop
+                if ($parsed -is [PSCustomObject] -and @($parsed.PSObject.Properties).Count -gt 0) {
+                  return $parsed
+                }
+              } catch {
+                # Not valid JSON - keep scanning from the next '{'.
+              }
+              $searchFrom = $start + 1
+            }
           }
 
           $raw = (Invoke-MsStore @("submission", "get", $env:STORE_APP_ID) | Out-String).Trim()
-          $jsonText = Get-JsonObjectText $raw
-          if (-not $jsonText) {
+          $submission = Get-SubmissionObject $raw
+          if (-not $submission) {
             throw "Microsoft Store CLI did not return submission JSON."
           }
-          $submission = $jsonText | ConvertFrom-Json
           $overrides = Get-Content -LiteralPath $overridesPath -Raw | ConvertFrom-Json
           function Merge-SubmissionOverrides($target, $source) {
             foreach ($property in $source.PSObject.Properties) {
