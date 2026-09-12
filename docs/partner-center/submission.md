@@ -54,14 +54,8 @@
 - **Product name**: AI Gauge
 - **Description**:
   > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. Live monitoring requires an existing signed-in Codex or Claude Code session, or the locally installed and signed-in agy command-line tool for Antigravity. A built-in sample preview is available without installing third-party tools or signing in to a provider. AI Gauge shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; toggle visibility with a global hotkey; and choose a light, dark, or system theme. The sample preview shows bundled example data, not usage from any account. AI Gauge runs locally, does not store a separate copy of your credentials, and does not retain usage data on a remote server.
-- **What's new in this version**: Not provided
-- **Product features**:
-  1. Automatic quota and reset-time monitoring
-  2. Multiple AI usage providers with visibility and ordering controls
-  3. Configurable background refresh intervals
-  4. Windows system tray access with light, dark, and system themes
-  5. Built-in sample preview - explore the app before setting up any provider
-  6. Global hotkey toggle to show and hide the window from anywhere
+- **What's new in this version**: Managed in [`submission-overrides.yaml`](submission-overrides.yaml)
+- **Product features**: Managed in [`submission-overrides.yaml`](submission-overrides.yaml)
 - **Screenshots**: 2 Desktop images
   1. AI Gauge usage dashboard in dark mode.
   2. AI Gauge usage dashboard in light mode.
@@ -81,9 +75,9 @@
 
 ### Additional Testing Info
 
-The certification notes submitted with each release are maintained in
-[`certification-notes.md`](certification-notes.md). The release workflow includes
-this file automatically when it exists.
+#### Notes for Certification
+
+Managed in [`submission-overrides.yaml`](submission-overrides.yaml).
 
 #### Credentials
 

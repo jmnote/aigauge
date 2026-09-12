@@ -38,7 +38,7 @@ git diff --check
 The frontend's pure rules live in `frontend/logic.mjs` (which provider states may be counted as
 failures, how a stored config is normalized, how the retry backoff is capped) and are covered by
 `frontend/logic.test.mjs` under node's built-in test runner - no test framework and no browser
-stand-in. `.uild.ps1 test` runs the Go and JavaScript suites in sequence.
+stand-in. `.\build.ps1 test` runs the Go and JavaScript suites in sequence.
 
 `hack/live-server.ps1` reproduces every provider state the UI can show without a CLI, an account,
 or a network:
@@ -180,10 +180,11 @@ The workflow uses Microsoft's
 [`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action
 to install the Microsoft Store Developer CLI.
 
-Certification test instructions are kept in [`docs/certification-notes.md`](certification-notes.md).
-When that file exists, the workflow leaves the Store submission as a draft, adds its contents to
-`notesForCertification`, and then commits the submission. This keeps the Partner Center notes
-reviewable alongside the code while preserving the existing Store listing metadata.
+Store submission overrides and certification test instructions are maintained in
+[`docs/partner-center/submission-overrides.yaml`](partner-center/submission-overrides.yaml). When the YAML file exists,
+the workflow leaves the Store submission as a draft, applies only the declared overrides, and then
+commits the submission. This keeps the Partner Center metadata reviewable alongside the code while
+preserving undeclared Store settings.
 
 The package uses the Partner Center identity in `Package.appxmanifest`. Do not replace its
 `Identity Name` or `Publisher` with an arbitrary certificate or publisher value. Microsoft Store

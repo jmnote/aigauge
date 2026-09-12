@@ -150,6 +150,12 @@ jobs:
       - name: Set up Microsoft Store Developer CLI
         uses: microsoft/microsoft-store-apppublisher@v1.4
 
+      - name: Convert Store submission overrides
+        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
+        uses: mikefarah/yq@v4
+        with:
+          cmd: yq -o=json '.' docs/partner-center/submission-overrides.yaml > submission-overrides.json
+
       - name: Configure Microsoft Store credentials
         shell: pwsh
         env:
@@ -173,8 +179,8 @@ jobs:
           if (-not $msix) {
             throw "No MSIX package was downloaded."
           }
-          $notesPath = Join-Path $env:GITHUB_WORKSPACE "docs/certification-notes.md"
-          if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
+          $overridesPath = Join-Path $env:GITHUB_WORKSPACE "submission-overrides.json"
+          if (-not (Test-Path -LiteralPath $overridesPath -PathType Leaf)) {
             msstore publish $msix.FullName --appId $env:STORE_APP_ID
             exit $LASTEXITCODE
           }
@@ -192,7 +198,11 @@ jobs:
             throw "Microsoft Store CLI did not return submission JSON."
           }
           $submission = $raw.Substring($start, $end - $start + 1) | ConvertFrom-Json
-          $submission.notesForCertification = Get-Content -LiteralPath $notesPath -Raw
+          $overrides = Get-Content -LiteralPath $overridesPath -Raw | ConvertFrom-Json
+          foreach ($property in $overrides.PSObject.Properties) {
+            $value = $property.Value
+            $submission.$($property.Name) = $value
+          }
           $metadata = $submission | ConvertTo-Json -Depth 100 -Compress
           msstore submission updateMetadata $env:STORE_APP_ID $metadata
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
