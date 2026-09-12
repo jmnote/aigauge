@@ -1,18 +1,19 @@
 # `submission.md` documents the Partner Center submission.
 # This file contains the overrides applied by the release workflow.
 
-whatsNew: Global hotkey settings are now available. Choose a shortcut in Settings to show or hide AI Gauge from anywhere.
+Listings:
+  en-us:
+    BaseListing:
+      ReleaseNotes: Global hotkey settings are now available. Choose a shortcut in Settings to show or hide AI Gauge from anywhere.
+      Features:
+        - Automatic quota and reset-time monitoring
+        - Multiple AI usage providers with visibility and ordering controls
+        - Configurable background refresh intervals
+        - Windows system tray access with light, dark, and system themes
+        - Built-in sample preview without provider setup
+        - Global hotkey toggle to show and hide the window
 
-productFeatures:
-  - Automatic quota and reset-time monitoring
-  - Multiple AI usage providers with visibility and ordering controls
-  - Configurable background refresh intervals
-  - Windows system tray access with light, dark, and system themes
-  - Built-in sample preview without provider setup
-  - Global hotkey toggle to show and hide the window
-
-
-notesForCertification: |
+NotesForCertification: |
   Dear Microsoft Certification Team,
 
   Thank you for reviewing AI Gauge.

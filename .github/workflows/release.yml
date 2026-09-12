@@ -103,7 +103,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: [package, publish]
+    needs: package
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -199,11 +199,22 @@ jobs:
           }
           $submission = $raw.Substring($start, $end - $start + 1) | ConvertFrom-Json
           $overrides = Get-Content -LiteralPath $overridesPath -Raw | ConvertFrom-Json
-          foreach ($property in $overrides.PSObject.Properties) {
-            $value = $property.Value
-            $submission.$($property.Name) = $value
+          function Merge-SubmissionOverrides($target, $source) {
+            foreach ($property in $source.PSObject.Properties) {
+              $existing = $target.PSObject.Properties[$property.Name]
+              if ($property.Value -is [PSCustomObject] -and $existing -and $existing.Value -is [PSCustomObject]) {
+                Merge-SubmissionOverrides $existing.Value $property.Value
+              } elseif ($existing) {
+                $target.$($property.Name) = $property.Value
+              } else {
+                $target | Add-Member -NotePropertyName $property.Name -NotePropertyValue $property.Value
+              }
+            }
+            return $target
           }
+          $submission = Merge-SubmissionOverrides $submission $overrides
           $metadata = $submission | ConvertTo-Json -Depth 100 -Compress
           msstore submission updateMetadata $env:STORE_APP_ID $metadata
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           msstore submission publish $env:STORE_APP_ID
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }

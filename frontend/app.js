@@ -2,7 +2,7 @@ import {
   parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
   shouldCountFailure, shouldScheduleRetry, isExpectedSetupState,
   shouldKeepStaleData, retryDelay, badgeClass, providerVisibilityAction,
-  normalizeWindowWidth, formatHotkeyError,
+  normalizeWindowWidth, formatHotkeyError, HOTKEY_OPTIONS,
 } from '/logic.mjs';
 
 const wails = await import('/wails/runtime.js');
@@ -672,6 +672,10 @@ let hotkeyError = '';
 let hotkeyPendingSettings = null;
 let hotkeyBusy = false;
 
+for (const option of [{ value: '', label: 'Disabled' }, ...HOTKEY_OPTIONS]) {
+  hotkeySelect.add(new Option(option.label, option.value));
+}
+
 let isAlwaysOnTop = false;
 // True while the first-run screen's diagnosis rows are already rendered, so
 // reopening Settings does not re-probe every provider.
@@ -876,7 +880,7 @@ function setRefreshInterval(val) {
 }
 
 function updateHotkeyUI() {
-  const displayedShortcut = hotkeyPendingSettings?.shortcut ?? config.hotkeyShortcut;
+  const displayedShortcut = hotkeyPendingSettings ? hotkeyPendingSettings.shortcut : config.hotkeyShortcut;
   hotkeySelect.value = displayedShortcut || '';
   hotkeySelect.disabled = hotkeyBusy;
   hotkeyRetryBtn.disabled = hotkeyBusy;
