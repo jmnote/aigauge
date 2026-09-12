@@ -14,6 +14,10 @@ export const MAX_RETRY_DELAY_SECONDS = 1800;
 export const MIN_WINDOW_WIDTH = 200;
 export const MAX_WINDOW_WIDTH = 600;
 export const DEFAULT_WINDOW_WIDTH = 250;
+export const HOTKEY_OPTIONS = [
+  { value: 'Super+Shift+`', label: 'Win + Shift + `' },
+  { value: 'Super+Shift+Q', label: 'Win + Shift + Q' },
+];
 
 export const VALID_THEMES = new Set(['light', 'dark', 'system']);
 
@@ -82,12 +86,16 @@ export function normalizeConfig(value, providerIds, defaultConfig) {
   }
 
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
+  const hotkeyEnabled = value?.hotkey?.enabled === true;
+  const hotkeyValue = HOTKEY_OPTIONS.some(option => option.value === value?.hotkey?.shortcut)
+    ? value.hotkey.shortcut : HOTKEY_OPTIONS[0].value;
   return {
     providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
     providerOrder: normalizeProviderOrder(value?.providerOrder, providerIds),
     windowWidth: normalizeWindowWidth(value?.windowWidth),
     theme: VALID_THEMES.has(theme) ? theme : defaultConfig.theme,
     refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
+    hotkey: { enabled: hotkeyEnabled, shortcut: hotkeyValue },
     thresholds: { warning, critical }
   };
 }

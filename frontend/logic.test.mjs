@@ -12,6 +12,7 @@ import {
   MAX_REFRESH_SECONDS,
   MAX_RETRY_DELAY_SECONDS,
   MIN_REFRESH_SECONDS,
+  HOTKEY_OPTIONS,
   STATUS_BADGES,
   badgeClass,
   normalizeConfig,
@@ -32,9 +33,18 @@ const defaultConfig = {
   providerOrder: providerIds.slice(),
   windowWidth: DEFAULT_WINDOW_WIDTH,
   theme: 'system',
+  hotkey: { enabled: false, shortcut: HOTKEY_OPTIONS[0].value },
   refreshInterval: DEFAULT_REFRESH_SECONDS,
   thresholds: { warning: { enabled: true, value: 30 }, critical: { enabled: true, value: 10 } },
 };
+
+test('hotkey settings normalize to the supported choices', () => {
+  const selected = normalizeConfig({ hotkey: { enabled: true, shortcut: 'Super+Shift+Q' } }, providerIds, defaultConfig);
+  assert.deepEqual(selected.hotkey, { enabled: true, shortcut: 'Super+Shift+Q' });
+
+  const invalid = normalizeConfig({ hotkey: { enabled: 'yes', shortcut: 'Ctrl+Alt+X' } }, providerIds, defaultConfig);
+  assert.deepEqual(invalid.hotkey, { enabled: false, shortcut: HOTKEY_OPTIONS[0].value });
+});
 
 test('window width is restored within the supported range', () => {
   assert.equal(normalizeWindowWidth(320), 320);

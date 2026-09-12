@@ -1,6 +1,7 @@
 package ui
 
 import (
+	"fmt"
 	"io/fs"
 
 	usageapp "github.com/jmnote/aigauge/internal/app"
@@ -15,9 +16,11 @@ var singleInstanceKey = [32]byte{
 }
 
 type runtime struct {
-	application *application.App
-	window      *application.WebviewWindow
-	icon        []byte
+	application   *application.App
+	window        *application.WebviewWindow
+	icon          []byte
+	activeHotkey  string
+	windowVisible bool
 }
 
 const (
@@ -29,7 +32,7 @@ const (
 
 func Run(frontendAssets fs.FS, icon []byte) error {
 	rt := &runtime{icon: icon}
-	appService := usageapp.NewApp(rt.setContentHeight, rt.setWindowWidth, rt.setAlwaysOnTop, rt.hideToTray)
+	appService := usageapp.NewApp(rt.setContentHeight, rt.setWindowWidth, rt.setAlwaysOnTop, rt.hideToTray, rt.setGlobalHotkey)
 
 	rt.application = application.New(application.Options{
 		Name: "AI Gauge",
@@ -62,6 +65,7 @@ func Run(frontendAssets fs.FS, icon []byte) error {
 			NonClientRegionSupport: true,
 		},
 	})
+	rt.windowVisible = true
 	rt.configureWindow()
 	rt.configureTray()
 	return rt.application.Run()
@@ -102,18 +106,60 @@ func (rt *runtime) setAlwaysOnTop(alwaysOnTop bool) {
 	rt.window.SetAlwaysOnTop(alwaysOnTop)
 }
 
+func (rt *runtime) setGlobalHotkey(enabled bool, shortcut string) error {
+	if !enabled {
+		if rt.activeHotkey == "" {
+			return nil
+		}
+		err := rt.application.GlobalShortcut.Unregister(rt.activeHotkey)
+		if err == nil {
+			rt.activeHotkey = ""
+		}
+		return err
+	}
+
+	if shortcut == "" {
+		return fmt.Errorf("a global hotkey must be selected")
+	}
+	if shortcut == rt.activeHotkey {
+		return nil
+	}
+	if err := rt.application.GlobalShortcut.Register(shortcut, rt.toggleWindow); err != nil {
+		return err
+	}
+	previousHotkey := rt.activeHotkey
+	if previousHotkey != "" {
+		if err := rt.application.GlobalShortcut.Unregister(previousHotkey); err != nil {
+			_ = rt.application.GlobalShortcut.Unregister(shortcut)
+			return err
+		}
+	}
+	rt.activeHotkey = shortcut
+	return nil
+}
+
 func (rt *runtime) showWindow() {
 	if rt.window == nil {
 		return
 	}
+	rt.windowVisible = true
 	rt.window.Restore()
 	rt.window.Show()
 	rt.window.Focus()
+}
+
+func (rt *runtime) toggleWindow() {
+	if rt.windowVisible {
+		rt.hideToTray()
+		return
+	}
+	rt.showWindow()
 }
 
 func (rt *runtime) hideToTray() {
 	if rt.window == nil {
 		return
 	}
+	rt.windowVisible = false
 	rt.window.Hide()
 }

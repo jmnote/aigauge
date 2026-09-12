@@ -17,15 +17,20 @@ type App struct {
 	onWindowWidth    func(width int)
 	onSetAlwaysOnTop func(alwaysOnTop bool)
 	onHideToTray     func()
+	onSetGlobalHotkey func(enabled bool, shortcut string) error
 }
 
-func NewApp(onContentHeight func(height int), onWindowWidth func(width int), onSetAlwaysOnTop func(alwaysOnTop bool), onHideToTray func()) *App {
-	return &App{
+func NewApp(onContentHeight func(height int), onWindowWidth func(width int), onSetAlwaysOnTop func(alwaysOnTop bool), onHideToTray func(), hotkeyHandlers ...func(enabled bool, shortcut string) error) *App {
+	app := &App{
 		onContentHeight:  onContentHeight,
 		onWindowWidth:    onWindowWidth,
 		onSetAlwaysOnTop: onSetAlwaysOnTop,
 		onHideToTray:     onHideToTray,
 	}
+	if len(hotkeyHandlers) > 0 {
+		app.onSetGlobalHotkey = hotkeyHandlers[0]
+	}
+	return app
 }
 
 func (a *App) SetWindowWidth(width int) {
@@ -55,6 +60,13 @@ func (a *App) HideToTray() {
 	if a.onHideToTray != nil {
 		a.onHideToTray()
 	}
+}
+
+func (a *App) SetGlobalHotkey(enabled bool, shortcut string) error {
+	if a.onSetGlobalHotkey == nil {
+		return nil
+	}
+	return a.onSetGlobalHotkey(enabled, shortcut)
 }
 
 func (a *App) SetContentHeight(height int) {
