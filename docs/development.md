@@ -180,6 +180,11 @@ The workflow uses Microsoft's
 [`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action
 to install the Microsoft Store Developer CLI.
 
+Certification test instructions are kept in [`docs/certification-notes.md`](certification-notes.md).
+When that file exists, the workflow leaves the Store submission as a draft, adds its contents to
+`notesForCertification`, and then commits the submission. This keeps the Partner Center notes
+reviewable alongside the code while preserving the existing Store listing metadata.
+
 The package uses the Partner Center identity in `Package.appxmanifest`. Do not replace its
 `Identity Name` or `Publisher` with an arbitrary certificate or publisher value. Microsoft Store
 submission handles Store package signing; local sideloading requires a certificate matching the

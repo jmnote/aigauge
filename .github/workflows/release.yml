@@ -103,7 +103,7 @@ jobs:
           if-no-files-found: error
 
   release:
-    needs: package
+    needs: [package, publish]
     runs-on: windows-latest
     steps:
       - name: Check out repository
@@ -138,6 +138,9 @@ jobs:
     needs: package
     runs-on: windows-latest
     steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
       - name: Download release package
         uses: actions/download-artifact@v5
         with:
@@ -170,4 +173,27 @@ jobs:
           if (-not $msix) {
             throw "No MSIX package was downloaded."
           }
-          msstore publish $msix.FullName --appId $env:STORE_APP_ID
+          $notesPath = Join-Path $env:GITHUB_WORKSPACE "docs/certification-notes.md"
+          if (-not (Test-Path -LiteralPath $notesPath -PathType Leaf)) {
+            msstore publish $msix.FullName --appId $env:STORE_APP_ID
+            exit $LASTEXITCODE
+          }
+
+          # Keep the submission in draft state while adding the certification
+          # notes, then commit the complete submission. The CLI's submission
+          # metadata command accepts the full JSON returned by `submission get`.
+          msstore publish $msix.FullName --appId $env:STORE_APP_ID --noCommit
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+          $raw = (msstore submission get $env:STORE_APP_ID | Out-String).Trim()
+          $start = $raw.IndexOf('{')
+          $end = $raw.LastIndexOf('}')
+          if ($start -lt 0 -or $end -le $start) {
+            throw "Microsoft Store CLI did not return submission JSON."
+          }
+          $submission = $raw.Substring($start, $end - $start + 1) | ConvertFrom-Json
+          $submission.notesForCertification = Get-Content -LiteralPath $notesPath -Raw
+          $metadata = $submission | ConvertTo-Json -Depth 100 -Compress
+          msstore submission updateMetadata $env:STORE_APP_ID $metadata
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          msstore submission publish $env:STORE_APP_ID
