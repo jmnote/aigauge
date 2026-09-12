@@ -17,9 +17,10 @@ function Resolve-Version {
         $Requested = "0.0.0"
     }
     $value = $Requested.TrimStart('v', 'V')
-    if ($value -notmatch '^\d+\.\d+\.\d+(\.\d+)?$') {
-        throw "Version must be semantic numeric version text such as 0.1.1 or 0.1.1.0. Received: $Requested"
+    if ($value -notmatch '^\d+\.\d+\.\d+(\.\d+)?(?:[-+][0-9A-Za-z.-]+)?$') {
+        throw "Version must be semantic version text such as 0.1.1 or 0.1.1-beta1. Received: $Requested"
     }
+    $value = ($value -split '[-+]', 2)[0]
     $parts = @($value.Split('.'))
     while ($parts.Count -lt 4) { $parts += '0' }
     return ($parts -join '.')

@@ -215,7 +215,7 @@ func codexPlanType(data []byte) (string, error) {
 		return "", fmt.Errorf("parse plan_type: %w", err)
 	}
 	if response.PlanType == "" {
-		return "", fmt.Errorf("Codex response contains no \"plan_type\" field")
+		return "unknown", nil
 	}
 	return response.PlanType, nil
 }

@@ -181,17 +181,37 @@ jobs:
           }
           $overridesPath = Join-Path $env:GITHUB_WORKSPACE "submission-overrides.json"
           if (-not (Test-Path -LiteralPath $overridesPath -PathType Leaf)) {
-            msstore publish $msix.FullName --appId $env:STORE_APP_ID
+            msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID
             exit $LASTEXITCODE
           }
 
           # Keep the submission in draft state while adding the certification
           # notes, then commit the complete submission. The CLI's submission
           # metadata command accepts the full JSON returned by `submission get`.
-          msstore publish $msix.FullName --appId $env:STORE_APP_ID --noCommit
+          msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID --noCommit
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-          $raw = (msstore submission get $env:STORE_APP_ID | Out-String).Trim()
+          function Invoke-MsStore([string[]]$Arguments) {
+            $info = [Diagnostics.ProcessStartInfo]::new()
+            $info.FileName = (Get-Command msstore).Source
+            $info.UseShellExecute = $false
+            $info.RedirectStandardOutput = $true
+            $info.RedirectStandardError = $true
+            foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
+            $process = [Diagnostics.Process]::new()
+            $process.StartInfo = $info
+            if (-not $process.Start()) { throw "Unable to start Microsoft Store CLI." }
+            $stdout = $process.StandardOutput.ReadToEnd()
+            $stderr = $process.StandardError.ReadToEnd()
+            $process.WaitForExit()
+            if ($stdout) { Write-Output $stdout }
+            if ($process.ExitCode -ne 0) {
+              if ($stderr) { Write-Error $stderr }
+              throw "Microsoft Store CLI failed with exit code $($process.ExitCode)."
+            }
+          }
+
+          $raw = (Invoke-MsStore @("submission", "get", $env:STORE_APP_ID) | Out-String).Trim()
           $start = $raw.IndexOf('{')
           $end = $raw.LastIndexOf('}')
           if ($start -lt 0 -or $end -le $start) {
@@ -214,7 +234,5 @@ jobs:
           }
           $submission = Merge-SubmissionOverrides $submission $overrides
           $metadata = $submission | ConvertTo-Json -Depth 100 -Compress
-          msstore submission updateMetadata $env:STORE_APP_ID $metadata
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          msstore submission publish $env:STORE_APP_ID
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Invoke-MsStore @("submission", "updateMetadata", $env:STORE_APP_ID, $metadata) | Write-Host
+          Invoke-MsStore @("submission", "publish", $env:STORE_APP_ID) | Write-Host
