@@ -9,7 +9,11 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repo = Split-Path -Parent $PSScriptRoot
-if ([string]::IsNullOrWhiteSpace($Executable)) { $Executable = Join-Path $repo "aigauge.exe" }
+if ([string]::IsNullOrWhiteSpace($Executable)) {
+    $binExe = Join-Path $repo "dist\bin\aigauge.exe"
+    $rootExe = Join-Path $repo "aigauge.exe"
+    $Executable = if (Test-Path -LiteralPath $binExe -PathType Leaf) { $binExe } else { $rootExe }
+}
 if ([string]::IsNullOrWhiteSpace($OutputPath)) { $OutputPath = Join-Path $repo "docs\screenshots\aigauge-native-$Theme.png" }
 if (-not (Test-Path -LiteralPath $Executable -PathType Leaf)) { throw "Executable not found: $Executable" }
 

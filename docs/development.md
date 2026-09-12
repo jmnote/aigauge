@@ -209,7 +209,7 @@ full path through the existing packaging script parameter. `signtool.exe` is onl
 creating a locally signed package.
 
 The `Release` GitHub Actions workflow (`.github/workflows/release.yml`) additionally copies the
-same build's `aigauge.exe` into `dist/` under the MSIX's own name (e.g. `aigauge_0.5.1.0_x64.exe`
+same build's `aigauge.exe` (built under `dist/bin/`) into `dist/` under the MSIX's own name (e.g. `aigauge_0.5.1.0_x64.exe`
 alongside `aigauge_0.5.1.0_x64.msix`) and attaches both, plus `SHA256SUMS.txt`, to the GitHub
 release. It runs unsigned and needs no installation - unlike the MSIX, which either goes through
 Store certification or needs a certificate matching the package Publisher installed and trusted

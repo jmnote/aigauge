@@ -60,12 +60,17 @@ function Get-AiBackupTargets {
     return $targets
 }
 
-# Local-only bookkeeping (gitignored) of exactly what a backup moved, so
+# Local-only bookkeeping (gitignored under hack/temp/) of exactly what a backup moved, so
 # restore does not have to re-derive paths that backup can no longer see.
-$manifestPath = Join-Path $repo ".ai-credentials-backup.local.json"
+$manifestDir = Join-Path $PSScriptRoot "temp"
+$manifestPath = Join-Path $manifestDir ".ai-credentials-backup.local.json"
 
 function Invoke-Backup {
     param([string]$TargetProvider = "all")
+
+    if (-not (Test-Path -LiteralPath $manifestDir)) {
+        New-Item -ItemType Directory -Force -Path $manifestDir | Out-Null
+    }
 
     $existingMoved = @()
     if (Test-Path -LiteralPath $manifestPath -PathType Leaf) {
@@ -137,8 +142,13 @@ function Invoke-Restore {
     param([string]$TargetProvider = "all")
 
     if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
-        Write-Output "Nothing to restore - no backup manifest found at $manifestPath."
-        return
+        $legacyPath = Join-Path $repo ".ai-credentials-backup.local.json"
+        if (Test-Path -LiteralPath $legacyPath -PathType Leaf) {
+            $manifestPath = $legacyPath
+        } else {
+            Write-Output "Nothing to restore - no backup manifest found at $manifestPath."
+            return
+        }
     }
 
     $raw = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
@@ -199,6 +209,12 @@ function Invoke-Restore {
     $finalRemaining = @($remaining) + @($notRestored)
     if ($finalRemaining.Count -eq 0) {
         Remove-Item -LiteralPath $manifestPath -Force
+        if (Test-Path -LiteralPath $manifestDir) {
+            $remainingFiles = @(Get-ChildItem -LiteralPath $manifestDir -Force)
+            if ($remainingFiles.Count -eq 0) {
+                Remove-Item -LiteralPath $manifestDir -Force
+            }
+        }
     } else {
         $finalRemaining | ConvertTo-Json | Set-Content -LiteralPath $manifestPath -Encoding utf8
         if (-not $allRestored) {

@@ -68,7 +68,7 @@ jobs:
       - name: Copy portable executable
         shell: pwsh
         run: |
-          # build.ps1's package task already built aigauge.exe at the repo root
+          # build.ps1's package task already built aigauge.exe under dist/bin/
           # to produce the MSIX above (hack/package-msix.ps1 builds it, then
           # copies it into the MSIX staging directory) - this just also copies
           # it into dist/ under the MSIX's own name, so someone who doesn't
@@ -80,7 +80,12 @@ jobs:
             throw "No MSIX package was produced; cannot name the portable executable after it."
           }
           $exeName = [IO.Path]::GetFileNameWithoutExtension($msix.Name) + ".exe"
-          Copy-Item -LiteralPath aigauge.exe -Destination (Join-Path dist $exeName)
+          $sourceExe = if (Test-Path -LiteralPath (Join-Path dist\bin "aigauge.exe")) {
+            Join-Path dist\bin "aigauge.exe"
+          } else {
+            "aigauge.exe"
+          }
+          Copy-Item -LiteralPath $sourceExe -Destination (Join-Path dist $exeName)
 
       - name: Create checksums
         shell: pwsh
@@ -198,14 +203,14 @@ jobs:
           }
           $overridesPath = Join-Path $env:GITHUB_WORKSPACE "submission-overrides.json"
           if (-not (Test-Path -LiteralPath $overridesPath -PathType Leaf)) {
-            msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID
+            msstore publish --inputDirectory $msix.Directory.FullName --appId $env:STORE_APP_ID
             exit $LASTEXITCODE
           }
 
           # Keep the submission in draft state while adding the certification
           # notes, then commit the complete submission. The CLI's submission
           # metadata command accepts the full JSON returned by `submission get`.
-          msstore publish --inputFile $msix.FullName --appId $env:STORE_APP_ID --noCommit
+          msstore publish --inputDirectory $msix.Directory.FullName --appId $env:STORE_APP_ID --noCommit
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
           function Invoke-MsStore([string[]]$Arguments) {
