@@ -169,14 +169,14 @@ git push origin v0.6.2
 The workflow builds the MSIX using that tag, creates the GitHub Release, and publishes the package
 to Microsoft Store. Configure these repository or environment secrets before using Store publishing:
 
-- `PARTNER_CENTER_TENANT_ID`
-- `PARTNER_CENTER_SELLER_ID`
-- `PARTNER_CENTER_CLIENT_ID`
-- `PARTNER_CENTER_CLIENT_SECRET`
-- `PARTNER_CENTER_APP_ID`
+- `AZURE_AD_TENANT_ID`
+- `SELLER_ID`
+- `AZURE_AD_APPLICATION_CLIENT_ID`
+- `AZURE_AD_APPLICATION_SECRET`
 
-The first four values are the Partner Center app credentials used by `msstore reconfigure`; the last
-is the Store product ID passed to `msstore publish`. The workflow uses Microsoft's
+These four values are the Partner Center app credentials used by `msstore reconfigure`. The Store
+product ID passed to `msstore publish` is configured as the app's public Store ID in the workflow.
+The workflow uses Microsoft's
 [`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action
 to install the Microsoft Store Developer CLI.
 

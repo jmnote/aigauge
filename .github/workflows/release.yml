@@ -150,27 +150,24 @@ jobs:
       - name: Configure Microsoft Store credentials
         shell: pwsh
         env:
-          PARTNER_CENTER_TENANT_ID: ${{ secrets.PARTNER_CENTER_TENANT_ID }}
-          PARTNER_CENTER_SELLER_ID: ${{ secrets.PARTNER_CENTER_SELLER_ID }}
-          PARTNER_CENTER_CLIENT_ID: ${{ secrets.PARTNER_CENTER_CLIENT_ID }}
-          PARTNER_CENTER_CLIENT_SECRET: ${{ secrets.PARTNER_CENTER_CLIENT_SECRET }}
+          AZURE_AD_TENANT_ID: ${{ secrets.AZURE_AD_TENANT_ID }}
+          SELLER_ID: ${{ secrets.SELLER_ID }}
+          AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
+          AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
         run: |
           msstore reconfigure `
-            --tenantId $env:PARTNER_CENTER_TENANT_ID `
-            --sellerId $env:PARTNER_CENTER_SELLER_ID `
-            --clientId $env:PARTNER_CENTER_CLIENT_ID `
-            --clientSecret $env:PARTNER_CENTER_CLIENT_SECRET
+            --tenantId $env:AZURE_AD_TENANT_ID `
+            --sellerId $env:SELLER_ID `
+            --clientId $env:AZURE_AD_APPLICATION_CLIENT_ID `
+            --clientSecret $env:AZURE_AD_APPLICATION_SECRET
 
       - name: Publish to Microsoft Store
         shell: pwsh
         env:
-          PARTNER_CENTER_APP_ID: ${{ secrets.PARTNER_CENTER_APP_ID }}
+          STORE_APP_ID: 9MT65KM56P99
         run: |
           $msix = Get-ChildItem -LiteralPath dist -Filter *.msix -File | Select-Object -First 1
           if (-not $msix) {
             throw "No MSIX package was downloaded."
           }
-          if ([string]::IsNullOrWhiteSpace($env:PARTNER_CENTER_APP_ID)) {
-            throw "PARTNER_CENTER_APP_ID secret is required."
-          }
-          msstore publish $msix.FullName --appId $env:PARTNER_CENTER_APP_ID
+          msstore publish $msix.FullName --appId $env:STORE_APP_ID
