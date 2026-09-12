@@ -1,4 +1,4 @@
-name: Build MSIX
+name: Package
 
 on:
   pull_request:
