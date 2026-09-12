@@ -15,8 +15,8 @@ export const MIN_WINDOW_WIDTH = 200;
 export const MAX_WINDOW_WIDTH = 600;
 export const DEFAULT_WINDOW_WIDTH = 250;
 export const HOTKEY_OPTIONS = [
-  { value: 'Super+Shift+`', label: 'Win + Shift + `' },
-  { value: 'Super+Shift+Q', label: 'Win + Shift + Q' },
+  { value: 'Ctrl+Shift+Q', label: 'Ctrl + Shift + Q' },
+  { value: 'Ctrl+Shift+E', label: 'Ctrl + Shift + E' },
 ];
 
 export const VALID_THEMES = new Set(['light', 'dark', 'system']);
