@@ -53,14 +53,21 @@ if ([string]::IsNullOrWhiteSpace($appVersion)) {
     $appVersion = "0.0.0"
 }
 $msixVersion = Resolve-Version $appVersion
-$sourceExe = Join-Path $repo "aigauge.exe"
+$sourceExe = Join-Path $repo "dist\bin\aigauge.exe"
 if (-not $SkipBuild) {
     $buildArguments = @{ Task = "build"; Version = $appVersion }
     if ($SkipWindowsResources) { $buildArguments.SkipWindowsResources = $true }
     & (Join-Path $repo "build.ps1") @buildArguments
     if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 }
-if (-not (Test-Path -LiteralPath $sourceExe -PathType Leaf)) { throw "Build output not found: $sourceExe" }
+if (-not (Test-Path -LiteralPath $sourceExe -PathType Leaf)) {
+    $legacyExe = Join-Path $repo "aigauge.exe"
+    if (Test-Path -LiteralPath $legacyExe -PathType Leaf) {
+        $sourceExe = $legacyExe
+    } else {
+        throw "Build output not found: $sourceExe"
+    }
+}
 
 $staging = Join-Path $repo "dist\staging\$Architecture"
 $assets = Join-Path $staging "Assets"

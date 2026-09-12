@@ -49,8 +49,13 @@ switch ($Task) {
             & (Join-Path $PSScriptRoot "hack\prepare-windows-resources.ps1") -Version $Version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
+        $binDir = Join-Path $PSScriptRoot "dist\bin"
+        if (-not (Test-Path -LiteralPath $binDir)) {
+            New-Item -ItemType Directory -Force -Path $binDir | Out-Null
+        }
+        $outputExe = Join-Path $binDir "aigauge.exe"
         $ldflags = "-H=windowsgui -X github.com/jmnote/aigauge/internal/app.AppVersion=$Version"
-        go build -ldflags $ldflags -o aigauge.exe .
+        go build -ldflags $ldflags -o $outputExe .
     }
     "package" {
         $packageScript = Join-Path $PSScriptRoot "hack\package-msix.ps1"
@@ -118,6 +123,18 @@ switch ($Task) {
         $expectedPrefix = $repoRoot + [System.IO.Path]::DirectorySeparatorChar
         if (-not $distPath.StartsWith($expectedPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
             throw "Refusing to clean dist outside the repository: $distPath"
+        }
+        $rootExe = Join-Path $PSScriptRoot "aigauge.exe"
+        if (Test-Path -LiteralPath $rootExe) {
+            Remove-Item -LiteralPath $rootExe -Force
+        }
+        $rootSyso = Join-Path $PSScriptRoot "rsrc_windows_amd64.syso"
+        if (Test-Path -LiteralPath $rootSyso) {
+            Remove-Item -LiteralPath $rootSyso -Force
+        }
+        $hackTemp = Join-Path $PSScriptRoot "hack\temp"
+        if (Test-Path -LiteralPath $hackTemp) {
+            Remove-Item -LiteralPath $hackTemp -Recurse -Force
         }
         if (Test-Path -LiteralPath $distPath) {
             Remove-Item -LiteralPath $distPath -Recurse -Force
