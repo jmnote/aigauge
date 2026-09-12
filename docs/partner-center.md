@@ -53,7 +53,7 @@
 
 - **Product name**: AI Gauge
 - **Description**:
-  > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. Live monitoring requires an existing signed-in Codex or Claude Code session, or the locally installed and signed-in agy command-line tool for Antigravity. A built-in sample preview is available without installing third-party tools or signing in to a provider. AI Gauge shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; and choose a light, dark, or system theme. The sample preview shows bundled example data, not usage from any account. AI Gauge runs locally, does not store a separate copy of your credentials, and does not retain usage data on a remote server.
+  > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. Live monitoring requires an existing signed-in Codex or Claude Code session, or the locally installed and signed-in agy command-line tool for Antigravity. A built-in sample preview is available without installing third-party tools or signing in to a provider. AI Gauge shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; toggle visibility with a global hotkey; and choose a light, dark, or system theme. The sample preview shows bundled example data, not usage from any account. AI Gauge runs locally, does not store a separate copy of your credentials, and does not retain usage data on a remote server.
 - **What's new in this version**: Not provided
 - **Product features**:
   1. Automatic quota and reset-time monitoring
@@ -61,6 +61,7 @@
   3. Configurable background refresh intervals
   4. Windows system tray access with light, dark, and system themes
   5. Built-in sample preview - explore the app before setting up any provider
+  6. Global hotkey toggle to show and hide the window from anywhere
 - **Screenshots**: 2 Desktop images
   1. AI Gauge usage dashboard in dark mode.
   2. AI Gauge usage dashboard in light mode.
@@ -98,9 +99,9 @@
 > 4. Confirm that the Sample data badge remains visible throughout the preview.
 > 5. Verify the quota gauges, remaining percentages, reset times, and last-updated information.
 > 6. Select a provider's refresh control and confirm that the sample data refreshes without requesting credentials or network access.
-> 7. Open Settings and verify the warning and critical thresholds and the Light, Dark, and System themes.
+> 7. Open Settings and verify the warning and critical thresholds, the optional global hotkey toggle, and the Light, Dark, and System themes.
 > 8. Select Back to setup and confirm that the first-run screen returns without a crash or raw system error.
-> 9. Verify the Always-on-top control and the system tray minimize and restore behavior.
+> 9. Verify the Always-on-top control, the global hotkey toggle (when enabled), and the system tray minimize and restore behavior.
 >
 > The preview uses data bundled with the application and requires no network access, third-party tool installation, login, or credentials.
 >

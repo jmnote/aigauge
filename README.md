@@ -28,6 +28,7 @@
 - Keep the widget always on top with the title bar pin button.
 - Refresh usage automatically in the background at a configurable interval.
 - Keep the widget in the Windows system tray.
+- Show or hide the widget from anywhere with an optional global hotkey.
 - Choose Light, Dark, or System appearance.
 - Configure Warning and Critical thresholds for usage bars.
 - Persist settings locally between sessions.
@@ -37,8 +38,12 @@
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
 Click the pin button on the title bar to toggle **Always on top**. Open **Settings** to enable or
 disable providers and reorder their cards, configure Warning and Critical thresholds, change the
-refresh interval, choose Light, Dark, or System appearance, and optionally enable a global hotkey.
-The available hotkeys are **Ctrl+Shift+Q** (the default) and **Ctrl+Shift+E**.
+refresh interval, choose Light, Dark, or System appearance, and optionally configure a global hotkey.
+The optional global hotkey shows or hides the widget even while another application is active. To
+configure it, open **Settings** and choose a shortcut from the **Hotkey** dropdown. It supports
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd>, and
+<kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>E</kbd>; choose **Disabled** to turn it off. The hotkey is
+disabled by default.
 The widget's `×` button hides it to the tray. Closing it from the taskbar, pressing Alt+F4, or
 choosing **Exit** from the tray menu quits the application.
 
@@ -76,6 +81,8 @@ authentication and privacy policies.
   token has expired, log in again with Claude Code so that `~/.claude/.credentials.json` is
   updated.
 - If Antigravity data is unavailable, verify that `agy` is installed and available to the app.
+- If the selected global hotkey is already used by another application, choose a different shortcut
+  or free the shortcut, then select **Retry** in Settings.
 - Check the status dot tooltip for failure count, last successful fetch, last error, and next fetch.
 
 ## For developers

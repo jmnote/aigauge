@@ -8,7 +8,7 @@
   <link rel="stylesheet" href="/style.css" />
 </head>
 
-  <body>
+<body>
   <main class="shell">
     <div id="window-size-indicator" class="window-size-indicator" aria-hidden="true"></div>
     <div class="titlebar">
@@ -135,15 +135,17 @@
           </span>
         </div>
         <div class="hotkey-setting-row">
-          <label class="hotkey-label" for="hotkey-enabled">Hotkey</label>
-          <label class="hotkey-enable-control">
-            <input id="hotkey-enabled" type="checkbox" />
-            <span>Enable</span>
-          </label>
+          <label class="hotkey-label" for="hotkey-select">Hotkey</label>
           <select id="hotkey-select" aria-label="Global hotkey">
+            <option value="">Disabled</option>
             <option value="Ctrl+Shift+Q">Ctrl + Shift + Q</option>
             <option value="Ctrl+Shift+E">Ctrl + Shift + E</option>
+            <option value="Ctrl+Shift+G">Ctrl + Shift + G</option>
           </select>
+          <div id="hotkey-status" class="hotkey-status" role="alert" hidden>
+            <span id="hotkey-status-text" class="hotkey-status-text"></span>
+            <button type="button" id="hotkey-retry-btn" class="hotkey-retry-btn">Retry</button>
+          </div>
         </div>
         <div class="settings-version">
           <span>AI Gauge</span> <span id="version">v—</span>
@@ -168,11 +170,10 @@
       <section id="codex-card" class="usage-card">
         <div class="heading">
           <strong>Codex</strong>
-          <span class="status-area"><span class="status-wrap" tabindex="0"
-              aria-label="Codex connection status"><span id="codex-dot" class="status-dot"></span><span
-                id="codex-tooltip" class="status-tooltip"></span></span><button type="button"
-              class="provider-refresh-btn" data-provider-id="codex" title="Refresh Codex now"
-              aria-label="Refresh Codex now">⟳</button></span>
+          <span class="status-area"><span class="status-wrap" tabindex="0" aria-label="Codex connection status"><span
+                id="codex-dot" class="status-dot"></span><span id="codex-tooltip"
+                class="status-tooltip"></span></span><button type="button" class="provider-refresh-btn"
+              data-provider-id="codex" title="Refresh Codex now" aria-label="Refresh Codex now">⟳</button></span>
         </div>
         <div id="codex-groups">
           <div id="codex-loading" class="plan loading-text">Loading usage...</div>
@@ -182,11 +183,10 @@
       <section id="claude-card" class="usage-card">
         <div class="heading">
           <strong>Claude</strong>
-          <span class="status-area"><span class="status-wrap" tabindex="0"
-              aria-label="Claude connection status"><span id="claude-dot" class="status-dot"></span><span
-                id="claude-tooltip" class="status-tooltip"></span></span><button type="button"
-              class="provider-refresh-btn" data-provider-id="claude" title="Refresh Claude now"
-              aria-label="Refresh Claude now">⟳</button></span>
+          <span class="status-area"><span class="status-wrap" tabindex="0" aria-label="Claude connection status"><span
+                id="claude-dot" class="status-dot"></span><span id="claude-tooltip"
+                class="status-tooltip"></span></span><button type="button" class="provider-refresh-btn"
+              data-provider-id="claude" title="Refresh Claude now" aria-label="Refresh Claude now">⟳</button></span>
         </div>
         <div id="claude-groups">
           <div id="claude-loading" class="plan loading-text">Loading usage...</div>
@@ -198,8 +198,8 @@
           <strong>Antigravity</strong>
           <span class="status-area"><span class="status-wrap" tabindex="0"
               aria-label="Antigravity connection status"><span id="agy-dot" class="status-dot"></span><span
-                id="agy-tooltip" class="status-tooltip"></span></span><button type="button"
-              class="provider-refresh-btn" data-provider-id="antigravity" title="Refresh Antigravity now"
+                id="agy-tooltip" class="status-tooltip"></span></span><button type="button" class="provider-refresh-btn"
+              data-provider-id="antigravity" title="Refresh Antigravity now"
               aria-label="Refresh Antigravity now">⟳</button></span>
         </div>
         <div id="agy-groups">

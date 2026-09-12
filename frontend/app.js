@@ -2,7 +2,7 @@ import {
   parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
   shouldCountFailure, shouldScheduleRetry, isExpectedSetupState,
   shouldKeepStaleData, retryDelay, badgeClass, providerVisibilityAction,
-  normalizeWindowWidth,
+  normalizeWindowWidth, formatHotkeyError,
 } from '/logic.mjs';
 
 const wails = await import('/wails/runtime.js');
@@ -72,9 +72,12 @@ let viewMode = 'live';
 const providerIds = PROVIDERS.map(p => p.id);
 
 const defaultConfig = {
-  // Providers start enabled so the first launch can show each provider's
-  // connection state immediately. A saved configuration still takes priority.
-  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: true }])),
+  // Providers start disabled so a fresh install never probes for local CLI
+  // tools/credentials on its own - the first screen is "No providers
+  // enabled" with "Open Settings" and "Demo" buttons instead of raw
+  // not-found errors. This only affects genuinely first runs: normalizeConfig
+  // (below) falls back to enabled once localStorage holds any saved config.
+  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
   providerOrder: providerIds.slice(),
   windowWidth: 250,
   theme: 'system',
@@ -658,8 +661,16 @@ const warningThresholdInput = document.getElementById('warning-threshold');
 const criticalEnabledInput = document.getElementById('critical-enabled');
 const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
-const hotkeyEnabledInput = document.getElementById('hotkey-enabled');
 const hotkeySelect = document.getElementById('hotkey-select');
+const hotkeyStatus = document.getElementById('hotkey-status');
+const hotkeyStatusText = document.getElementById('hotkey-status-text');
+const hotkeyRetryBtn = document.getElementById('hotkey-retry-btn');
+let hotkeyError = '';
+// config.hotkeyShortcut is the last successfully applied native binding.
+// A pending target exists only after a failed transition, when it may differ
+// from the still-working binding and must be retried without being persisted.
+let hotkeyPendingSettings = null;
+let hotkeyBusy = false;
 
 let isAlwaysOnTop = false;
 // True while the first-run screen's diagnosis rows are already rendered, so
@@ -864,30 +875,70 @@ function setRefreshInterval(val) {
   providerIds.forEach(scheduleProvider);
 }
 
-async function saveHotkeySettings() {
-  const enabled = hotkeyEnabledInput.checked;
-  const shortcut = hotkeySelect.value;
-  try {
-    await rpc('SetGlobalHotkey', enabled, shortcut);
-    config.hotkey = { enabled, shortcut };
-    saveCurrentConfig();
-  } catch (error) {
-    hotkeyEnabledInput.checked = config.hotkey.enabled;
-    hotkeySelect.value = config.hotkey.shortcut;
-    window.alert(`Unable to register the selected hotkey: ${error.message || error}`);
+function updateHotkeyUI() {
+  const displayedShortcut = hotkeyPendingSettings?.shortcut ?? config.hotkeyShortcut;
+  hotkeySelect.value = displayedShortcut || '';
+  hotkeySelect.disabled = hotkeyBusy;
+  hotkeyRetryBtn.disabled = hotkeyBusy;
+  hotkeyRetryBtn.textContent = hotkeyBusy ? '...' : 'Retry';
+
+  if (hotkeyError && hotkeyPendingSettings) {
+    hotkeyStatusText.textContent = formatHotkeyError(hotkeyError, hotkeyPendingSettings.shortcut !== null);
+    hotkeyStatusText.title = hotkeyError;
+    hotkeyStatus.hidden = false;
+  } else {
+    hotkeyStatus.hidden = true;
+    hotkeyStatusText.textContent = '';
+    hotkeyStatusText.removeAttribute('title');
   }
+}
+
+async function applyHotkeySettings(settings) {
+  if (hotkeyBusy) return;
+
+  hotkeyBusy = true;
+  updateHotkeyUI();
+
+  try {
+    await rpc('SetGlobalHotkey', settings.shortcut !== null, settings.shortcut || '');
+    config.hotkeyShortcut = settings.shortcut;
+    saveCurrentConfig();
+    hotkeyError = '';
+    hotkeyPendingSettings = null;
+  } catch (error) {
+    hotkeyError = error?.message || String(error);
+    hotkeyPendingSettings = { ...settings };
+    console.warn(`Unable to ${settings.shortcut !== null ? 'register' : 'unregister'} global hotkey:`, error);
+  } finally {
+    hotkeyBusy = false;
+    updateHotkeyUI();
+    requestWindowResize();
+  }
+}
+
+function saveHotkeySettings() {
+  return applyHotkeySettings({
+    shortcut: hotkeySelect.value || null,
+  });
+}
+
+async function retryHotkeyOperation() {
+  if (!hotkeyPendingSettings || hotkeyBusy) return;
+  await applyHotkeySettings({ ...hotkeyPendingSettings });
 }
 
 async function syncHotkeySettings() {
-  try {
-    await rpc('SetGlobalHotkey', config.hotkey.enabled, config.hotkey.shortcut);
-  } catch (error) {
-    console.warn('Unable to restore the saved global hotkey:', error);
+  if (!config.hotkeyShortcut) {
+    hotkeyError = '';
+    hotkeyPendingSettings = null;
+    updateHotkeyUI();
+    return;
   }
+  await applyHotkeySettings({ shortcut: config.hotkeyShortcut });
 }
 
-hotkeyEnabledInput.addEventListener('change', saveHotkeySettings);
 hotkeySelect.addEventListener('change', saveHotkeySettings);
+hotkeyRetryBtn.addEventListener('click', retryHotkeyOperation);
 
 function openSettings() {
   renderProviderList();
@@ -899,8 +950,7 @@ function openSettings() {
   criticalEnabledInput.checked = config.thresholds.critical.enabled;
   criticalThresholdInput.value = config.thresholds.critical.value;
   criticalThresholdInput.disabled = !config.thresholds.critical.enabled;
-  hotkeyEnabledInput.checked = config.hotkey.enabled;
-  hotkeySelect.value = config.hotkey.shortcut;
+  updateHotkeyUI();
   settingsDialog.showModal();
   requestWindowResize();
 }
