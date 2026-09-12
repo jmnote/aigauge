@@ -42,8 +42,8 @@
 ## Packages
 
 - **Device family availability**: Windows 10/11 Desktop
-- **Package**: `aigauge_0.6.1.0_x64.msix`
-- **Version**: 0.6.1.0
+- **Package**: `aigauge_<version>_x64.msix` (for example, `aigauge_0.6.2.0_x64.msix`)
+- **Version**: Four-part MSIX version derived from the release tag (for example, `v0.6.2` → `0.6.2.0`)
 - **Architecture**: X64
 - **Device families**: Windows.Desktop min version 10.0.17763.0
 
