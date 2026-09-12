@@ -15,6 +15,7 @@ import {
   STATUS_BADGES,
   badgeClass,
   formatHotkeyError,
+  hotkeyOptionLabel,
   normalizeConfig,
   normalizeProviderOrder,
   normalizeThreshold,
@@ -69,6 +70,12 @@ test('formatHotkeyError formats messages with informative fallback', () => {
   assert.equal(formatHotkeyError(null), 'Registration failed');
   assert.equal(formatHotkeyError('Access is denied', false), 'Unregistration failed: Access is denied');
   assert.equal(formatHotkeyError('', false), 'Unregistration failed');
+});
+
+test('hotkeyOptionLabel describes configured and disabled shortcuts', () => {
+  assert.equal(hotkeyOptionLabel(null), 'Disabled');
+  assert.equal(hotkeyOptionLabel('Ctrl+Shift+G'), 'Ctrl + Shift + G');
+  assert.equal(hotkeyOptionLabel('Ctrl+Alt+X'), 'Ctrl+Alt+X');
 });
 
 test('the first hotkey option is the default', () => {

@@ -27,6 +27,11 @@ export function formatHotkeyError(error, enabled = true) {
   return `${fallback}: ${msg}`;
 }
 
+export function hotkeyOptionLabel(shortcut) {
+  if (!shortcut) return 'Disabled';
+  return HOTKEY_OPTIONS.find(option => option.value === shortcut)?.label || shortcut;
+}
+
 export const VALID_THEMES = new Set(['light', 'dark', 'system']);
 
 const clampSeconds = seconds =>

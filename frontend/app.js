@@ -2,7 +2,7 @@ import {
   parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
   shouldCountFailure, shouldScheduleRetry, isExpectedSetupState,
   shouldKeepStaleData, retryDelay, badgeClass, providerVisibilityAction,
-  normalizeWindowWidth, formatHotkeyError, HOTKEY_OPTIONS,
+  normalizeWindowWidth, formatHotkeyError, hotkeyOptionLabel, HOTKEY_OPTIONS,
 } from '/logic.mjs';
 
 const wails = await import('/wails/runtime.js');
@@ -895,19 +895,24 @@ function updateHotkeyUI() {
   hotkeyRetryBtn.textContent = hotkeyBusy ? '...' : 'Retry';
 
   if (hotkeyError && hotkeyPendingSettings) {
-    hotkeyStatusText.textContent = formatHotkeyError(hotkeyError, hotkeyPendingSettings.shortcut !== null);
+    const target = hotkeyOptionLabel(hotkeyPendingSettings.shortcut);
+    hotkeyStatusText.textContent = `Target: ${target}. ${formatHotkeyError(hotkeyError, hotkeyPendingSettings.shortcut !== null)}`;
     hotkeyStatusText.title = hotkeyError;
+    hotkeyRetryBtn.title = `Retry ${target}`;
     hotkeyStatus.hidden = false;
   } else {
     hotkeyStatus.hidden = true;
     hotkeyStatusText.textContent = '';
     hotkeyStatusText.removeAttribute('title');
+    hotkeyRetryBtn.removeAttribute('title');
   }
 }
 
 async function applyHotkeySettings(settings) {
   if (hotkeyBusy) return;
 
+  hotkeyPendingSettings = { ...settings };
+  hotkeyError = '';
   hotkeyBusy = true;
   updateHotkeyUI();
 
@@ -919,7 +924,6 @@ async function applyHotkeySettings(settings) {
     hotkeyPendingSettings = null;
   } catch (error) {
     hotkeyError = error?.message || String(error);
-    hotkeyPendingSettings = { ...settings };
     console.warn(`Unable to ${settings.shortcut !== null ? 'register' : 'unregister'} global hotkey:`, error);
   } finally {
     hotkeyBusy = false;

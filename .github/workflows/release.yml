@@ -218,9 +218,13 @@ jobs:
             $process = [Diagnostics.Process]::new()
             $process.StartInfo = $info
             if (-not $process.Start()) { throw "Unable to start Microsoft Store CLI." }
-            $stdout = $process.StandardOutput.ReadToEnd()
-            $stderr = $process.StandardError.ReadToEnd()
+            # Consume both redirected streams concurrently. Reading either one
+            # synchronously first can deadlock when the other pipe fills up.
+            $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+            $stderrTask = $process.StandardError.ReadToEndAsync()
             $process.WaitForExit()
+            $stdout = $stdoutTask.GetAwaiter().GetResult()
+            $stderr = $stderrTask.GetAwaiter().GetResult()
             if ($stdout) { Write-Output $stdout }
             if ($process.ExitCode -ne 0) {
               if ($stderr) { Write-Error $stderr }
@@ -258,18 +262,22 @@ jobs:
             # braces before or after the actual submission JSON, so this
             # cannot assume the JSON starts at the first '{' in the output.
             # Instead, try every '{' as a possible start, extract the
-            # balanced object there, and return the first one that parses
-            # as a non-empty JSON object.
+            # balanced object there, and return the first submission object.
             $searchFrom = 0
             while ($true) {
               $start = $Text.IndexOf('{', $searchFrom)
               if ($start -lt 0) { return $null }
               $end = Find-JsonObjectEnd -Text $Text -Start $start
-              if ($end -lt 0) { return $null }
+              if ($end -lt 0) {
+                $searchFrom = $start + 1
+                continue
+              }
               $candidate = $Text.Substring($start, $end - $start + 1)
               try {
                 $parsed = $candidate | ConvertFrom-Json -ErrorAction Stop
-                if ($parsed -is [PSCustomObject] -and @($parsed.PSObject.Properties).Count -gt 0) {
+                if ($parsed -is [PSCustomObject] -and
+                    $parsed.PSObject.Properties['Id'] -and
+                    $parsed.PSObject.Properties['Listings']) {
                   return $parsed
                 }
               } catch {
