@@ -72,12 +72,9 @@ let viewMode = 'live';
 const providerIds = PROVIDERS.map(p => p.id);
 
 const defaultConfig = {
-  // Providers start disabled so a fresh install never probes for local CLI
-  // tools/credentials on its own - the first screen is "No providers
-  // enabled" with "Open Settings" and "Demo" buttons instead of raw
-  // not-found errors. This only affects genuinely first runs: normalizeConfig
-  // (below) falls back to enabled once localStorage holds any saved config.
-  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
+  // Providers start enabled so the first launch can show each provider's
+  // connection state immediately. A saved configuration still takes priority.
+  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: true }])),
   providerOrder: providerIds.slice(),
   windowWidth: 250,
   theme: 'system',
@@ -661,6 +658,8 @@ const warningThresholdInput = document.getElementById('warning-threshold');
 const criticalEnabledInput = document.getElementById('critical-enabled');
 const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+const hotkeyEnabledInput = document.getElementById('hotkey-enabled');
+const hotkeySelect = document.getElementById('hotkey-select');
 
 let isAlwaysOnTop = false;
 // True while the first-run screen's diagnosis rows are already rendered, so
@@ -865,6 +864,31 @@ function setRefreshInterval(val) {
   providerIds.forEach(scheduleProvider);
 }
 
+async function saveHotkeySettings() {
+  const enabled = hotkeyEnabledInput.checked;
+  const shortcut = hotkeySelect.value;
+  try {
+    await rpc('SetGlobalHotkey', enabled, shortcut);
+    config.hotkey = { enabled, shortcut };
+    saveCurrentConfig();
+  } catch (error) {
+    hotkeyEnabledInput.checked = config.hotkey.enabled;
+    hotkeySelect.value = config.hotkey.shortcut;
+    window.alert(`Unable to register the selected hotkey: ${error.message || error}`);
+  }
+}
+
+async function syncHotkeySettings() {
+  try {
+    await rpc('SetGlobalHotkey', config.hotkey.enabled, config.hotkey.shortcut);
+  } catch (error) {
+    console.warn('Unable to restore the saved global hotkey:', error);
+  }
+}
+
+hotkeyEnabledInput.addEventListener('change', saveHotkeySettings);
+hotkeySelect.addEventListener('change', saveHotkeySettings);
+
 function openSettings() {
   renderProviderList();
   refreshIntervalInput.value = refreshInterval;
@@ -875,11 +899,15 @@ function openSettings() {
   criticalEnabledInput.checked = config.thresholds.critical.enabled;
   criticalThresholdInput.value = config.thresholds.critical.value;
   criticalThresholdInput.disabled = !config.thresholds.critical.enabled;
+  hotkeyEnabledInput.checked = config.hotkey.enabled;
+  hotkeySelect.value = config.hotkey.shortcut;
   settingsDialog.showModal();
   requestWindowResize();
 }
 
 document.getElementById('settings').addEventListener('click', openSettings);
+wails.Events.On('aigauge:open-settings', openSettings);
+syncHotkeySettings();
 
 // ---------------------------------------------------------------------------
 // First-run screen

@@ -14,6 +14,10 @@ func (rt *runtime) configureTray() {
 	menu.Add("Show").OnClick(func(_ *application.Context) {
 		rt.showWindow()
 	})
+	menu.Add("Settings").OnClick(func(_ *application.Context) {
+		rt.showWindow()
+		rt.application.Event.Emit("aigauge:open-settings")
+	})
 	menu.Add("Exit").OnClick(func(_ *application.Context) {
 		rt.application.Quit()
 	})

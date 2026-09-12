@@ -944,6 +944,47 @@ button {
   color: #fff;
 }
 
+.hotkey-setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding-top: 20px;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.hotkey-label {
+  flex: 1 1 auto;
+}
+
+.hotkey-enable-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.hotkey-setting-row select {
+  flex: 0 0 100%;
+  width: 100%;
+  height: 24px;
+  box-sizing: border-box;
+  padding: 2px 4px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: .7rem;
+}
+
+.hotkey-setting-row select:focus {
+  outline: none;
+  border-color: var(--base-accent);
+  box-shadow: 0 0 0 1px var(--base-accent);
+}
+
 .settings-version {
   display: flex;
   align-items: center;
@@ -1098,6 +1139,7 @@ button {
 
   .refresh-setting-row,
   .theme-setting-row,
+  .hotkey-setting-row,
   .setup-provider-head {
     align-items: flex-start;
     flex-direction: column;
@@ -1107,6 +1149,11 @@ button {
     flex: 0 0 auto;
     width: 100%;
     min-width: 0;
+  }
+
+  .hotkey-setting-row select {
+    flex: 0 0 auto;
+    width: 100%;
   }
 }
 
