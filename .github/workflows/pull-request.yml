@@ -3,6 +3,7 @@ name: Pull request checks
 on:
   pull_request:
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -52,3 +53,31 @@ jobs:
       - name: Build application
         shell: pwsh
         run: .\build.ps1 -Task build -SkipWindowsResources
+
+  package:
+    needs: check
+    runs-on: windows-latest
+    concurrency:
+      group: package-${{ github.workflow }}-${{ github.ref }}
+      cancel-in-progress: true
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build MSIX
+        shell: pwsh
+        run: .\build.ps1 -Task package -Architecture x64 -Version 0.0.0 -SkipWindowsResources
+
+      - name: Upload MSIX artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: aigauge-msix-${{ github.sha }}
+          path: dist/*.msix
+          if-no-files-found: error
+          retention-days: 14
