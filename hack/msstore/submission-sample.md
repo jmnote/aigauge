@@ -52,18 +52,17 @@
 ### English (United States)
 
 - **Product name**: AI Gauge
-- **Description**:
-  > AI Gauge is a lightweight Windows system tray widget for monitoring usage across OpenAI Codex, Anthropic Claude Code, and Google Antigravity. Live monitoring requires an existing signed-in Codex or Claude Code session, or the locally installed and signed-in agy command-line tool for Antigravity. A built-in sample preview is available without installing third-party tools or signing in to a provider. AI Gauge shows remaining quota percentages, reset times, connection status, and the last successful update in a compact desktop window. You can show, hide, and reorder providers; configure refresh intervals and warning and critical thresholds; keep the widget above other windows; toggle visibility with a global hotkey; and choose a light, dark, or system theme. The sample preview shows bundled example data, not usage from any account. AI Gauge runs locally, does not store a separate copy of your credentials, and does not retain usage data on a remote server.
-- **What's new in this version**: Managed in [`submission-overrides.yaml`](submission-overrides.yaml)
-- **Product features**: Managed in [`submission-overrides.yaml`](submission-overrides.yaml)
+- **Description**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.Description`).
+- **What's new in this version**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.ReleaseNotes`).
+- **Product features**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.Features`).
 - **Screenshots**: 2 Desktop images
   1. AI Gauge usage dashboard in dark mode.
   2. AI Gauge usage dashboard in light mode.
 - **Supplemental fields**:
-  - **Short description**: Monitor AI service usage, quotas, reset times, and connection status from your Windows system tray.
-  - **Keywords**: AI usage monitor, system tray, quota tracker, usage dashboard, background usage refresher
-  - **Copyright and trademark info**: © 2026 jmnote. Licensed under the Apache License 2.0.
-  - **Developed by**: jmnote
+  - **Short description**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.ShortDescription`).
+  - **Keywords**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.Keywords`).
+  - **Copyright and trademark info**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.CopyrightAndTrademarkInfo`).
+  - **Developed by**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.DevStudio`).
 
 ## Submission options
 
@@ -77,7 +76,7 @@
 
 #### Notes for Certification
 
-Managed in [`submission-overrides.yaml`](submission-overrides.yaml).
+See [`submission-sample.yaml`](submission-sample.yaml) (`NotesForCertification`).
 
 #### Credentials
 

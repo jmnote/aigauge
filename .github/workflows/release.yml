@@ -37,7 +37,7 @@ jobs:
       - name: Install go-winres
         shell: pwsh
         # Embeds the AI Gauge icon and file metadata into aigauge.exe (see
-        # hack/prepare-windows-resources.ps1). The MSIX itself gets its icon
+        # hack/package.mjs winres). The MSIX itself gets its icon
         # from Package.appxmanifest regardless, but this same aigauge.exe is
         # also uploaded directly as the portable release executable, and
         # without this resource step that one has no icon at all.
@@ -69,7 +69,7 @@ jobs:
         shell: pwsh
         run: |
           # build.ps1's package task already built aigauge.exe under dist/bin/
-          # to produce the MSIX above (hack/package-msix.ps1 builds it, then
+          # to produce the MSIX above (hack/package.mjs builds/stages it, then
           # copies it into the MSIX staging directory) - this just also copies
           # it into dist/ under the MSIX's own name, so someone who doesn't
           # want to install anything can run it directly. Named after the
@@ -92,7 +92,7 @@ jobs:
         run: |
           # -Path (wildcard) rather than -LiteralPath: -Include is silently
           # ignored without either a wildcard path or -Recurse, which would
-          # pick up hack/package-msix.ps1's own build-time copy of aigauge.exe
+          # pick up hack/package.mjs's own build-time copy of aigauge.exe
           # under dist\staging\<arch>\ - not part of the release - alongside
           # everything else in the tree. This form stays non-recursive and
           # matches dist\'s own contents only.
@@ -164,18 +164,13 @@ jobs:
       - name: Set up Microsoft Store Developer CLI
         uses: microsoft/microsoft-store-apppublisher@v1.4
 
-      - name: Set up Ruby for submission metadata
-        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.3"
-
       - name: Validate and convert Store submission overrides
-        if: hashFiles('docs/partner-center/submission-overrides.yaml') != ''
+        if: hashFiles('hack/msstore/submission-overrides.yaml') != ''
         shell: pwsh
         run: |
-          ruby hack/validate-store-submission.rb `
-            docs/partner-center/submission-overrides.yaml submission-overrides.json
+          npm ci --prefix hack --ignore-scripts --no-audit --no-fund
+          node hack/msstore/submission.mjs validate `
+            hack/msstore/submission-overrides.yaml submission-overrides.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Configure Microsoft Store credentials

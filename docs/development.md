@@ -40,7 +40,7 @@ failures, how a stored config is normalized, how the retry backoff is capped) an
 `frontend/logic.test.mjs` under node's built-in test runner - no test framework and no browser
 stand-in. `.\build.ps1 test` runs the Go and JavaScript suites in sequence.
 
-`hack/live-server.ps1` reproduces every provider state the UI can show without a CLI, an account,
+`hack/live-server.mjs` reproduces every provider state the UI can show without a CLI, an account,
 or a network:
 
 ```text
@@ -84,7 +84,7 @@ Start the fixture-backed browser preview:
 ```
 
 Open `http://localhost:8080/?theme=light` or `http://localhost:8080/?theme=dark`.
-The preview uses `hack/fixtures/sample-codex.json`, `sample-claude.json`, and
+The preview uses `hack/fixtures/samples/sample-codex.json`, `sample-claude.json`, and
 `sample-antigravity.json` - one fixture per provider, each holding exactly what that provider's
 Wails RPC method returns - does not call Codex or Antigravity, and watches both the `frontend/`
 and `hack/fixtures/` directories. Saving any frontend file or fixture causes the browser preview
@@ -98,13 +98,13 @@ To refresh those fixtures with real data (using your own local Codex/Claude sess
 ```
 
 Because the output reflects your own account (plan tier, usage percentages, reset times), review
-the diff before committing `hack/fixtures/sample-*.json`.
+the diff before committing `hack/fixtures/samples/sample-*.json`.
 
-The app's sample-data preview does not read `hack/fixtures/*.json` directly - it imports
+The app's sample-data preview does not read `hack/fixtures/samples/*.json` directly - it imports
 `internal/app/fixtures`, a small generated package (`internal/app/fixtures/fixtures.go`) that
 embeds each fixture's JSON as a Go byte-slice constant, so the sample data compiles straight into
 the binary with no file read of any kind at runtime. Regenerate it after changing
-`hack/fixtures/*.json`:
+`hack/fixtures/samples/*.json`:
 
 ```powershell
 .\build.ps1 fixtures-go
@@ -156,65 +156,30 @@ Release tags are the application version source of truth. For example, `v0.2.1` 
 MSIX version `0.2.1.0`; pass the same tag to `build.ps1 -Version` for a matching local package. The staging directory is `dist/staging/`; the generated package is written
 to `dist/` and ignored by Git.
 
-### Release and Microsoft Store publishing
+The packaging script locates `makeappx.exe` from the Windows SDK. If it is not on `PATH`, pass its
+full path through the existing packaging script parameter. `signtool.exe` is only needed when
+creating a locally signed package.
 
-The release workflow accepts only stable `vX.Y.Z` tags. Create and push a tag manually after
-merging the release commit:
+### Releases
+
+Releases are triggered by pushing a stable `vX.Y.Z` tag:
 
 ```powershell
 git tag v0.6.2
 git push origin v0.6.2
 ```
 
-The workflow builds the MSIX using that tag, creates the GitHub Release, and publishes the package
-to Microsoft Store. Configure these repository or environment secrets before using Store publishing:
+The `Release` GitHub Actions workflow (`.github/workflows/release.yml`) builds the MSIX, attaches both
+the MSIX and the standalone portable executable (`aigauge_<version>_x64.exe`) plus `SHA256SUMS.txt` to
+the GitHub release, and publishes the package to the Microsoft Store.
 
-- `AZURE_AD_TENANT_ID`
-- `SELLER_ID`
-- `AZURE_AD_APPLICATION_CLIENT_ID`
-- `AZURE_AD_APPLICATION_SECRET`
-
-These four values are the Partner Center app credentials used by `msstore reconfigure`. The Store
-product ID passed to `msstore publish` is configured as the app's public Store ID in the workflow.
-The workflow uses Microsoft's
-[`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action
-to install the Microsoft Store Developer CLI.
-
-Store submission overrides and certification test instructions are maintained in
-[`docs/partner-center/submission-overrides.yaml`](partner-center/submission-overrides.yaml). When the YAML file exists,
-the workflow leaves the Store submission as a draft, applies only the declared overrides, and then
-commits the submission. This keeps the Partner Center metadata reviewable alongside the code while
-preserving undeclared Store settings.
-
-The package uses the Partner Center identity in `Package.appxmanifest`. Do not replace its
-`Identity Name` or `Publisher` with an arbitrary certificate or publisher value. Microsoft Store
-submission handles Store package signing; local sideloading requires a certificate matching the
-package Publisher.
-
-The manifest's `runFullTrust` capability is required because AI Gauge is a native Wails/Win32
-application with a system tray UI and it invokes the locally installed `agy` CLI.
-
-### Optional Store certification smoke test
-
-When preparing a Microsoft Store resubmission, the following quick checks may be useful. They are
-guidance only and are not a required gate for ordinary pull requests:
-
-- On a clean device, verify that providers without local setup show clear guidance.
-- Open the sample preview and confirm it works without credentials or network access.
-- Check quota percentages, reset times, refresh, settings, themes, and always-on-top behavior.
-- Confirm setup-screen navigation and system-tray minimize/restore behavior.
-
-The packaging script locates `makeappx.exe` from the Windows SDK. If it is not on `PATH`, pass its
-full path through the existing packaging script parameter. `signtool.exe` is only needed when
-creating a locally signed package.
-
-The `Release` GitHub Actions workflow (`.github/workflows/release.yml`) additionally copies the
-same build's `aigauge.exe` (built under `dist/bin/`) into `dist/` under the MSIX's own name (e.g. `aigauge_0.5.1.0_x64.exe`
-alongside `aigauge_0.5.1.0_x64.msix`) and attaches both, plus `SHA256SUMS.txt`, to the GitHub
-release. It runs unsigned and needs no installation - unlike the MSIX, which either goes through
+The portable `.exe` runs unsigned and needs no installation - unlike the MSIX, which either goes through
 Store certification or needs a certificate matching the package Publisher installed and trusted
 first. Running the portable `.exe` still triggers SmartScreen on a machine that has not seen it
 before; that is a separate, much smaller prompt than installing a certificate.
+
+> For Microsoft Store publishing, Partner Center credentials, and submission details, see
+> [`hack/msstore/msstore.md`](../hack/msstore/msstore.md).
 
 ## Theme behavior
 
