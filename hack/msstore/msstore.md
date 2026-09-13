@@ -25,12 +25,12 @@ The release workflow uses Microsoft's [`microsoft-store-apppublisher`](https://g
 
 | Secret | Description |
 |---|---|
-| `AZURE_AD_TENANT_ID` | Azure Active Directory Tenant ID associated with the Partner Center account. |
-| `SELLER_ID` | Partner Center Seller ID. |
 | `AZURE_AD_APPLICATION_CLIENT_ID` | Azure AD Application (client) ID with Store submission permissions. |
 | `AZURE_AD_APPLICATION_SECRET` | Azure AD Application client secret key. |
+| `AZURE_AD_TENANT_ID` | Azure Active Directory Tenant ID associated with the Partner Center account. |
+| `SELLER_ID` | Partner Center Seller ID. |
 
-These credentials are configured locally via `msstore reconfigure` or loaded from `hack/submission.env` for CLI tasks.
+These credentials are configured locally via `msstore reconfigure` or loaded from `hack/temp/submission.env` for CLI tasks.
 
 ---
 
@@ -64,9 +64,9 @@ Rather than overwriting entire Partner Center configurations or manually editing
 
 4. **Update draft metadata**:
    ```powershell
-   msstore submission updateMetadata $STORE_APP_ID $mergedJson
+   msstore submission updateMetadata $STORE_APP_ID --payload $mergedJsonPath
    ```
-   Sends the merged, complete JSON metadata back to Partner Center to update the draft submission.
+   Sends the merged, complete JSON metadata back to Partner Center to update the draft submission. The merged JSON is written to a temp file and passed via `--payload` rather than inline, since a real store listing can exceed the operating system's maximum command line length (32,767 characters on Windows).
 
 5. **Publish to certification (`Commit`)**:
    ```powershell

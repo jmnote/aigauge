@@ -32,16 +32,9 @@ go.work.sum
 # .vscode/
 
 # Local MSIX staging and package output
-/dist/staging/
-/rsrc_windows_amd64.syso
 /dist/
+/rsrc_windows_amd64.syso
 
 # Node.js tooling used to regenerate the checked-in logo PNG
 /hack/node_modules/
 /hack/temp/
-/hack/submission.env
-/hack/msstore/submission.env
-/hack/msstore/msstore.env
-
-# Legacy backup manifest remains restorable after moving new manifests to hack/temp/.
-/.ai-credentials-backup.local.json
