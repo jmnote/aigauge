@@ -41,6 +41,61 @@ function findMsStore() {
   return 'msstore.exe';
 }
 
+function findJsonObjectEnd(text, start) {
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let i = start; i < text.length; i++) {
+    const char = text[i];
+    if (inString) {
+      if (escaped) {
+        escaped = false;
+      } else if (char === '\\') {
+        escaped = true;
+      } else if (char === '"') {
+        inString = false;
+      }
+      continue;
+    }
+    if (char === '"') {
+      inString = true;
+      continue;
+    }
+    if (char === '{') {
+      depth++;
+    } else if (char === '}') {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function extractSubmissionObject(text) {
+  let searchFrom = 0;
+  while (true) {
+    const start = text.indexOf('{', searchFrom);
+    if (start < 0) return null;
+    const end = findJsonObjectEnd(text, start);
+    if (end < 0) {
+      searchFrom = start + 1;
+      continue;
+    }
+    const candidate = text.slice(start, end + 1);
+    try {
+      const parsed = JSON.parse(candidate);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        if (parsed.Id || parsed.Listings) {
+          return parsed;
+        }
+      }
+    } catch {
+      // Not valid JSON - continue scanning from the next brace
+    }
+    searchFrom = start + 1;
+  }
+}
+
 function submissionGet(appId = APP_ID) {
   loadEnv();
 
@@ -76,14 +131,13 @@ function submissionGet(appId = APP_ID) {
   }
 
   const raw = getRes.stdout || '';
-  const firstBrace = raw.indexOf('{');
-  const lastBrace = raw.lastIndexOf('}');
-  if (firstBrace === -1 || lastBrace === -1 || lastBrace <= firstBrace) {
-    console.error('Failed to find JSON payload in msstore output:\n' + raw);
+  const submission = extractSubmissionObject(raw);
+  if (!submission) {
+    console.error('Failed to extract submission JSON payload from msstore output:\n' + raw);
     process.exit(1);
   }
 
-  const rawJsonText = raw.slice(firstBrace, lastBrace + 1).trim() + '\n';
+  const rawJsonText = JSON.stringify(submission, null, 2) + '\n';
   fs.writeFileSync(JSON_OUTPUT_PATH, rawJsonText, 'utf8');
   console.log(`Saved Store submission JSON: ${JSON_OUTPUT_PATH}`);
 }
@@ -98,11 +152,17 @@ function submissionYaml() {
     fs.mkdirSync(msstoreDir, { recursive: true });
   }
 
-  const rawJsonText = fs.readFileSync(JSON_OUTPUT_PATH, 'utf8');
-  const data = JSON.parse(rawJsonText);
+  let data;
+  try {
+    const rawJsonText = fs.readFileSync(JSON_OUTPUT_PATH, 'utf8');
+    data = JSON.parse(rawJsonText);
+  } catch (err) {
+    console.error(`Failed to parse ${JSON_OUTPUT_PATH}: ${err.message}`);
+    process.exit(1);
+  }
 
   // Mask sensitive ephemeral SAS token unless --raw is specified
-  if (!process.argv.includes('--raw') && data.FileUploadUrl) {
+  if (!process.argv.includes('--raw') && data && data.FileUploadUrl) {
     data.FileUploadUrl = '__REDACTED__';
   }
 

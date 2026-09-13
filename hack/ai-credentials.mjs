@@ -95,22 +95,38 @@ function getAiBackupTargets(targetProvider = "all") {
   return targets;
 }
 
+function normalizeManifestItem(item) {
+  if (!item || typeof item !== "object") return null;
+  const livePath = item.livePath || item.LivePath;
+  const backupPath = item.backupPath || item.BackupPath;
+  if (!livePath || !backupPath) return null;
+  const label = item.label || item.Label || path.basename(livePath);
+  const provider = item.provider || item.Provider || getProviderFromLabel(label);
+  return {
+    provider,
+    label,
+    livePath,
+    backupPath,
+  };
+}
+
 function loadManifest() {
+  let raw = [];
   if (fs.existsSync(manifestPath)) {
     try {
-      return JSON.parse(fs.readFileSync(manifestPath, "utf8"));
+      raw = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     } catch {
-      return [];
+      raw = [];
     }
-  }
-  if (fs.existsSync(legacyManifestPath)) {
+  } else if (fs.existsSync(legacyManifestPath)) {
     try {
-      return JSON.parse(fs.readFileSync(legacyManifestPath, "utf8"));
+      raw = JSON.parse(fs.readFileSync(legacyManifestPath, "utf8"));
     } catch {
-      return [];
+      raw = [];
     }
   }
-  return [];
+  if (!Array.isArray(raw)) return [];
+  return raw.map(normalizeManifestItem).filter(Boolean);
 }
 
 function saveManifest(items) {
@@ -226,6 +242,11 @@ export function restore(targetProvider = "all") {
   const notRestored = [];
 
   for (const item of toRestore) {
+    if (!item.livePath || !item.backupPath) {
+      console.warn(`Skipping invalid backup item: ${item.label}`);
+      continue;
+    }
+
     const liveExists = fs.existsSync(item.livePath);
     const backupExists = fs.existsSync(item.backupPath);
 

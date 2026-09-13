@@ -12,7 +12,7 @@ export function resolveVersion(requested) {
   if (!requested || typeof requested !== "string" || !requested.trim()) {
     requested = "0.0.0";
   }
-  let val = requested.trim().replace(/^[vV]/, "");
+  let val = requested.trim().replace(/^[vV]+/, "");
   if (!/^\d+\.\d+\.\d+(\.\d+)?(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$/.test(val)) {
     throw new Error(
       `Version must be semantic version text such as 0.1.1, 0.1.1-beta1, or 0.1.1-beta1+build5. Received: ${requested}`
@@ -44,14 +44,20 @@ export function convertLogo(options = {}) {
   console.log(`Created: ${path.relative(repoRoot, output)}`);
 }
 
-function findGoWinres() {
+function findOnPath(name) {
   try {
-    const out = child_process.execFileSync("where.exe", ["go-winres"], {
+    const out = child_process.execFileSync("where.exe", [name], {
       encoding: "utf8",
       stdio: ["ignore", "pipe", "ignore"],
     }).trim();
     if (out) return out.split(/\r?\n/)[0].trim();
   } catch { }
+  return null;
+}
+
+function findGoWinres() {
+  const onPath = findOnPath("go-winres");
+  if (onPath) return onPath;
 
   try {
     const gopath = child_process.execFileSync("go", ["env", "GOPATH"], {
@@ -102,13 +108,8 @@ function findMakeAppx(requested) {
     throw new Error(`makeappx.exe was not found at: ${requested}`);
   }
 
-  try {
-    const out = child_process.execFileSync("where.exe", ["makeappx.exe"], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (out) return out.split(/\r?\n/)[0].trim();
-  } catch { }
+  const onPath = findOnPath("makeappx.exe");
+  if (onPath) return onPath;
 
   const programFilesX86 = process.env["ProgramFiles(x86)"];
   const programFiles = process.env["ProgramFiles"];

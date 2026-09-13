@@ -1,6 +1,7 @@
 import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
+import child_process from "node:child_process";
 import { fileURLToPath } from "node:url";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -202,9 +203,52 @@ const server = http.createServer((req, res) => {
   res.end(content);
 });
 
+function diagnosePortOwners(port) {
+  if (process.platform !== "win32") return;
+  try {
+    const netstat = child_process.execFileSync("netstat", ["-ano", "-p", "tcp"], {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    const lines = netstat.split(/\r?\n/);
+    const pids = new Set();
+    for (const line of lines) {
+      const parts = line.trim().split(/\s+/);
+      if (parts.length >= 5 && parts[0].toUpperCase() === "TCP") {
+        const localAddr = parts[1];
+        const state = parts[3];
+        const pid = parts[4];
+        if (state === "LISTENING" && (localAddr.endsWith(`:${port}`) || localAddr.endsWith(`[::]:${port}`))) {
+          pids.add(pid);
+        }
+      }
+    }
+    if (pids.size > 0) {
+      for (const pid of pids) {
+        if (pid === "4") {
+          console.error(`  PID 4 - System (HTTP.sys). Stop the server registered for http://localhost:${port}/. Do not kill PID 4.`);
+          continue;
+        }
+        let name = "unknown";
+        try {
+          const tasklist = child_process.execFileSync("tasklist", ["/FI", `PID eq ${pid}`, "/FO", "CSV", "/NH"], {
+            encoding: "utf8",
+            stdio: ["ignore", "pipe", "ignore"],
+          });
+          const match = tasklist.match(/^"([^"]+)"/);
+          if (match) name = match[1];
+        } catch { }
+        console.error(`  PID ${pid} - ${name}`);
+        console.error(`  Stop-Process -Id ${pid}`);
+      }
+    }
+  } catch { }
+}
+
 server.on("error", (err) => {
   if (err.code === "EADDRINUSE") {
-    console.error(`Port ${PORT} is already in use.`);
+    console.error(`Port ${PORT} is already in use:`);
+    diagnosePortOwners(PORT);
     console.error(`Stop the process using port ${PORT} or set PORT=<other_port> and retry.`);
     process.exit(1);
   } else {

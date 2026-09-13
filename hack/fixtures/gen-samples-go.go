@@ -29,6 +29,11 @@ import (
 )
 
 func main() {
+	if _, err := os.Stat(filepath.Join("hack", "fixtures")); err != nil {
+		fmt.Fprintln(os.Stderr, "gen-samples-go: run this from the repository root:", err)
+		os.Exit(1)
+	}
+
 	sourceDir := filepath.Join("hack", "fixtures", "samples")
 	outPath := filepath.Join("internal", "app", "fixtures", "fixtures.go")
 

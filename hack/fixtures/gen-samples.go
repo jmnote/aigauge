@@ -27,6 +27,11 @@ import (
 )
 
 func main() {
+	if _, err := os.Stat(filepath.Join("hack", "fixtures")); err != nil {
+		fmt.Fprintln(os.Stderr, "gen-samples: run this from the repository root:", err)
+		os.Exit(1)
+	}
+
 	samplesDir := filepath.Join("hack", "fixtures", "samples")
 	if err := os.MkdirAll(samplesDir, 0o755); err != nil {
 		fmt.Fprintln(os.Stderr, "gen-samples: create samples dir:", err)
