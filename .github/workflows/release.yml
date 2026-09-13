@@ -163,6 +163,10 @@ jobs:
 
       - name: Set up Microsoft Store Developer CLI
         uses: microsoft/microsoft-store-apppublisher@v1.4
+        with:
+          # v0.4.2 added file/stdin payload support. Keep this pinned because
+          # the submission workflow depends on that exact CLI contract.
+          version: v0.4.2
 
       - name: Validate and convert Store submission overrides
         if: hashFiles('hack/msstore/submission-overrides.yaml') != ''
@@ -181,6 +185,7 @@ jobs:
           AZURE_AD_APPLICATION_CLIENT_ID: ${{ secrets.AZURE_AD_APPLICATION_CLIENT_ID }}
           AZURE_AD_APPLICATION_SECRET: ${{ secrets.AZURE_AD_APPLICATION_SECRET }}
         run: |
+          msstore --version
           msstore reconfigure `
             --tenantId $env:AZURE_AD_TENANT_ID `
             --sellerId $env:SELLER_ID `
@@ -297,7 +302,10 @@ jobs:
             foreach ($property in $source.PSObject.Properties) {
               $existing = $target.PSObject.Properties[$property.Name]
               if ($property.Value -is [PSCustomObject] -and $existing -and $existing.Value -is [PSCustomObject]) {
-                Merge-SubmissionOverrides $existing.Value $property.Value
+                # PowerShell writes every uncaptured return value to the
+                # pipeline. Suppress recursive results so the outer call
+                # returns one submission object instead of a JSON array.
+                $null = Merge-SubmissionOverrides $existing.Value $property.Value
               } elseif ($existing) {
                 $target.$($property.Name) = $property.Value
               } else {
@@ -307,6 +315,9 @@ jobs:
             return $target
           }
           $submission = Merge-SubmissionOverrides $submission $overrides
+          if ($submission -is [array]) {
+            throw "Store submission merge produced multiple root objects."
+          }
           $metadata = $submission | ConvertTo-Json -Depth 100 -Compress
 
           # Pass the metadata through a file rather than inline: a real store
