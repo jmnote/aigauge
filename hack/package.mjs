@@ -187,8 +187,13 @@ async function generateMsixAssets(assetsDir) {
   }
 }
 
+const VALID_ARCHITECTURES = ["x64", "x86", "arm64"];
+
 export async function packageMsix(options = {}) {
   const arch = options.arch || "x64";
+  if (!VALID_ARCHITECTURES.includes(arch)) {
+    throw new Error(`Invalid architecture '${arch}'. Must be one of: ${VALID_ARCHITECTURES.join(", ")}`);
+  }
   const appVersion = options.version || "0.0.0";
   const msixVersion = resolveVersion(appVersion);
   const releaseArtifact = Boolean(options.release);
@@ -219,8 +224,15 @@ export async function packageMsix(options = {}) {
   // Process manifest
   const manifestTemplate = fs.readFileSync(path.join(repoRoot, "Package.appxmanifest"), "utf8");
   const versionReplacement = `$1${msixVersion}$2`;
-  let manifest = manifestTemplate.replace(/(<Identity\b.*?\bVersion=")[^"]+(")/s, versionReplacement);
-  manifest = manifest.replace(/ProcessorArchitecture="[^"]+"/, `ProcessorArchitecture="${arch}"`);
+  let manifest = manifestTemplate.replace(/(<Identity\b.*?\bVersion=")[^"]+(")/gs, versionReplacement);
+  if (manifest === manifestTemplate) {
+    throw new Error('Package.appxmanifest is missing an <Identity Version="..."> attribute to update.');
+  }
+  const beforeArchReplace = manifest;
+  manifest = manifest.replace(/ProcessorArchitecture="[^"]+"/g, `ProcessorArchitecture="${arch}"`);
+  if (manifest === beforeArchReplace) {
+    throw new Error('Package.appxmanifest is missing a ProcessorArchitecture attribute to update.');
+  }
   fs.writeFileSync(path.join(staging, "AppxManifest.xml"), manifest, "utf8");
 
   // Generate vector icon assets

@@ -216,7 +216,7 @@ async function validateSubmission(sourcePath, outputPath) {
   }
 
   const notes = submission.NotesForCertification;
-  if (notes !== undefined && (typeof notes !== 'string' || notes.length > 2000)) {
+  if (notes != null && (typeof notes !== 'string' || notes.length > 2000)) {
     console.error('NotesForCertification must be a string of at most 2,000 characters.');
     process.exit(1);
   }
@@ -243,13 +243,13 @@ async function validateSubmission(sourcePath, outputPath) {
         }
 
         const releaseNotes = listing.ReleaseNotes;
-        if (releaseNotes !== undefined && (typeof releaseNotes !== 'string' || releaseNotes.length > 1500)) {
+        if (releaseNotes != null && (typeof releaseNotes !== 'string' || releaseNotes.length > 1500)) {
           console.error('ReleaseNotes must be a string of at most 1,500 characters.');
           process.exit(1);
         }
 
         const features = listing.Features;
-        if (features !== undefined) {
+        if (features != null) {
           if (!Array.isArray(features) || features.length > 20) {
             console.error('Features must be a list with at most 20 entries.');
             process.exit(1);

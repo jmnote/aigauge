@@ -10,10 +10,16 @@ const manifestDir = path.join(__dirname, "temp");
 const manifestPath = path.join(manifestDir, ".ai-credentials-backup.local.json");
 const legacyManifestPath = path.join(repoRoot, ".ai-credentials-backup.local.json");
 
+const VALID_PROVIDERS = ["all", "antigravity", "claude", "codex"];
+
 function normalizeProvider(provider) {
   const p = (provider || "all").toLowerCase();
-  if (p === "agy") return "antigravity";
-  return p;
+  const normalized = p === "agy" ? "antigravity" : p;
+  if (!VALID_PROVIDERS.includes(normalized)) {
+    console.error(`Unknown provider '${provider}'. Valid providers: ${VALID_PROVIDERS.join(", ")}, agy`);
+    process.exit(1);
+  }
+  return normalized;
 }
 
 function getProviderFromLabel(label) {
