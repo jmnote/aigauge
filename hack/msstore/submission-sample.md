@@ -61,8 +61,8 @@
 - **Supplemental fields**:
   - **Short description**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.ShortDescription`).
   - **Keywords**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.Keywords`).
-  - **Copyright and trademark info**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.CopyrightAndTrademarkInfo`).
-  - **Developed by**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.DevStudio`).
+  - **Copyright and trademark info**: © 2026 jmnote. Licensed under the Apache License 2.0.
+  - **Developed by**: jmnote
 
 ## Submission options
 

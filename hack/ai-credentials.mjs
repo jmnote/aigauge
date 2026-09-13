@@ -1,13 +1,12 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import { repoRoot, tempDir as manifestDir } from "./lib/paths.mjs";
+import { tempDir } from "./lib/paths.mjs";
 import { findExecutable } from "./lib/find-executable.mjs";
 import { isMain } from "./lib/is-main.mjs";
 import { CODEX_AUTH_RELATIVE_PATH, CLAUDE_CREDENTIALS_RELATIVE_PATH } from "./lib/credential-paths.mjs";
 
-const manifestPath = path.join(manifestDir, ".ai-credentials-backup.local.json");
-const legacyManifestPath = path.join(repoRoot, ".ai-credentials-backup.local.json");
+const manifestPath = path.join(tempDir, ".ai-credentials-backup.local.json");
 
 const VALID_PROVIDERS = ["all", "antigravity", "claude", "codex"];
 
@@ -106,12 +105,11 @@ function normalizeManifestItem(item) {
 
 function loadManifest() {
   let raw = [];
-  const activePath = fs.existsSync(manifestPath) ? manifestPath : (fs.existsSync(legacyManifestPath) ? legacyManifestPath : null);
-  if (activePath) {
+  if (fs.existsSync(manifestPath)) {
     try {
-      raw = JSON.parse(fs.readFileSync(activePath, "utf8"));
+      raw = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
     } catch (err) {
-      console.warn(`Warning: could not parse backup manifest at ${activePath} (${err.message}).`);
+      console.warn(`Warning: could not parse backup manifest at ${manifestPath} (${err.message}).`);
       console.warn("Treating it as empty - if credentials still seem backed up, check for stray *.bak files and restore them manually.");
       raw = [];
     }
@@ -125,22 +123,11 @@ function saveManifest(items) {
     if (fs.existsSync(manifestPath)) {
       fs.unlinkSync(manifestPath);
     }
-    if (fs.existsSync(legacyManifestPath)) {
-      fs.unlinkSync(legacyManifestPath);
-    }
-    if (fs.existsSync(manifestDir)) {
-      try {
-        const remaining = fs.readdirSync(manifestDir);
-        if (remaining.length === 0) {
-          fs.rmdirSync(manifestDir);
-        }
-      } catch { }
-    }
     return;
   }
 
-  if (!fs.existsSync(manifestDir)) {
-    fs.mkdirSync(manifestDir, { recursive: true });
+  if (!fs.existsSync(tempDir)) {
+    fs.mkdirSync(tempDir, { recursive: true });
   }
   fs.writeFileSync(manifestPath, JSON.stringify(items, null, 2), "utf8");
 }

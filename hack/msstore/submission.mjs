@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { repoRoot, hackDir, tempDir } from '../lib/paths.mjs';
+import { repoRoot, tempDir } from '../lib/paths.mjs';
 import { ensureImport } from '../lib/ensure-npm.mjs';
 import { isMain } from '../lib/is-main.mjs';
 
@@ -18,19 +18,12 @@ const YAML_OUTPUT_PATH = path.join(msstoreDir, 'submission-sample.yaml');
 const APP_ID = process.env.STORE_APP_ID || '9MT65KM56P99';
 
 function loadEnv() {
-  const candidates = [
-    path.join(msstoreDir, 'submission.env'),
-    path.join(msstoreDir, 'msstore.env'),
-    path.join(hackDir, 'submission.env'),
-  ];
-  for (const envPath of candidates) {
-    if (fs.existsSync(envPath)) {
-      try {
-        process.loadEnvFile(envPath);
-        break;
-      } catch (err) {
-        console.warn(`Warning: failed to load ${envPath}:`, err.message);
-      }
+  const envPath = path.join(tempDir, 'submission.env');
+  if (fs.existsSync(envPath)) {
+    try {
+      process.loadEnvFile(envPath);
+    } catch (err) {
+      console.warn(`Warning: failed to load ${envPath}:`, err.message);
     }
   }
 }
