@@ -944,6 +944,51 @@ button {
   color: #fff;
 }
 
+.boot-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 20px;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.boot-button-group {
+  display: inline-flex;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.boot-option-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-left: 1px solid var(--border);
+  border-radius: 0;
+  background: var(--surface);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: .75rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background .15s ease, color .15s ease;
+}
+
+.boot-option-btn:first-child {
+  border-left: 0;
+}
+
+.boot-button-group .boot-option-btn.active {
+  background: var(--base-accent);
+  color: #fff;
+}
+
 .hotkey-setting-row {
   display: flex;
   flex-wrap: wrap;

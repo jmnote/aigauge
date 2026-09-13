@@ -81,6 +81,7 @@ const defaultConfig = {
   providerOrder: providerIds.slice(),
   windowWidth: 250,
   theme: 'system',
+  startOnBoot: false,
   refreshInterval: 120,
   thresholds: {
     warning: { enabled: true, value: 50 },
@@ -661,6 +662,8 @@ const warningThresholdInput = document.getElementById('warning-threshold');
 const criticalEnabledInput = document.getElementById('critical-enabled');
 const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
+const bootButtonGroup = document.getElementById('boot-button-group');
+const bootOptionBtns = document.querySelectorAll('.boot-option-btn');
 const hotkeySelect = document.getElementById('hotkey-select');
 const hotkeyStatus = document.getElementById('hotkey-status');
 const hotkeyStatusText = document.getElementById('hotkey-status-text');
@@ -956,6 +959,47 @@ async function syncHotkeySettings() {
 hotkeySelect.addEventListener('change', saveHotkeySettings);
 hotkeyRetryBtn.addEventListener('click', retryHotkeyOperation);
 
+function updateBootUI(enabled) {
+  bootOptionBtns.forEach(btn => {
+    const isCurrent = (btn.dataset.boot === 'on') === enabled;
+    btn.classList.toggle('active', isCurrent);
+    btn.setAttribute('aria-pressed', String(isCurrent));
+  });
+}
+
+async function setStartOnBoot(enabled) {
+  config.startOnBoot = enabled;
+  updateBootUI(enabled);
+  saveCurrentConfig();
+  try {
+    await rpc('SetStartOnBoot', enabled);
+  } catch (e) {
+    console.warn('Failed to update start on boot:', e);
+    syncStartOnBootSettings();
+  }
+}
+
+async function syncStartOnBootSettings() {
+  try {
+    const isEnabled = await rpc('GetStartOnBoot');
+    config.startOnBoot = Boolean(isEnabled);
+    updateBootUI(config.startOnBoot);
+    saveCurrentConfig();
+  } catch (e) {
+    console.warn('Failed to get start on boot status:', e);
+    updateBootUI(Boolean(config.startOnBoot));
+  }
+}
+
+if (bootButtonGroup) {
+  bootButtonGroup.addEventListener('click', event => {
+    const button = event.target.closest('.boot-option-btn');
+    if (button) {
+      setStartOnBoot(button.dataset.boot === 'on');
+    }
+  });
+}
+
 function openSettings() {
   renderProviderList();
   refreshIntervalInput.value = refreshInterval;
@@ -967,6 +1011,8 @@ function openSettings() {
   criticalThresholdInput.value = config.thresholds.critical.value;
   criticalThresholdInput.disabled = !config.thresholds.critical.enabled;
   updateHotkeyUI();
+  updateBootUI(Boolean(config.startOnBoot));
+  syncStartOnBootSettings();
   settingsDialog.showModal();
   requestWindowResize();
 }
@@ -974,6 +1020,7 @@ function openSettings() {
 document.getElementById('settings').addEventListener('click', openSettings);
 wails.Events.On('aigauge:open-settings', openSettings);
 syncHotkeySettings();
+syncStartOnBootSettings();
 
 // ---------------------------------------------------------------------------
 // First-run screen

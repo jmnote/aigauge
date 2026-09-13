@@ -101,6 +101,9 @@ export function normalizeConfig(value, providerIds, defaultConfig) {
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
   const hotkeyValue = HOTKEY_OPTIONS.some(option => option.value === value?.hotkeyShortcut)
     ? value.hotkeyShortcut : null;
+  const startOnBoot = typeof value?.startOnBoot === 'boolean'
+    ? value.startOnBoot
+    : (typeof defaultConfig?.startOnBoot === 'boolean' ? defaultConfig.startOnBoot : false);
   return {
     providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
     providerOrder: normalizeProviderOrder(value?.providerOrder, providerIds),
@@ -108,6 +111,7 @@ export function normalizeConfig(value, providerIds, defaultConfig) {
     theme: VALID_THEMES.has(theme) ? theme : defaultConfig.theme,
     refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
     hotkeyShortcut: hotkeyValue,
+    startOnBoot,
     thresholds: { warning, critical }
   };
 }

@@ -18,6 +18,7 @@ var embeddedFrontend embed.FS
 var appIcon []byte
 
 func main() {
+	startHidden := false
 	for _, arg := range os.Args[1:] {
 		if strings.HasPrefix(arg, "--theme=") {
 			theme := strings.TrimPrefix(arg, "--theme=")
@@ -25,12 +26,15 @@ func main() {
 				usageapp.ThemeOverride = theme
 			}
 		}
+		if arg == "--hidden" || arg == "--tray" || arg == "--minimized" {
+			startHidden = true
+		}
 	}
 	frontendAssets, err := fs.Sub(embeddedFrontend, "frontend")
 	if err != nil {
 		log.Fatal("failed to initialize embedded frontend assets: ", err)
 	}
-	if err := ui.Run(frontendAssets, appIcon); err != nil {
+	if err := ui.Run(frontendAssets, appIcon, startHidden); err != nil {
 		log.Fatal(err)
 	}
 }
