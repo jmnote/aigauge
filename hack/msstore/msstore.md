@@ -21,7 +21,7 @@ git push origin v0.6.2
 
 ## 2. Partner Center Credentials & Secrets
 
-The release workflow uses Microsoft's [`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action to authenticate against Partner Center. The following repository or environment secrets are required:
+The release workflow uses Microsoft's [`microsoft-store-apppublisher`](https://github.com/microsoft/microsoft-store-apppublisher) action to install Microsoft Store Developer CLI v0.4.2 and authenticate against Partner Center. The following repository or environment secrets are required:
 
 | Secret | Description |
 |---|---|
@@ -66,7 +66,7 @@ Rather than overwriting entire Partner Center configurations or manually editing
    ```powershell
    msstore submission updateMetadata $STORE_APP_ID --payload $mergedJsonPath
    ```
-   Sends the merged, complete JSON metadata back to Partner Center to update the draft submission. The merged JSON is written to a temp file and passed via `--payload` rather than inline, since a real store listing can exceed the operating system's maximum command line length (32,767 characters on Windows).
+   Sends the merged, complete JSON metadata back to Partner Center to update the draft submission. The merged JSON is written to a temp file and passed via `--payload` rather than inline, since a real store listing can exceed the operating system's maximum command line length (32,767 characters on Windows). File payload support was added for [microsoft/msstore-cli#151](https://github.com/microsoft/msstore-cli/issues/151) and is verified with CLI v0.4.2 on the GitHub-hosted Windows Server 2025 runner.
 
 5. **Publish to certification (`Commit`)**:
    ```powershell
@@ -114,4 +114,3 @@ Before submitting a major update to certification, run these quick sanity checks
    - Test minimize-to-tray, tray icon click to restore, and right-click context menu options.
 5. **Restore environment**:
    - Run `.\build.ps1 ai-restore` to restore local development credentials.
-
