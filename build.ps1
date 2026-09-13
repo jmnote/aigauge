@@ -11,6 +11,28 @@ param(
     [switch]$ReleaseArtifact
 )
 
+function Ensure-HackNpm([string]$PackageName) {
+    $node = Get-Command node -ErrorAction SilentlyContinue
+    if (-not $node) {
+        throw "Node.js is required. Install Node.js to continue."
+    }
+    $hackDir = Join-Path $PSScriptRoot "hack"
+    $modulePath = if ($PackageName) { Join-Path $hackDir "node_modules\$PackageName" } else { Join-Path $hackDir "node_modules" }
+    if (-not (Test-Path -LiteralPath $modulePath -PathType Container)) {
+        $npm = Get-Command npm -ErrorAction SilentlyContinue
+        if (-not $npm) {
+            throw "npm was not found. Install Node.js/npm to continue."
+        }
+        Push-Location $hackDir
+        try {
+            & $npm.Source ci --ignore-scripts --no-audit --no-fund
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        } finally {
+            Pop-Location
+        }
+    }
+}
+
 function Resolve-Version {
     param([string]$Requested = "0.0.0")
     $res = & node (Join-Path $PSScriptRoot "hack\package.mjs") version --version $Requested
@@ -41,6 +63,7 @@ switch ($Task) {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "logo" {
+        Ensure-HackNpm "@resvg/resvg-js"
         & node (Join-Path $PSScriptRoot "hack\package.mjs") logo
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
@@ -48,6 +71,7 @@ switch ($Task) {
         if ([string]::IsNullOrWhiteSpace($Version)) {
             $Version = "0.0.0"
         }
+        $Version = Resolve-Version -Requested $Version
         if (-not $SkipWindowsResources) {
             & $PSCommandPath -Task logo
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -63,6 +87,7 @@ switch ($Task) {
         go build -ldflags $ldflags -o $outputExe .
     }
     "package" {
+        Ensure-HackNpm "@resvg/resvg-js"
         $buildArgs = @{
             Task = "build"
             Version = $Version
@@ -218,57 +243,18 @@ switch ($Task) {
         }
     }
     "submission-get" {
-        $node = Get-Command node -ErrorAction SilentlyContinue
-        if (-not $node) {
-            throw "Node.js is required. Install Node.js to run submission-get."
-        }
-        & $node.Source (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") get
+        Ensure-HackNpm
+        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") get
         exit $LASTEXITCODE
     }
     "submission-yaml" {
-        $node = Get-Command node -ErrorAction SilentlyContinue
-        if (-not $node) {
-            throw "Node.js is required. Install Node.js to run submission-yaml."
-        }
-        $hackDir = Join-Path $PSScriptRoot "hack"
-        $yamlModule = Join-Path $hackDir "node_modules\yaml"
-        if (-not (Test-Path -LiteralPath $yamlModule -PathType Container)) {
-            $npm = Get-Command npm -ErrorAction SilentlyContinue
-            if (-not $npm) {
-                throw "npm was not found. Install Node.js/npm to run submission-yaml."
-            }
-            Push-Location $hackDir
-            try {
-                & $npm.Source ci --ignore-scripts --no-audit --no-fund
-                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            } finally {
-                Pop-Location
-            }
-        }
-        & $node.Source (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") yaml
+        Ensure-HackNpm "yaml"
+        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") yaml
         exit $LASTEXITCODE
     }
     "submission-validate" {
-        $node = Get-Command node -ErrorAction SilentlyContinue
-        if (-not $node) {
-            throw "Node.js is required. Install Node.js to run submission-validate."
-        }
-        $hackDir = Join-Path $PSScriptRoot "hack"
-        $yamlModule = Join-Path $hackDir "node_modules\yaml"
-        if (-not (Test-Path -LiteralPath $yamlModule -PathType Container)) {
-            $npm = Get-Command npm -ErrorAction SilentlyContinue
-            if (-not $npm) {
-                throw "npm was not found. Install Node.js/npm to run submission-validate."
-            }
-            Push-Location $hackDir
-            try {
-                & $npm.Source ci --ignore-scripts --no-audit --no-fund
-                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            } finally {
-                Pop-Location
-            }
-        }
-        & $node.Source (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") validate
+        Ensure-HackNpm "yaml"
+        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") validate
         exit $LASTEXITCODE
     }
     "screenshot" {

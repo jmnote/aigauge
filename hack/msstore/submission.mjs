@@ -2,10 +2,31 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import YAML from 'yaml';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+async function getYaml() {
+  try {
+    const mod = await import('yaml');
+    return mod.default;
+  } catch {
+    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+    const hackDir = path.resolve(__dirname, '..');
+    try {
+      const res = spawnSync(npm, ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], {
+        cwd: hackDir,
+        stdio: 'inherit',
+      });
+      if (res.status === 0) {
+        const mod = await import('yaml');
+        return mod.default;
+      }
+    } catch { }
+    console.error("The 'yaml' package is required. Run 'npm ci' in the hack/ directory.");
+    process.exit(1);
+  }
+}
 
 const repoRoot = path.resolve(__dirname, '..', '..');
 const tempDir = path.resolve(__dirname, '..', 'temp');
@@ -142,7 +163,7 @@ function submissionGet(appId = APP_ID) {
   console.log(`Saved Store submission JSON: ${JSON_OUTPUT_PATH}`);
 }
 
-function submissionYaml() {
+async function submissionYaml() {
   if (!fs.existsSync(JSON_OUTPUT_PATH)) {
     console.error(`Error: ${JSON_OUTPUT_PATH} not found.\nRun '.\\build.ps1 submission-get' first.`);
     process.exit(1);
@@ -166,12 +187,13 @@ function submissionYaml() {
     data.FileUploadUrl = '__REDACTED__';
   }
 
+  const YAML = await getYaml();
   const yamlContent = YAML.stringify(data);
   fs.writeFileSync(YAML_OUTPUT_PATH, yamlContent, 'utf8');
   console.log(`Saved Store submission YAML: ${YAML_OUTPUT_PATH}`);
 }
 
-function validateSubmission(sourcePath, outputPath) {
+async function validateSubmission(sourcePath, outputPath) {
   const targetSource = sourcePath || path.join(msstoreDir, 'submission-overrides.yaml');
   if (!fs.existsSync(targetSource)) {
     console.error(`Error: ${targetSource} does not exist.`);
@@ -179,6 +201,7 @@ function validateSubmission(sourcePath, outputPath) {
   }
 
   const content = fs.readFileSync(targetSource, 'utf8');
+  const YAML = await getYaml();
   let submission;
   try {
     submission = YAML.parse(content);
@@ -249,23 +272,30 @@ function validateSubmission(sourcePath, outputPath) {
 }
 
 // CLI entrypoint
-const command = process.argv[2] || 'all';
+async function main() {
+  const command = process.argv[2] || 'all';
 
-switch (command) {
-  case 'get':
-    submissionGet(process.argv[3]);
-    break;
-  case 'yaml':
-    submissionYaml();
-    break;
-  case 'all':
-    submissionGet(process.argv[3]);
-    submissionYaml();
-    break;
-  case 'validate':
-    validateSubmission(process.argv[3], process.argv[4]);
-    break;
-  default:
-    console.error(`Unknown command: ${command}\nUsage: node submission.mjs [get|yaml|all|validate]`);
-    process.exit(1);
+  switch (command) {
+    case 'get':
+      submissionGet(process.argv[3]);
+      break;
+    case 'yaml':
+      await submissionYaml();
+      break;
+    case 'all':
+      submissionGet(process.argv[3]);
+      await submissionYaml();
+      break;
+    case 'validate':
+      await validateSubmission(process.argv[3], process.argv[4]);
+      break;
+    default:
+      console.error(`Unknown command: ${command}\nUsage: node submission.mjs [get|yaml|all|validate]`);
+      process.exit(1);
+  }
 }
+
+main().catch((err) => {
+  console.error(err.message || err);
+  process.exit(1);
+});

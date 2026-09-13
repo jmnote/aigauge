@@ -41,6 +41,7 @@ go.work.sum
 /hack/temp/
 /hack/submission.env
 /hack/msstore/submission.env
+/hack/msstore/msstore.env
 
 # Legacy backup manifest remains restorable after moving new manifests to hack/temp/.
 /.ai-credentials-backup.local.json

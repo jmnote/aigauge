@@ -24,7 +24,7 @@ jobs:
       - name: Validate Store submission overrides
         if: hashFiles('hack/msstore/submission-overrides.yaml') != ''
         shell: pwsh
-        run: node hack/msstore/submission.mjs validate hack/msstore/submission-overrides.yaml
+        run: .\build.ps1 -Task submission-validate
 
       - name: Run tests
         shell: pwsh

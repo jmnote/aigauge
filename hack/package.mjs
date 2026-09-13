@@ -3,10 +3,31 @@ import path from "node:path";
 import crypto from "node:crypto";
 import child_process from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { Resvg } from "@resvg/resvg-js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, "..");
+
+async function getResvg() {
+  try {
+    const mod = await import("@resvg/resvg-js");
+    return mod.Resvg;
+  } catch {
+    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
+    try {
+      const res = child_process.spawnSync(npm, ["ci", "--ignore-scripts", "--no-audit", "--no-fund"], {
+        cwd: __dirname,
+        stdio: "inherit",
+      });
+      if (res.status === 0) {
+        const mod = await import("@resvg/resvg-js");
+        return mod.Resvg;
+      }
+    } catch { }
+    throw new Error(
+      "The '@resvg/resvg-js' package is required for logo and MSIX asset generation. Run 'npm ci' in the hack/ directory."
+    );
+  }
+}
 
 export function resolveVersion(requested) {
   if (!requested || typeof requested !== "string" || !requested.trim()) {
@@ -26,7 +47,7 @@ export function resolveVersion(requested) {
   return parts.join(".");
 }
 
-export function convertLogo(options = {}) {
+export async function convertLogo(options = {}) {
   const source = path.join(repoRoot, "frontend", "logo.svg");
   const output = path.join(repoRoot, "frontend", "logo.png");
   const expectedHash = "85e14c2328a97674fdde7c896155180a24ccdf29b5f4a46d23938d44de649e59";
@@ -39,6 +60,7 @@ export function convertLogo(options = {}) {
     return;
   }
 
+  const Resvg = await getResvg();
   const png = new Resvg(sourceContent, { fitTo: { mode: "original" } }).render().asPng();
   fs.writeFileSync(output, png);
   console.log(`Created: ${path.relative(repoRoot, output)}`);
@@ -73,14 +95,14 @@ function findGoWinres() {
   throw new Error("go-winres was not found. Install it with: go install github.com/tc-hib/go-winres@v0.3.3");
 }
 
-export function prepareWinres(version = "0.0.0") {
+export async function prepareWinres(version = "0.0.0") {
   const numericVersion = resolveVersion(version);
   const winresBin = findGoWinres();
   const iconPath = path.join(repoRoot, "frontend", "logo.png");
   const outPath = path.join(repoRoot, "rsrc");
 
   if (!fs.existsSync(iconPath)) {
-    convertLogo({ force: true });
+    await convertLogo({ force: true });
   }
 
   child_process.execFileSync(
@@ -152,9 +174,10 @@ const MSIX_ASSETS = [
   { name: "Square310x310Logo.png", size: 310 },
 ];
 
-function generateMsixAssets(assetsDir) {
+async function generateMsixAssets(assetsDir) {
   const svgPath = path.join(repoRoot, "frontend", "logo.svg");
   const svgContent = fs.readFileSync(svgPath);
+  const Resvg = await getResvg();
 
   for (const asset of MSIX_ASSETS) {
     const png = new Resvg(svgContent, {
@@ -164,7 +187,7 @@ function generateMsixAssets(assetsDir) {
   }
 }
 
-export function packageMsix(options = {}) {
+export async function packageMsix(options = {}) {
   const arch = options.arch || "x64";
   const appVersion = options.version || "0.0.0";
   const msixVersion = resolveVersion(appVersion);
@@ -201,7 +224,7 @@ export function packageMsix(options = {}) {
   fs.writeFileSync(path.join(staging, "AppxManifest.xml"), manifest, "utf8");
 
   // Generate vector icon assets
-  generateMsixAssets(assets);
+  await generateMsixAssets(assets);
 
   // Pack MSIX
   const makeAppxPath = findMakeAppx(options.makeappx);
@@ -254,7 +277,7 @@ Options:
 `);
 }
 
-function main() {
+async function main() {
   const { command, flags } = parseArgs(process.argv.slice(2));
   const version = flags.version || flags.Version || "0.0.0";
   const arch = flags.arch || flags.Architecture || "x64";
@@ -264,21 +287,21 @@ function main() {
 
   switch (command) {
     case "logo":
-      convertLogo({ force });
+      await convertLogo({ force });
       break;
     case "winres":
-      prepareWinres(version);
+      await prepareWinres(version);
       break;
     case "msix":
-      packageMsix({ arch, version, makeappx, release });
+      await packageMsix({ arch, version, makeappx, release });
       break;
     case "version":
       console.log(resolveVersion(version));
       break;
     case "all":
-      convertLogo({ force });
-      prepareWinres(version);
-      packageMsix({ arch, version, makeappx, release });
+      await convertLogo({ force });
+      await prepareWinres(version);
+      await packageMsix({ arch, version, makeappx, release });
       break;
     case "help":
     case "--help":
@@ -293,5 +316,8 @@ function main() {
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
-  main();
+  main().catch((err) => {
+    console.error(err.message || err);
+    process.exit(1);
+  });
 }

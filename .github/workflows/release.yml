@@ -168,6 +168,7 @@ jobs:
         if: hashFiles('hack/msstore/submission-overrides.yaml') != ''
         shell: pwsh
         run: |
+          npm ci --prefix hack --ignore-scripts --no-audit --no-fund
           node hack/msstore/submission.mjs validate `
             hack/msstore/submission-overrides.yaml submission-overrides.json
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
