@@ -2,8 +2,9 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
-import { repoRoot, tempDir } from '../lib/paths.mjs';
+import { repoRoot, hackDir, tempDir } from '../lib/paths.mjs';
 import { ensureImport } from '../lib/ensure-npm.mjs';
+import { isMain } from '../lib/is-main.mjs';
 
 const msstoreDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -18,9 +19,9 @@ const APP_ID = process.env.STORE_APP_ID || '9MT65KM56P99';
 
 function loadEnv() {
   const candidates = [
-    path.join(__dirname, 'submission.env'),
-    path.join(__dirname, 'msstore.env'),
-    path.join(__dirname, '..', 'submission.env'),
+    path.join(msstoreDir, 'submission.env'),
+    path.join(msstoreDir, 'msstore.env'),
+    path.join(hackDir, 'submission.env'),
   ];
   for (const envPath of candidates) {
     if (fs.existsSync(envPath)) {
@@ -275,7 +276,9 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  console.error(err.message || err);
-  process.exit(1);
-});
+if (isMain(import.meta.url)) {
+  main().catch((err) => {
+    console.error(err.message || err);
+    process.exit(1);
+  });
+}
