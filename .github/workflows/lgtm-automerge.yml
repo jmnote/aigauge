@@ -1,0 +1,29 @@
+name: LGTM auto-merge
+
+# Lets the repo owner leave a "/lgtm" comment on a pull request to enable
+# GitHub's native auto-merge for it. Auto-merge itself (not this workflow)
+# is what then waits for the required status checks on main - see
+# pull-request.yml's "check" and "package" jobs, required via branch
+# protection - and merges automatically once they pass.
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  enable-auto-merge:
+    if: |
+      github.event.issue.pull_request != null &&
+      github.event.comment.author_association == 'OWNER' &&
+      startsWith(github.event.comment.body, '/lgtm')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Enable auto-merge
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.issue.number }}
+        run: gh pr merge "$PR_NUMBER" --auto --merge --repo "${{ github.repository }}"
