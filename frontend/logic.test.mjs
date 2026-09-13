@@ -35,16 +35,32 @@ const defaultConfig = {
   windowWidth: DEFAULT_WINDOW_WIDTH,
   theme: 'system',
   hotkeyShortcut: null,
+  startOnBoot: false,
   refreshInterval: DEFAULT_REFRESH_SECONDS,
   thresholds: { warning: { enabled: true, value: 30 }, critical: { enabled: true, value: 10 } },
 };
 
-test('fresh install config keeps providers disabled by default', () => {
+test('fresh install config keeps providers and startOnBoot disabled by default', () => {
   const fresh = normalizeConfig(defaultConfig, providerIds, defaultConfig);
   assert.equal(fresh.providers.codex.enabled, false);
   assert.equal(fresh.providers.claude.enabled, false);
   assert.equal(fresh.providers.antigravity.enabled, false);
   assert.equal(fresh.hotkeyShortcut, null);
+  assert.equal(fresh.startOnBoot, false);
+});
+
+test('startOnBoot defaults to false and respects explicit boolean values', () => {
+  const disabledByDefault = normalizeConfig({}, providerIds, defaultConfig);
+  assert.equal(disabledByDefault.startOnBoot, false);
+
+  const explicitlyDisabled = normalizeConfig({ startOnBoot: false }, providerIds, defaultConfig);
+  assert.equal(explicitlyDisabled.startOnBoot, false);
+
+  const explicitlyEnabled = normalizeConfig({ startOnBoot: true }, providerIds, defaultConfig);
+  assert.equal(explicitlyEnabled.startOnBoot, true);
+
+  const nonBoolean = normalizeConfig({ startOnBoot: 'on' }, providerIds, defaultConfig);
+  assert.equal(nonBoolean.startOnBoot, false);
 });
 
 test('hotkey settings normalize to the supported choices', () => {

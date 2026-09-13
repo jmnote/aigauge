@@ -18,6 +18,8 @@ type App struct {
 	onSetAlwaysOnTop  func(alwaysOnTop bool)
 	onHideToTray      func()
 	onSetGlobalHotkey func(enabled bool, shortcut string) error
+	onSetStartOnBoot  func(enabled bool) error
+	onGetStartOnBoot  func() (bool, error)
 }
 
 func NewApp(onContentHeight func(height int), onWindowWidth func(width int), onSetAlwaysOnTop func(alwaysOnTop bool), onHideToTray func(), hotkeyHandlers ...func(enabled bool, shortcut string) error) *App {
@@ -31,6 +33,11 @@ func NewApp(onContentHeight func(height int), onWindowWidth func(width int), onS
 		app.onSetGlobalHotkey = hotkeyHandlers[0]
 	}
 	return app
+}
+
+func (a *App) SetStartOnBootHandlers(getter func() (bool, error), setter func(bool) error) {
+	a.onGetStartOnBoot = getter
+	a.onSetStartOnBoot = setter
 }
 
 func (a *App) SetWindowWidth(width int) {
@@ -67,6 +74,20 @@ func (a *App) SetGlobalHotkey(enabled bool, shortcut string) error {
 		return nil
 	}
 	return a.onSetGlobalHotkey(enabled, shortcut)
+}
+
+func (a *App) GetStartOnBoot() (bool, error) {
+	if a.onGetStartOnBoot != nil {
+		return a.onGetStartOnBoot()
+	}
+	return isStartOnBootEnabled()
+}
+
+func (a *App) SetStartOnBoot(enabled bool) error {
+	if a.onSetStartOnBoot != nil {
+		return a.onSetStartOnBoot(enabled)
+	}
+	return setStartOnBoot(enabled)
 }
 
 func (a *App) SetContentHeight(height int) {
