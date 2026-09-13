@@ -124,6 +124,16 @@ export async function prepareWinres(version = "0.0.0") {
   console.log(`Prepared Windows resources for version ${numericVersion}`);
 }
 
+function compareSdkVersions(a, b) {
+  const pa = a.split(".").map(Number);
+  const pb = b.split(".").map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const diff = (pa[i] || 0) - (pb[i] || 0);
+    if (diff !== 0) return diff;
+  }
+  return 0;
+}
+
 function findMakeAppx(requested) {
   if (requested) {
     if (fs.existsSync(requested)) return path.resolve(requested);
@@ -158,7 +168,12 @@ function findMakeAppx(requested) {
   }
 
   if (candidates.length > 0) {
-    candidates.sort().reverse();
+    // Sort by SDK version numerically (not lexicographically) so e.g.
+    // 10.0.22621.0 is correctly preferred over 10.0.9200.0.
+    candidates.sort((a, b) => {
+      const versionOf = (candidate) => path.basename(path.dirname(path.dirname(candidate)));
+      return compareSdkVersions(versionOf(b), versionOf(a));
+    });
     return candidates[0];
   }
 

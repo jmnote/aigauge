@@ -118,16 +118,13 @@ function normalizeManifestItem(item) {
 
 function loadManifest() {
   let raw = [];
-  if (fs.existsSync(manifestPath)) {
+  const activePath = fs.existsSync(manifestPath) ? manifestPath : (fs.existsSync(legacyManifestPath) ? legacyManifestPath : null);
+  if (activePath) {
     try {
-      raw = JSON.parse(fs.readFileSync(manifestPath, "utf8"));
-    } catch {
-      raw = [];
-    }
-  } else if (fs.existsSync(legacyManifestPath)) {
-    try {
-      raw = JSON.parse(fs.readFileSync(legacyManifestPath, "utf8"));
-    } catch {
+      raw = JSON.parse(fs.readFileSync(activePath, "utf8"));
+    } catch (err) {
+      console.warn(`Warning: could not parse backup manifest at ${activePath} (${err.message}).`);
+      console.warn("Treating it as empty - if credentials still seem backed up, check for stray *.bak files and restore them manually.");
       raw = [];
     }
   }
