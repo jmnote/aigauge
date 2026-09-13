@@ -315,5 +315,9 @@ jobs:
           # '--payload' option exists to work around.
           $metadataPath = Join-Path $env:RUNNER_TEMP "submission-metadata.json"
           Set-Content -LiteralPath $metadataPath -Value $metadata -NoNewline -Encoding utf8
-          Invoke-MsStore @("submission", "updateMetadata", $env:STORE_APP_ID, "--payload", $metadataPath) | Write-Host
+          try {
+            Invoke-MsStore @("submission", "updateMetadata", $env:STORE_APP_ID, "--payload", $metadataPath) | Write-Host
+          } finally {
+            Remove-Item -LiteralPath $metadataPath -ErrorAction SilentlyContinue
+          }
           Invoke-MsStore @("submission", "publish", $env:STORE_APP_ID) | Write-Host
