@@ -208,18 +208,21 @@ export async function packageMsix(options = {}) {
   fs.copyFileSync(sourceExe, path.join(staging, "aigauge.exe"));
   fs.copyFileSync(path.join(repoRoot, "LICENSE"), path.join(staging, "LICENSE"));
 
-  // Process manifest
+  // Process manifest. Check each attribute is actually present via a
+  // non-mutating test() first - comparing the replaced text to the original
+  // to detect a "missing attribute" no-op breaks whenever the new value
+  // happens to equal the existing one (e.g. version/arch defaults).
   const manifestTemplate = fs.readFileSync(path.join(repoRoot, "Package.appxmanifest"), "utf8");
-  const versionReplacement = `$1${msixVersion}$2`;
-  let manifest = manifestTemplate.replace(/(<Identity\b.*?\bVersion=")[^"]+(")/gs, versionReplacement);
-  if (manifest === manifestTemplate) {
+  if (!/<Identity\b.*?\bVersion="[^"]+"/s.test(manifestTemplate)) {
     throw new Error('Package.appxmanifest is missing an <Identity Version="..."> attribute to update.');
   }
-  const beforeArchReplace = manifest;
-  manifest = manifest.replace(/ProcessorArchitecture="[^"]+"/g, `ProcessorArchitecture="${arch}"`);
-  if (manifest === beforeArchReplace) {
+  const versionReplacement = `$1${msixVersion}$2`;
+  let manifest = manifestTemplate.replace(/(<Identity\b.*?\bVersion=")[^"]+(")/gs, versionReplacement);
+
+  if (!/ProcessorArchitecture="[^"]+"/.test(manifest)) {
     throw new Error('Package.appxmanifest is missing a ProcessorArchitecture attribute to update.');
   }
+  manifest = manifest.replace(/ProcessorArchitecture="[^"]+"/g, `ProcessorArchitecture="${arch}"`);
   fs.writeFileSync(path.join(staging, "AppxManifest.xml"), manifest, "utf8");
 
   // Generate vector icon assets
