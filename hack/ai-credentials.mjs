@@ -1,12 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 import os from "node:os";
-import child_process from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { repoRoot, tempDir as manifestDir } from "./lib/paths.mjs";
+import { findExecutable } from "./lib/find-executable.mjs";
+import { isMain } from "./lib/is-main.mjs";
+import { CODEX_AUTH_RELATIVE_PATH, CLAUDE_CREDENTIALS_RELATIVE_PATH } from "./lib/credential-paths.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..");
-const manifestDir = path.join(__dirname, "temp");
 const manifestPath = path.join(manifestDir, ".ai-credentials-backup.local.json");
 const legacyManifestPath = path.join(repoRoot, ".ai-credentials-backup.local.json");
 
@@ -29,17 +28,6 @@ function getProviderFromLabel(label) {
   return "unknown";
 }
 
-function findExecutable(name) {
-  try {
-    const out = child_process.execFileSync("where.exe", [name], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (out) return out.split(/\r?\n/)[0].trim();
-  } catch { }
-  return null;
-}
-
 function getAiBackupTargets(targetProvider = "all") {
   const targets = [];
   const p = normalizeProvider(targetProvider);
@@ -48,7 +36,7 @@ function getAiBackupTargets(targetProvider = "all") {
     targets.push({
       provider: "claude",
       label: "Claude credentials",
-      livePath: path.join(os.homedir(), ".claude", ".credentials.json"),
+      livePath: path.join(os.homedir(), CLAUDE_CREDENTIALS_RELATIVE_PATH),
     });
     const claudeBin = findExecutable("claude");
     if (claudeBin) {
@@ -64,7 +52,7 @@ function getAiBackupTargets(targetProvider = "all") {
     targets.push({
       provider: "codex",
       label: "Codex credentials",
-      livePath: path.join(os.homedir(), ".codex", "auth.json"),
+      livePath: path.join(os.homedir(), CODEX_AUTH_RELATIVE_PATH),
     });
     const codexBin = findExecutable("codex");
     if (codexBin) {
@@ -320,7 +308,7 @@ function main() {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+if (isMain(import.meta.url)) {
   main();
 }
 

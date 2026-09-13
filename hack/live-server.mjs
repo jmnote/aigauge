@@ -2,10 +2,8 @@ import http from "node:http";
 import fs from "node:fs";
 import path from "node:path";
 import child_process from "node:child_process";
-import { fileURLToPath } from "node:url";
+import { repoRoot } from "./lib/paths.mjs";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..");
 const frontendRoot = path.join(repoRoot, "frontend");
 const fixturesRoot = path.join(repoRoot, "hack", "fixtures");
 

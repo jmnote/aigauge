@@ -2,31 +2,14 @@ import fs from "node:fs";
 import path from "node:path";
 import crypto from "node:crypto";
 import child_process from "node:child_process";
-import { fileURLToPath } from "node:url";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const repoRoot = path.resolve(__dirname, "..");
+import { repoRoot } from "./lib/paths.mjs";
+import { ensureImport } from "./lib/ensure-npm.mjs";
+import { findExecutable } from "./lib/find-executable.mjs";
+import { isMain } from "./lib/is-main.mjs";
 
 async function getResvg() {
-  try {
-    const mod = await import("@resvg/resvg-js");
-    return mod.Resvg;
-  } catch {
-    const npm = process.platform === "win32" ? "npm.cmd" : "npm";
-    try {
-      const res = child_process.spawnSync(npm, ["ci", "--ignore-scripts", "--no-audit", "--no-fund"], {
-        cwd: __dirname,
-        stdio: "inherit",
-      });
-      if (res.status === 0) {
-        const mod = await import("@resvg/resvg-js");
-        return mod.Resvg;
-      }
-    } catch { }
-    throw new Error(
-      "The '@resvg/resvg-js' package is required for logo and MSIX asset generation. Run 'npm ci' in the hack/ directory."
-    );
-  }
+  const mod = await ensureImport("@resvg/resvg-js", "logo and MSIX asset generation");
+  return mod.Resvg;
 }
 
 export function resolveVersion(requested) {
@@ -66,19 +49,8 @@ export async function convertLogo(options = {}) {
   console.log(`Created: ${path.relative(repoRoot, output)}`);
 }
 
-function findOnPath(name) {
-  try {
-    const out = child_process.execFileSync("where.exe", [name], {
-      encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    if (out) return out.split(/\r?\n/)[0].trim();
-  } catch { }
-  return null;
-}
-
 function findGoWinres() {
-  const onPath = findOnPath("go-winres");
+  const onPath = findExecutable("go-winres");
   if (onPath) return onPath;
 
   try {
@@ -140,7 +112,7 @@ function findMakeAppx(requested) {
     throw new Error(`makeappx.exe was not found at: ${requested}`);
   }
 
-  const onPath = findOnPath("makeappx.exe");
+  const onPath = findExecutable("makeappx.exe");
   if (onPath) return onPath;
 
   const programFilesX86 = process.env["ProgramFiles(x86)"];
@@ -342,7 +314,7 @@ async function main() {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1])) {
+if (isMain(import.meta.url)) {
   main().catch((err) => {
     console.error(err.message || err);
     process.exit(1);

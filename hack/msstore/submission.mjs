@@ -2,35 +2,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { repoRoot, tempDir } from '../lib/paths.mjs';
+import { ensureImport } from '../lib/ensure-npm.mjs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const msstoreDir = path.dirname(fileURLToPath(import.meta.url));
 
 async function getYaml() {
-  try {
-    const mod = await import('yaml');
-    return mod.default;
-  } catch {
-    const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm';
-    const hackDir = path.resolve(__dirname, '..');
-    try {
-      const res = spawnSync(npm, ['ci', '--ignore-scripts', '--no-audit', '--no-fund'], {
-        cwd: hackDir,
-        stdio: 'inherit',
-      });
-      if (res.status === 0) {
-        const mod = await import('yaml');
-        return mod.default;
-      }
-    } catch { }
-    console.error("The 'yaml' package is required. Run 'npm ci' in the hack/ directory.");
-    process.exit(1);
-  }
+  const mod = await ensureImport('yaml');
+  return mod.default;
 }
-
-const repoRoot = path.resolve(__dirname, '..', '..');
-const tempDir = path.resolve(__dirname, '..', 'temp');
-const msstoreDir = __dirname;
 
 const JSON_OUTPUT_PATH = path.join(tempDir, 'submission.json');
 const YAML_OUTPUT_PATH = path.join(msstoreDir, 'submission-sample.yaml');

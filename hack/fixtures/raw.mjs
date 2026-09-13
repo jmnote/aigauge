@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { CODEX_AUTH_RELATIVE_PATH, CLAUDE_CREDENTIALS_RELATIVE_PATH } from '../lib/credential-paths.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -65,7 +66,7 @@ async function fetchJSON(url, headers) {
 }
 
 async function fetchCodex() {
-  const creds = readCredentials(path.join('.codex', 'auth.json'));
+  const creds = readCredentials(CODEX_AUTH_RELATIVE_PATH);
   const token = creds?.tokens?.access_token;
   if (!token) {
     throw new Error('Codex credentials contain no access token');
@@ -76,7 +77,7 @@ async function fetchCodex() {
 }
 
 async function fetchClaude() {
-  const creds = readCredentials(path.join('.claude', '.credentials.json'));
+  const creds = readCredentials(CLAUDE_CREDENTIALS_RELATIVE_PATH);
   const token = creds?.claudeAiOauth?.accessToken;
   if (!token) {
     throw new Error('Claude credentials contain no access token');
@@ -97,10 +98,7 @@ function fetchAntigravity() {
 }
 
 function formatDate(date = new Date()) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+  return date.toISOString().slice(0, 10);
 }
 
 function codexPlanType(data) {
@@ -118,34 +116,20 @@ function redactCodex(data) {
   data.email = 'user@example.com';
 }
 
+const PROVIDERS = {
+  codex: { cli: 'codex', fetch: fetchCodex },
+  claude: { cli: 'claude', fetch: fetchClaude },
+  antigravity: { cli: 'agy', fetch: fetchAntigravity },
+};
+
 async function capture(provider) {
-  let cliName;
-  switch (provider) {
-    case 'codex':
-    case 'claude':
-      cliName = provider;
-      break;
-    case 'antigravity':
-      cliName = 'agy';
-      break;
-    default:
-      throw new Error(`unknown provider "${provider}"`);
+  const config = PROVIDERS[provider];
+  if (!config) {
+    throw new Error(`unknown provider "${provider}"`);
   }
 
-  const version = cliVersion(cliName);
-
-  let data;
-  switch (provider) {
-    case 'codex':
-      data = await fetchCodex();
-      break;
-    case 'claude':
-      data = await fetchClaude();
-      break;
-    case 'antigravity':
-      data = fetchAntigravity();
-      break;
-  }
+  const version = cliVersion(config.cli);
+  const data = await config.fetch();
 
   let filename;
   const dateStr = formatDate();
