@@ -38,8 +38,9 @@ go.work.sum
 
 # Node.js tooling used to regenerate the checked-in logo PNG
 /hack/node_modules/
-/hack/docs/
 /hack/temp/
+/hack/submission.env
+/hack/msstore/submission.env
 
 # Legacy backup manifest remains restorable after moving new manifests to hack/temp/.
 /.ai-credentials-backup.local.json

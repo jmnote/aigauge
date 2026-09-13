@@ -1,0 +1,130 @@
+Id: "1152921505701877923"
+ApplicationCategory: UtilitiesAndTools
+Pricing:
+  TrialPeriod: NoFreeTrial
+  MarketSpecificPricings:
+    LB: NotAvailable
+    EH: NotAvailable
+  PriceId: Free
+  IsAdvancedPricingModel: false
+Visibility: Public
+TargetPublishMode: Immediate
+TargetPublishDate: 1601-01-01T00:00:00Z
+Listings:
+  en-us:
+    BaseListing:
+      Keywords:
+        - AI usage monitor
+        - system tray
+        - quota tracker
+        - usage dashboard
+        - background usage refresher
+      Description: AI Gauge is a lightweight Windows system tray widget for monitoring
+        usage across OpenAI Codex, Anthropic Claude Code, and Google
+        Antigravity. Live monitoring requires an existing signed-in Codex or
+        Claude Code session, or the locally installed and signed-in agy
+        command-line tool for Antigravity. A built-in sample preview is
+        available without installing third-party tools or signing in to a
+        provider. AI Gauge shows remaining quota percentages, reset times,
+        connection status, and the last successful update in a compact desktop
+        window. You can show, hide, and reorder providers; configure refresh
+        intervals and warning and critical thresholds; keep the widget above
+        other windows; and choose a light, dark, or system theme. The sample
+        preview shows bundled example data, not usage from any account. AI Gauge
+        runs locally, does not store a separate copy of your credentials, and
+        does not retain usage data on a remote server.
+      Features:
+        - Automatic quota and reset-time monitoring
+        - Multiple AI usage providers with visibility and ordering controls
+        - Configurable background refresh intervals
+        - Windows system tray access with light, dark, and system themes
+        - Built-in sample preview - explore the app before setting up any
+          provider
+      ReleaseNotes: ""
+      Images:
+        - FileName: aigauge-native-dark.png
+          FileStatus: Uploaded
+          Id: "1152922700027166773"
+          ImageType: Screenshot
+        - FileName: aigauge-native-light.png
+          FileStatus: Uploaded
+          Id: "1152922700027167278"
+          ImageType: Screenshot
+      RecommendedHardware: []
+      MinimumHardware: []
+      Title: AI Gauge
+      LicenseTerms: ""
+      CopyrightAndTrademarkInfo: © 2026 jmnote. Licensed under the Apache License 2.0.
+      ShortDescription: Monitor AI service usage, quotas, reset times, and connection
+        status from your Windows system tray.
+      ShortTitle: null
+      VoiceTitle: null
+      DevStudio: jmnote
+    PlatformOverrides: {}
+HardwarePreferences: []
+AutomaticBackupEnabled: false
+CanInstallOnRemovableMedia: true
+IsGameDvrEnabled: false
+GamingOptions:
+  - Genres: []
+    IsLocalMultiplayer: false
+    IsLocalCooperative: false
+    IsOnlineMultiplayer: false
+    IsOnlineCooperative: false
+    IsBroadcastingPrivilegeGranted: true
+    IsCrossPlayEnabled: false
+    KinectDataForExternal: Disabled
+HasExternalInAppProducts: false
+MeetAccessibilityGuidelines: false
+NotesForCertification: ""
+Status: PendingCommit
+StatusDetails:
+  Errors: []
+  Warnings:
+    - Code: SalesUnsupportedWarning
+      Details: The sales resource is no longer supported. To view or edit the sales
+        data for this submission, use the Dev Center dashboard.
+  CertificationReports: []
+FileUploadUrl: __REDACTED__
+ApplicationPackages:
+  - FileName: aigauge_0.6.1.0_x64.msix
+    FileStatus: PendingDelete
+    Id: "2000000000097991620"
+    Version: 0.6.1.0
+    Architecture: x64
+    Languages:
+      - en-US
+    Capabilities:
+      - internetClient
+      - Microsoft.storeFilter.core.notSupported_8wekyb3d8bbwe
+      - runFullTrust
+    MinimumDirectXVersion: None
+    MinimumSystemRam: None
+  - FileName: aigauge_0.7.2.0_x64.msix
+    FileStatus: PendingUpload
+    Id: null
+    Version: null
+    Architecture: null
+    Languages: []
+    Capabilities: []
+    MinimumDirectXVersion: None
+    MinimumSystemRam: None
+PackageDeliveryOptions:
+  PackageRollout:
+    IsPackageRollout: false
+    PackageRolloutPercentage: 0
+    PackageRolloutStatus: PackageRolloutNotStarted
+    FallbackSubmissionId: "0"
+  IsMandatoryUpdate: false
+  MandatoryUpdateEffectiveDate: 1601-01-01T00:00:00Z
+EnterpriseLicensing: None
+AllowMicrosoftDecideAppAvailabilityToFutureDeviceFamilies: true
+AllowTargetFutureDeviceFamilies:
+  "7": false
+  Desktop: true
+  Mobile: false
+  Xbox: false
+  Team: false
+  Holographic: false
+FriendlyName: null
+Trailers: []

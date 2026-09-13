@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures", "fixtures-json", "fixtures-go", "ai-backup", "ai-restore")]
+    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures", "fixtures-raw", "fixtures-json", "fixtures-go", "ai-backup", "ai-restore", "submission", "submission-get", "submission-yaml", "submission-validate")]
     [string]$Task = "build",
     [Alias("Provider", "Target")]
     [string]$Version = "",
@@ -11,7 +11,12 @@ param(
     [switch]$ReleaseArtifact
 )
 
-. (Join-Path $PSScriptRoot "hack\version.ps1")
+function Resolve-Version {
+    param([string]$Requested = "0.0.0")
+    $res = & node (Join-Path $PSScriptRoot "hack\package.mjs") version --version $Requested
+    if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+    return $res.Trim()
+}
 
 switch ($Task) {
     "run"   { Start-Process -FilePath "go" -ArgumentList "run ." -WorkingDirectory (Get-Location) -WindowStyle Hidden }
@@ -36,7 +41,7 @@ switch ($Task) {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "logo" {
-        & (Join-Path $PSScriptRoot "hack\convert-logo.ps1")
+        & node (Join-Path $PSScriptRoot "hack\package.mjs") logo
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "build" {
@@ -46,7 +51,7 @@ switch ($Task) {
         if (-not $SkipWindowsResources) {
             & $PSCommandPath -Task logo
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-            & (Join-Path $PSScriptRoot "hack\prepare-windows-resources.ps1") -Version $Version
+            & node (Join-Path $PSScriptRoot "hack\package.mjs") winres --version $Version
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
         $binDir = Join-Path $PSScriptRoot "dist\bin"
@@ -58,12 +63,18 @@ switch ($Task) {
         go build -ldflags $ldflags -o $outputExe .
     }
     "package" {
-        $packageScript = Join-Path $PSScriptRoot "hack\package-msix.ps1"
-        $arguments = @{ Version = $Version; Architecture = $Architecture }
-        if (-not [string]::IsNullOrWhiteSpace($MakeAppx)) { $arguments.MakeAppx = $MakeAppx }
-        if ($SkipWindowsResources) { $arguments.SkipWindowsResources = $true }
-        if ($ReleaseArtifact) { $arguments.ReleaseArtifact = $true }
-        & $packageScript @arguments
+        $buildArgs = @{
+            Task = "build"
+            Version = $Version
+        }
+        if ($SkipWindowsResources) { $buildArgs.SkipWindowsResources = $true }
+        & $PSCommandPath @buildArgs
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+        $msixArgs = @((Join-Path $PSScriptRoot "hack\package.mjs"), "msix", "--version", $Version, "--arch", $Architecture)
+        if (-not [string]::IsNullOrWhiteSpace($MakeAppx)) { $msixArgs += @("--makeappx", $MakeAppx) }
+        if ($ReleaseArtifact) { $msixArgs += "--release" }
+        & node @msixArgs
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "checks" {
@@ -144,7 +155,7 @@ switch ($Task) {
         }
     }
     "live-server" {
-        & (Join-Path $PSScriptRoot "hack\live-server.ps1")
+        & node (Join-Path $PSScriptRoot "hack\live-server.mjs")
         exit $LASTEXITCODE
     }
     "ai-backup" {
@@ -155,12 +166,12 @@ switch ($Task) {
         # without a second Windows account or a VM. Reversed by ai-restore.
         # Accepts an optional provider argument: all (default), antigravity, claude, codex.
         $provider = if ($Version) { $Version } else { "all" }
-        & (Join-Path $PSScriptRoot "hack\ai-credentials.ps1") -Provider $provider
+        & node (Join-Path $PSScriptRoot "hack\ai-credentials.mjs") backup --provider $provider
         exit $LASTEXITCODE
     }
     "ai-restore" {
         $provider = if ($Version) { $Version } else { "all" }
-        & (Join-Path $PSScriptRoot "hack\ai-credentials.ps1") -Restore -Provider $provider
+        & node (Join-Path $PSScriptRoot "hack\ai-credentials.mjs") restore --provider $provider
         exit $LASTEXITCODE
     }
     "fixtures" {
@@ -169,28 +180,95 @@ switch ($Task) {
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         }
     }
+    "fixtures-raw" {
+        # Captures unconverted usage response(s) for fixture development into hack/fixtures/raw/.
+        # Accepts an optional provider argument via -Version: all (default), codex, claude, antigravity.
+        $target = if ($Version) { $Version } else { "all" }
+        & node (Join-Path $PSScriptRoot "hack\fixtures\raw.mjs") $target
+        exit $LASTEXITCODE
+    }
     "fixtures-json" {
         # Fetches real usage data (needs local Codex/Claude sign-in and the
-        # `agy` CLI) and writes it to hack/fixtures/sample-*.json.
+        # `agy` CLI) and writes it to hack/fixtures/samples/sample-*.json.
         Push-Location $PSScriptRoot
         try {
-            go run hack/fixtures/gen-json.go
+            go run hack/fixtures/gen-samples.go
         } finally {
             Pop-Location
         }
         exit $LASTEXITCODE
     }
     "fixtures-go" {
-        # Compiles hack/fixtures/sample-*.json into
+        # Compiles hack/fixtures/samples/sample-*.json into
         # internal/app/fixtures/fixtures.go for the app's sample-data preview.
         # Pure local transform - no accounts or network needed - so unlike
         # fixtures-json this is safe to run in CI or by any contributor.
         Push-Location $PSScriptRoot
         try {
-            go run hack/fixtures/gen-go.go
+            go run hack/fixtures/gen-samples-go.go
         } finally {
             Pop-Location
         }
+        exit $LASTEXITCODE
+    }
+    "submission" {
+        foreach ($submissionTask in @("submission-get", "submission-yaml")) {
+            & $PSCommandPath -Task $submissionTask
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        }
+    }
+    "submission-get" {
+        $node = Get-Command node -ErrorAction SilentlyContinue
+        if (-not $node) {
+            throw "Node.js is required. Install Node.js to run submission-get."
+        }
+        & $node.Source (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") get
+        exit $LASTEXITCODE
+    }
+    "submission-yaml" {
+        $node = Get-Command node -ErrorAction SilentlyContinue
+        if (-not $node) {
+            throw "Node.js is required. Install Node.js to run submission-yaml."
+        }
+        $hackDir = Join-Path $PSScriptRoot "hack"
+        $yamlModule = Join-Path $hackDir "node_modules\yaml"
+        if (-not (Test-Path -LiteralPath $yamlModule -PathType Container)) {
+            $npm = Get-Command npm -ErrorAction SilentlyContinue
+            if (-not $npm) {
+                throw "npm was not found. Install Node.js/npm to run submission-yaml."
+            }
+            Push-Location $hackDir
+            try {
+                & $npm.Source ci --ignore-scripts --no-audit --no-fund
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            } finally {
+                Pop-Location
+            }
+        }
+        & $node.Source (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") yaml
+        exit $LASTEXITCODE
+    }
+    "submission-validate" {
+        $node = Get-Command node -ErrorAction SilentlyContinue
+        if (-not $node) {
+            throw "Node.js is required. Install Node.js to run submission-validate."
+        }
+        $hackDir = Join-Path $PSScriptRoot "hack"
+        $yamlModule = Join-Path $hackDir "node_modules\yaml"
+        if (-not (Test-Path -LiteralPath $yamlModule -PathType Container)) {
+            $npm = Get-Command npm -ErrorAction SilentlyContinue
+            if (-not $npm) {
+                throw "npm was not found. Install Node.js/npm to run submission-validate."
+            }
+            Push-Location $hackDir
+            try {
+                & $npm.Source ci --ignore-scripts --no-audit --no-fund
+                if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            } finally {
+                Pop-Location
+            }
+        }
+        & $node.Source (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") validate
         exit $LASTEXITCODE
     }
     "screenshot" {

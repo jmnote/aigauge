@@ -130,10 +130,10 @@ const formatTimeRemaining = (seconds, targetDate) => {
 
 // "Now", for reset-time math, is the moment this usage was fetched rather
 // than whenever it happens to be rendered - every provider's payload carries
-// a `fetchedAt` (see hack/fixtures/gen-json and internal/providers), set right
+// a `fetchedAt` (see hack/fixtures/gen-samples and internal/providers), set right
 // before that fetch went out. For a live fetch the two are milliseconds
 // apart (network latency, basically), so this changes nothing normal users
-// would notice. It matters for the live-server preview (hack/live-server.ps1),
+// would notice. It matters for the live-server preview (hack/live-server.mjs),
 // which serves whatever `.\build.ps1 fixtures-json` last saved as-is, with no
 // correction - that can be arbitrarily old by the time it's viewed: without
 // anchoring to fetchedAt, a Codex reset (reported as a relative "seconds
