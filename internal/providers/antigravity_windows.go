@@ -14,7 +14,10 @@ import (
 const createNoWindow = 0x08000000
 
 func configureHiddenCommand(command *exec.Cmd) {
-	command.SysProcAttr = &syscall.SysProcAttr{CreationFlags: createNoWindow}
+	command.SysProcAttr = &syscall.SysProcAttr{
+		HideWindow:    true,
+		CreationFlags: createNoWindow,
+	}
 }
 
 func antigravityFallbackPath(home string) (string, bool) {
