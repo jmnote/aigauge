@@ -9,7 +9,8 @@
 
 export const MIN_REFRESH_SECONDS = 1;
 export const MAX_REFRESH_SECONDS = 3600;
-export const DEFAULT_REFRESH_SECONDS = 120;
+export const DEFAULT_REFRESH_SECONDS = 180;
+export const PROVIDER_REFRESH_OPTIONS = [60, 180, 300, 600, 1800, 3600];
 export const MAX_RETRY_DELAY_SECONDS = 1800;
 export const MIN_WINDOW_WIDTH = 200;
 export const MAX_WINDOW_WIDTH = 600;
@@ -65,16 +66,50 @@ export function parseIntervalToSeconds(val) {
   return DEFAULT_REFRESH_SECONDS;
 }
 
-// Keeps the user's ordering for providers it recognizes, drops ids that no
-// longer exist, de-duplicates, and appends anything missing - so a config from
-// a version with a different provider list still yields a complete order.
-export function normalizeProviderOrder(value, providerIds) {
-  const known = Array.isArray(value) ? value.filter(id => providerIds.includes(id)) : [];
-  const order = [...new Set(known)];
-  for (const id of providerIds) {
-    if (!order.includes(id)) order.push(id);
+// The provider types AI Gauge knows how to connect to and monitor. A
+// provider *instance* (below) is one user-added connection of one of these
+// types; a user may add several instances of the same type (e.g. two Claude
+// accounts), which is why instances are identified by their own id rather
+// than by type.
+export const PROVIDER_TYPES = [
+  { id: 'codex', label: 'Codex' },
+  { id: 'claude', label: 'Claude' },
+  { id: 'antigravity', label: 'Antigravity' },
+];
+export const PROVIDER_TYPE_IDS = PROVIDER_TYPES.map(t => t.id);
+
+export function providerTypeLabel(type) {
+  return PROVIDER_TYPES.find(t => t.id === type)?.label || type;
+}
+
+// Turns one raw provider entry from storage into a valid instance, or null if
+// it is unsalvageable (missing id, or a type this build does not know). A
+// missing/blank label falls back to its type's name rather than surfacing an
+// empty row.
+export function normalizeProviderInstance(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  if (typeof raw.id !== 'string' || !raw.id) return null;
+  if (!PROVIDER_TYPE_IDS.includes(raw.type)) return null;
+  const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label : providerTypeLabel(raw.type);
+  const refreshInterval = Number(raw.refreshInterval);
+  return { id: raw.id, type: raw.type, label,
+    refreshInterval: PROVIDER_REFRESH_OPTIONS.includes(refreshInterval) ? refreshInterval : DEFAULT_REFRESH_SECONDS };
+}
+
+// Normalizes a whole stored provider list: drops unsalvageable entries and
+// de-duplicates by id, but otherwise keeps the given order - order *is* the
+// user's chosen provider order now, there is no separate providerOrder list.
+export function normalizeProviders(rawList) {
+  if (!Array.isArray(rawList)) return [];
+  const seen = new Set();
+  const result = [];
+  for (const raw of rawList) {
+    const instance = normalizeProviderInstance(raw);
+    if (!instance || seen.has(instance.id)) continue;
+    seen.add(instance.id);
+    result.push(instance);
   }
-  return order;
+  return result;
 }
 
 export function normalizeThreshold(raw, defaultThreshold, min, max) {
@@ -88,26 +123,40 @@ export function normalizeThreshold(raw, defaultThreshold, min, max) {
   return { enabled, value };
 }
 
-// Turns whatever was in storage into a complete, in-range config. It never
-// throws and never returns a partial object: a corrupted or hostile settings
-// blob has to degrade into defaults rather than take the window down with it.
-export function normalizeConfig(value, providerIds, defaultConfig) {
-  const warning = normalizeThreshold(value?.thresholds?.warning, defaultConfig.thresholds.warning, 1, 100);
-  const critical = normalizeThreshold(value?.thresholds?.critical, defaultConfig.thresholds.critical, 0, 99);
+// A fresh install has no provider instances at all. Providers are added from
+// the Settings window via the backend's AddProviderInstance + ConnectProvider
+// flow.
+export const DEFAULT_CONFIG = {
+  providers: [],
+  windowWidth: DEFAULT_WINDOW_WIDTH,
+  theme: 'system',
+  hotkeyShortcut: '',
+  thresholds: {
+    warning: { enabled: true, value: 50 },
+    critical: { enabled: true, value: 20 },
+  },
+};
+
+// Turns whatever the backend returned (or, defensively, whatever a corrupted
+// or hand-edited settings file held) into a complete, in-range config. It
+// never throws and never returns a partial object: bad input has to degrade
+// into defaults rather than take the window down with it.
+export function normalizeConfig(value, defaultConfig = DEFAULT_CONFIG) {
+  const effectiveDefault = defaultConfig || DEFAULT_CONFIG;
+  const warning = normalizeThreshold(value?.thresholds?.warning, effectiveDefault.thresholds.warning, 1, 100);
+  const critical = normalizeThreshold(value?.thresholds?.critical, effectiveDefault.thresholds.critical, 0, 99);
   if (warning.enabled && critical.enabled && critical.value >= warning.value) {
     critical.value = Math.max(0, warning.value - 1);
   }
 
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
-  const hotkeyValue = HOTKEY_OPTIONS.some(option => option.value === value?.hotkeyShortcut)
-    ? value.hotkeyShortcut : null;
+  const hotkeyShortcut = HOTKEY_OPTIONS.some(option => option.value === value?.hotkeyShortcut)
+    ? value.hotkeyShortcut : '';
   return {
-    providers: Object.fromEntries(providerIds.map(id => [id, { enabled: value?.providers?.[id]?.enabled !== false }])),
-    providerOrder: normalizeProviderOrder(value?.providerOrder, providerIds),
+    providers: normalizeProviders(value?.providers),
     windowWidth: normalizeWindowWidth(value?.windowWidth),
-    theme: VALID_THEMES.has(theme) ? theme : defaultConfig.theme,
-    refreshInterval: parseIntervalToSeconds(value?.refreshInterval),
-    hotkeyShortcut: hotkeyValue,
+    theme: VALID_THEMES.has(theme) ? theme : effectiveDefault.theme,
+    hotkeyShortcut,
     thresholds: { warning, critical }
   };
 }
@@ -117,34 +166,29 @@ export function normalizeConfig(value, providerIds, defaultConfig) {
 // ("Credentials found", "Logged in locally") belongs in the message line.
 export const STATUS_BADGES = {
   connected: 'Connected',
-  not_installed: 'Not installed',
   auth_check_required: 'Check connection',
   login_required: 'Login required',
   usage_unavailable: 'Usage unavailable',
   temporary_error: 'Temporary error',
-  unsupported_cli: 'Unsupported CLI',
+  authenticating: 'Connecting...',
+  awaiting_code: 'Awaiting code',
+  not_installed: 'Not installed',
+  unsupported_cli: 'Update required',
 };
 
-// States the user resolves themselves - no CLI yet, not logged in, connection
-// not checked. They are the normal shape of a machine that has not been set
-// up, so they must never be treated as failures. unsupported_cli is
-// deliberately NOT here - an install that regresses from a working CLI to an
-// incompatible one is a real failure, not a setup step (see
-// Status.NeedsUserAction in internal/providers/status.go, which this set
-// mirrors and must stay in sync with) - it still counts toward the failure
-// threshold and shows blocked, just without polling on a timer; see
-// shouldScheduleRetry below for why.
+// States the user resolves themselves - not logged in, connection not checked.
+// They are the normal shape of a machine that has not been set up, so they
+// must never be treated as failures. awaiting_code (a manual-code provider,
+// e.g. Claude, is waiting for the code the user pastes back in - see
+// ProviderConfig.ManualCode) belongs here for the same reason authenticating
+// does: it is mid-login, not broken.
 export const EXPECTED_SETUP_STATES = new Set([
-  'not_installed', 'auth_check_required', 'login_required',
+  'auth_check_required', 'login_required', 'authenticating', 'awaiting_code', 'not_installed',
 ]);
 
 export const isExpectedSetupState = status => EXPECTED_SETUP_STATES.has(status);
 
-// States where an automatic retry cannot fix anything on its own: the three
-// expected-setup states need the user to act, and unsupported_cli needs a CLI
-// update - polling it on a timer just repeats the same failing check against
-// a version that will not change by itself, and the guidance ("Update to the
-// latest version") already points the user at what to do instead.
+// States where an automatic retry cannot fix anything on its own.
 const NO_AUTO_RETRY_STATES = new Set([...EXPECTED_SETUP_STATES, 'unsupported_cli']);
 
 // Counting an expected setup state as a failure is what made a clean review
@@ -170,10 +214,9 @@ export const retryDelay = (failureCount, refreshInterval) =>
 
 // Decides how a visibility recalculation should treat a provider's refresh
 // timer. In live mode an existing timer must survive unrelated settings/order
-// changes; in sample mode live timers are replaced by one sample fetch.
-export function providerVisibilityAction(sampleMode, enabled, hasTimer) {
-  if (sampleMode) return 'restart';
-  if (!enabled) return 'stop';
+// changes (every instance is always shown and polled - there is no
+// enabled/disabled state to stop for).
+export function providerVisibilityAction(hasTimer) {
   return hasTimer ? 'preserve' : 'fetch';
 }
 
@@ -181,7 +224,7 @@ export function providerVisibilityAction(sampleMode, enabled, hasTimer) {
 // means something is actually wrong. Neither an expected setup state nor a
 // ready one is an error, so neither is styled as one.
 export function badgeClass(status) {
-  if (status === 'connected' || status === 'auth_check_required') return 'is-ready';
+  if (status === 'connected' || status === 'auth_check_required' || status === 'authenticating' || status === 'awaiting_code') return 'is-ready';
   if (status === 'temporary_error' || status === 'usage_unavailable' || status === 'unsupported_cli') return 'is-blocked';
   return '';
 }

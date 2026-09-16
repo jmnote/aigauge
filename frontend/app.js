@@ -1,9 +1,10 @@
 import {
-  parseIntervalToSeconds, normalizeConfig, VALID_THEMES, STATUS_BADGES,
+  parseIntervalToSeconds, normalizeConfig, VALID_THEMES,
   shouldCountFailure, shouldScheduleRetry, isExpectedSetupState,
-  shouldKeepStaleData, retryDelay, badgeClass, providerVisibilityAction,
-  normalizeWindowWidth, formatHotkeyError, hotkeyOptionLabel, HOTKEY_OPTIONS,
+  shouldKeepStaleData, retryDelay, providerVisibilityAction,
+  normalizeWindowWidth, DEFAULT_REFRESH_SECONDS,
 } from '/logic.mjs';
+import { createDropdown } from '/ui/dropdown.mjs';
 
 const wails = await import('/wails/runtime.js');
 if (globalThis.__AIGAUGE_LIVE__) {
@@ -19,85 +20,76 @@ if (globalThis.__AIGAUGE_LIVE__) {
   watchLiveResource('/__live-version');
 }
 
-const settingsStorageKey = 'aigauge-settings-v1';
-
-function saveCurrentConfig() {
-  try {
-    localStorage.setItem(settingsStorageKey, JSON.stringify(config));
-  } catch (e) {
-    console.warn('Failed to save settings:', e);
-  }
-}
-
-// Render functions are declared later in this file as `function` statements,
-// so they're already hoisted by the time this array literal runs. Listed
-// reverse-alphabetically by label - that order also seeds the default
-// providerOrder (below) and the initial card layout.
-const PROVIDERS = [
-  {
-    id: 'codex', label: 'Codex', rpcMethod: 'GetCodexUsage',
-    sampleRpcMethod: 'GetSampleCodexUsage', diagnoseRpcMethod: 'DiagnoseCodex',
-    cardId: 'codex-card', groupsId: 'codex-groups',
-    dotId: 'codex-dot', tooltipId: 'codex-tooltip', errorId: 'codex-error',
-    render: renderUsage
-  },
-  {
-    id: 'claude', label: 'Claude', rpcMethod: 'GetClaudeUsage',
-    sampleRpcMethod: 'GetSampleClaudeUsage', diagnoseRpcMethod: 'DiagnoseClaude',
-    cardId: 'claude-card', groupsId: 'claude-groups',
-    dotId: 'claude-dot', tooltipId: 'claude-tooltip', errorId: 'claude-error',
-    render: renderClaude
-  },
-  {
-    id: 'antigravity', label: 'Antigravity', rpcMethod: 'GetAntigravityUsage',
-    sampleRpcMethod: 'GetSampleAntigravityUsage', diagnoseRpcMethod: 'DiagnoseAntigravity',
-    cardId: 'agy-card', groupsId: 'agy-groups',
-    dotId: 'agy-dot', tooltipId: 'agy-tooltip', errorId: 'agy-error',
-    render: renderAntigravity
-  }
-];
-const PROVIDERS_BY_ID = new Map(PROVIDERS.map(p => [p.id, p]));
-
-// The short badge text for each backend status code. Deliberately short: the
-// badge has to stay readable beside the provider name in a 250px window, so
-// the reason behind a status ("Credentials found", "Logged in locally") goes
-// in the message line underneath rather than into the badge.
 const rpc = (method, ...args) =>
   wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${method}`, ...args);
 
-// 'live' shows the user's real providers; 'sample' shows the bundled preview.
-// The preview is a screen, not a mode: nothing below writes config while it is
-// open, so entering and leaving it leaves every provider setting untouched.
-let viewMode = 'live';
-const providerIds = PROVIDERS.map(p => p.id);
-
-const defaultConfig = {
-  // Providers start disabled so a fresh install never probes for local CLI
-  // tools/credentials on its own - the first screen is "No providers
-  // enabled" with "Open Settings" and "Demo" buttons instead of raw
-  // not-found errors. This only affects genuinely first runs: normalizeConfig
-  // (below) falls back to enabled once localStorage holds any saved config.
-  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
-  providerOrder: providerIds.slice(),
-  windowWidth: 250,
-  theme: 'system',
-  refreshInterval: 120,
-  thresholds: {
-    warning: { enabled: true, value: 50 },
-    critical: { enabled: true, value: 20 }
-  }
+// The Wails-RPC method names for each provider *type*. A provider *instance*
+// (an entry in config.providers) carries only its type id and its own id;
+// this is what turns those into the calls used to diagnose, fetch and render
+// it. Render functions are declared later in this file as `function`
+// statements, so they're already hoisted by the time this literal runs.
+// Every provider's usage RPC now returns the same DisplayUsage shape, so
+// one renderUsage (below) draws every card - there's no per-type render
+// function to look up here anymore.
+const RPC_BY_TYPE = {
+  codex: { rpcMethod: 'GetCodexUsage', diagnoseRpcMethod: 'DiagnoseCodex' },
+  claude: { rpcMethod: 'GetClaudeUsage', diagnoseRpcMethod: 'DiagnoseClaude' },
+  antigravity: { rpcMethod: 'GetAntigravityUsage', diagnoseRpcMethod: 'DiagnoseAntigravity' },
 };
 
-let config = normalizeConfig(defaultConfig, providerIds, defaultConfig);
+// Turns one provider instance from config.providers into the full set of
+// per-card details the rendering code needs (RPC method names, the element
+// ids the card's pieces get, which render function draws its usage).
+function buildMeta(instance) {
+  return {
+    id: instance.id, type: instance.type, label: instance.label,
+    ...RPC_BY_TYPE[instance.type],
+    cardId: `provider-card-${instance.id}`,
+    groupsId: `provider-groups-${instance.id}`,
+    dotId: `provider-dot-${instance.id}`,
+    tooltipId: `provider-tooltip-${instance.id}`,
+    errorId: `provider-error-${instance.id}`,
+  };
+}
 
+// Rebuilt every time config.providers changes (see syncProviderCards).
+const PROVIDERS_BY_ID = new Map();
+// The live DOM node for each provider instance's card, so syncProviderCards
+// can reorder/show/hide/remove them without rebuilding one that still exists.
+const cardElements = new Map();
+
+// Settings (the provider instance list/order/enabled state, theme, refresh
+// interval, thresholds and hotkey) are owned by the Go backend rather than
+// this window's localStorage - see internal/config and App.GetSettings.
+// Both this window and the settings window write field-level changes through
+// those RPCs and are kept in sync by the "aigauge:config-updated" event the
+// backend emits whenever either one saves a change (see applyExternalConfig).
+let config;
 try {
-  const storedSettings = localStorage.getItem(settingsStorageKey);
-  if (storedSettings !== null) {
-    config = normalizeConfig(JSON.parse(storedSettings), providerIds, defaultConfig);
-  }
+  config = normalizeConfig(await rpc('GetSettings'));
 } catch (e) {
   console.warn('Failed to load settings:', e);
-  config = normalizeConfig(defaultConfig, providerIds, defaultConfig);
+  config = normalizeConfig({});
+}
+
+let settingsWriteQueue = Promise.resolve();
+function saveTheme(theme) {
+  settingsWriteQueue = settingsWriteQueue
+    .then(() => rpc('SetTheme', theme))
+    .catch(e => console.warn('Failed to save theme:', e));
+  return settingsWriteQueue;
+}
+
+// Refetches settings from the backend and re-renders from them. Used after
+// an RPC (Connect or Import) that changes the persisted provider
+// list on its own, so this window shows exactly what was saved rather than a
+// locally guessed patch that could drift from it.
+async function reloadConfigFromBackend() {
+  try {
+    applyExternalConfig(await rpc('GetSettings'));
+  } catch (e) {
+    console.warn('Failed to reload settings:', e);
+  }
 }
 
 function applyLimitState(barElement, remaining) {
@@ -129,19 +121,15 @@ const formatTimeRemaining = (seconds, targetDate) => {
 };
 
 // "Now", for reset-time math, is the moment this usage was fetched rather
-// than whenever it happens to be rendered - every provider's payload carries
-// a `fetchedAt` (see hack/fixtures/gen-samples and internal/providers), set right
-// before that fetch went out. For a live fetch the two are milliseconds
-// apart (network latency, basically), so this changes nothing normal users
-// would notice. It matters for the live-server preview (hack/live-server.mjs),
-// which serves whatever `.\build.ps1 fixtures-json` last saved as-is, with no
+// than whenever it happens to be rendered - every DisplayUsage payload
+// (internal/providers) carries a `fetchedAt`, set right before that fetch
+// went out. For a live fetch the two are milliseconds apart (network
+// latency, basically), so this changes nothing normal users would notice.
+  // It matters for the live-server fixture browser (hack/live-server.mjs), which
+// serves whatever `.\build.ps1 fixtures-usage` last captured as-is, with no
 // correction - that can be arbitrarily old by the time it's viewed: without
-// anchoring to fetchedAt, a Codex reset (reported as a relative "seconds
-// from now") would silently push further into the future every reload, and
-// an absolute reset time (Claude/Antigravity) could drift into the past and
-// render as already-elapsed. The native sample preview does not depend on
-// this: internal/app.App already re-anchors fetchedAt and every resetTime to
-// "now" server-side before the frontend ever sees them.
+// anchoring to fetchedAt, an absolute reset time could drift into the past
+  // and render as already-elapsed.
 function referenceNow(usage) {
   const fetchedAt = new Date(usage?.fetchedAt).getTime();
   return Number.isNaN(fetchedAt) ? Date.now() : fetchedAt;
@@ -165,21 +153,32 @@ const formatResetHover = resetTime => {
   return `resets ${month} ${day} ${formatClockTime(targetDate)}`;
 };
 
-let refreshInterval = parseIntervalToSeconds(config.refreshInterval);
-// One record per provider instead of a parallel `let` per provider per field -
-// adding a provider only means adding an entry to PROVIDERS above.
-const providerState = new Map(providerIds.map(id => [id, {
-  nextRefreshAt: Date.now() + refreshInterval * 1000,
-  timerId: null,
-  fetching: false,
-  failureCount: 0,
-  lastSuccessAt: 0,
-  lastError: '',
-  status: '',
-  plan: ''
-}]));
+// One record per provider instance instead of a parallel `let` per field.
+// Populated lazily as instances appear (see ensureProviderState) rather than
+// from a fixed list, since instances are added and removed at runtime.
+const providerState = new Map();
 
-function updateStatus(dotId, tooltipId, status, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan) {
+function ensureProviderState(id) {
+  if (!providerState.has(id)) {
+    providerState.set(id, {
+      nextRefreshAt: Date.now() + (findInstance(id)?.refreshInterval || DEFAULT_REFRESH_SECONDS) * 1000,
+      timerId: null,
+      fetching: false,
+      failureCount: 0,
+      lastSuccessAt: 0,
+      lastError: '',
+      status: '',
+      plan: ''
+    });
+  }
+  return providerState.get(id);
+}
+
+function findInstance(id) {
+  return config.providers.find(p => p.id === id);
+}
+
+function updateStatus(id, dotId, tooltipId, status, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan) {
   const dot = document.getElementById(dotId);
   dot.classList.remove('connected', 'warning');
   // An expected setup state (login_required, not_installed, ...) is never
@@ -200,13 +199,35 @@ function updateStatus(dotId, tooltipId, status, failureCount, lastSuccessAt, nex
     createTooltipRow('Last fetch', successValue),
     ...(lastError ? [createTooltipRow('Last error', lastError)] : []),
     createTooltipRow('Next fetch', nextRefreshText),
+    buildStatusActions(id),
   );
 }
 
 function updateProviderStatus(id) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  updateStatus(meta.dotId, meta.tooltipId, state.status, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan);
+  updateStatus(id, meta.dotId, meta.tooltipId, state.status, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan);
+}
+
+// The dot dropdown's refresh action.
+function buildStatusActions(id) {
+  const actions = document.createElement('div');
+  actions.className = 'status-tooltip-actions';
+
+  const refreshItem = document.createElement('button');
+  refreshItem.type = 'button';
+  refreshItem.className = 'provider-menu-item';
+  const refreshIcon = Object.assign(document.createElement('span'), { className: 'icon icon-refresh' });
+  refreshIcon.setAttribute('aria-hidden', 'true');
+  refreshItem.append(refreshIcon, 'Refresh');
+  refreshItem.addEventListener('click', event => {
+    event.stopPropagation();
+    statusDropdowns.get(id)?.close();
+    fetchProvider(id);
+  });
+
+  actions.append(refreshItem);
+  return actions;
 }
 
 function createTooltipRow(labelText, valueText) {
@@ -236,11 +257,8 @@ function scheduleProvider(id) {
   const state = providerState.get(id);
   clearTimeout(state.timerId);
   state.timerId = null;
-  // The sample preview is static, so there is nothing to poll for.
-  if (viewMode !== 'live') return;
-  if (!config.providers[id].enabled) return;
   if (!shouldScheduleRetry(state.status)) return;
-  const delay = retryDelay(state.failureCount, refreshInterval);
+  const delay = retryDelay(state.failureCount, findInstance(id)?.refreshInterval || DEFAULT_REFRESH_SECONDS);
   state.nextRefreshAt = Date.now() + delay * 1000;
   state.timerId = setTimeout(() => fetchProvider(id), delay * 1000);
 }
@@ -290,36 +308,46 @@ function renderFormattedMessage(element, text) {
   }
 }
 
-function createInfoIcon() {
-  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  svg.setAttribute('viewBox', '0 0 24 24');
-  svg.setAttribute('width', '15');
-  svg.setAttribute('height', '15');
-  svg.setAttribute('fill', 'none');
-  svg.setAttribute('stroke', 'currentColor');
-  svg.setAttribute('stroke-width', '2');
-  svg.setAttribute('stroke-linecap', 'round');
-  svg.setAttribute('stroke-linejoin', 'round');
+// Copies text for the "Copy" button on a details disclosure (e.g. the raw
+// "HTTP 404 Not Found" behind a provider error), so it can be pasted into a
+// bug report without retyping it. navigator.clipboard is preferred, but a
+// WebView2 page is not guaranteed to grant it, so a hidden-textarea +
+// execCommand fallback covers that case too.
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch {
+      // Fall through to the legacy fallback below.
+    }
+  }
+  try {
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.top = '-1000px';
+    textarea.style.opacity = '0';
+    document.body.appendChild(textarea);
+    textarea.focus();
+    textarea.select();
+    const ok = document.execCommand('copy');
+    textarea.remove();
+    return ok;
+  } catch {
+    return false;
+  }
+}
 
-  const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-  circle.setAttribute('cx', '12');
-  circle.setAttribute('cy', '12');
-  circle.setAttribute('r', '10');
-
-  const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  line.setAttribute('x1', '12');
-  line.setAttribute('y1', '16');
-  line.setAttribute('x2', '12');
-  line.setAttribute('y2', '12');
-
-  const dot = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-  dot.setAttribute('x1', '12');
-  dot.setAttribute('y1', '8');
-  dot.setAttribute('x2', '12.01');
-  dot.setAttribute('y2', '8');
-
-  svg.append(circle, line, dot);
-  return svg;
+// Icons live as files under frontend/icons/ (see the .icon-* classes in
+// styles/style.css) rather than built inline here, so every icon in the app -
+// titlebar buttons included - comes from the same place and picks up
+// currentColor (e.g. .details-copy-btn.is-copied) the same way.
+function createIcon(name) {
+  const span = document.createElement('span');
+  span.className = `icon icon-${name}`;
+  span.setAttribute('aria-hidden', 'true');
+  return span;
 }
 
 function closeOpenDetailsTooltips() {
@@ -333,15 +361,74 @@ function closeOpenDetailsTooltips() {
   if (changed) requestWindowResize();
 }
 
-function createDiagnosisActions(diagnosis, onCheck) {
+function createDiagnosisActions(diagnosis, onCheck, onConnect, onCancel, onSubmitCode) {
   const actions = document.createElement('div');
   actions.className = 'setup-provider-actions';
+
+  if (diagnosis.status === 'authenticating') {
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', async () => {
+      cancelBtn.disabled = true;
+      if (onCancel) await onCancel();
+    });
+    actions.append(cancelBtn);
+    return [actions];
+  }
+
+  if (diagnosis.status === 'awaiting_code') {
+    // A manual-code provider (Claude) redirects to its own hosted page
+    // rather than back to AI Gauge, so instead of blocking until login
+    // finishes, this collects the code the user pastes back in here and
+    // sends it via onSubmitCode (SubmitAuthCode).
+    const form = document.createElement('form');
+    form.className = 'awaiting-code-form';
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'awaiting-code-input';
+    input.placeholder = 'Paste code here';
+    input.autocomplete = 'off';
+    input.spellcheck = false;
+
+    const submitBtn = document.createElement('button');
+    submitBtn.type = 'submit';
+    submitBtn.className = 'connect-btn';
+    submitBtn.textContent = 'Submit';
+
+    const cancelBtn = document.createElement('button');
+    cancelBtn.type = 'button';
+    cancelBtn.textContent = 'Cancel';
+    cancelBtn.addEventListener('click', async () => {
+      cancelBtn.disabled = true;
+      if (onCancel) await onCancel();
+    });
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      const code = input.value.trim();
+      if (!code) return;
+      input.disabled = true;
+      submitBtn.disabled = true;
+      cancelBtn.disabled = true;
+      if (onSubmitCode) await onSubmitCode(code);
+    });
+
+    form.append(input, submitBtn, cancelBtn);
+    actions.append(form);
+    return [actions];
+  }
+
   const primary = document.createElement('button');
   primary.type = 'button';
-  if (diagnosis.status === 'auth_check_required') {
+  const isConnectAction = diagnosis.status === 'login_required';
+
+  if (isConnectAction) {
+    primary.textContent = 'Connect';
+    primary.classList.add('connect-btn');
+  } else if (diagnosis.status === 'auth_check_required') {
     primary.textContent = 'Check connection';
-  } else if (diagnosis.status === 'not_installed' || diagnosis.status === 'unsupported_cli') {
-    primary.textContent = 'Check CLI';
   } else {
     primary.textContent = 'Check again';
   }
@@ -360,12 +447,34 @@ function createDiagnosisActions(diagnosis, onCheck) {
     detailsBtn.title = 'Details';
     detailsBtn.setAttribute('aria-label', 'Details');
     detailsBtn.setAttribute('aria-expanded', 'false');
-    detailsBtn.append(createInfoIcon());
+    detailsBtn.append(createIcon('info'));
 
     const tooltip = document.createElement('div');
     tooltip.className = 'details-tooltip';
     tooltip.setAttribute('role', 'tooltip');
     renderFormattedMessage(tooltip, diagnosis.details);
+
+    const copyBtn = document.createElement('button');
+    copyBtn.type = 'button';
+    copyBtn.className = 'details-copy-btn';
+    copyBtn.title = 'Copy';
+    copyBtn.setAttribute('aria-label', 'Copy details');
+    copyBtn.append(createIcon('copy'));
+    let copyResetTimer = null;
+    copyBtn.addEventListener('click', async e => {
+      e.stopPropagation();
+      const ok = await copyTextToClipboard(diagnosis.details);
+      copyBtn.replaceChildren(createIcon('check'));
+      copyBtn.classList.toggle('is-copied', ok);
+      copyBtn.title = ok ? 'Copied!' : 'Copy failed';
+      clearTimeout(copyResetTimer);
+      copyResetTimer = setTimeout(() => {
+        copyBtn.replaceChildren(createIcon('copy'));
+        copyBtn.classList.remove('is-copied');
+        copyBtn.title = 'Copy';
+      }, 1500);
+    });
+    tooltip.append(copyBtn);
 
     detailsBtn.addEventListener('click', (e) => {
       e.stopPropagation();
@@ -401,7 +510,11 @@ function createDiagnosisActions(diagnosis, onCheck) {
       detailsWrap.style.display = 'none';
     }
     try {
-      if (onCheck) await onCheck();
+      if (isConnectAction && onConnect) {
+        await onConnect();
+      } else if (onCheck) {
+        await onCheck();
+      }
     } finally {
       if (primary.isConnected) {
         primary.disabled = false;
@@ -418,7 +531,7 @@ function createDiagnosisActions(diagnosis, onCheck) {
   return [actions];
 }
 
-function showProviderError(errorId, message, diagnosis, onCheck) {
+function showProviderError(errorId, message, diagnosis, onCheck, onConnect, onCancel, onSubmitCode) {
   const element = document.getElementById(errorId);
   if (!element) return;
   element.replaceChildren();
@@ -432,8 +545,8 @@ function showProviderError(errorId, message, diagnosis, onCheck) {
   renderFormattedMessage(p, message);
   element.append(p);
 
-  if (diagnosis && diagnosis.status && onCheck) {
-    element.append(...createDiagnosisActions(diagnosis, onCheck));
+  if (diagnosis && diagnosis.status && (onCheck || onConnect || onSubmitCode)) {
+    element.append(...createDiagnosisActions(diagnosis, onCheck, onConnect, onCancel, onSubmitCode));
   }
 }
 
@@ -443,27 +556,39 @@ function showProviderError(errorId, message, diagnosis, onCheck) {
 // was already on screen: the data is stale, not wrong, and blanking the card
 // throws away the only thing the user opened the app to see. It is labelled
 // with its age so nobody reads month-old numbers as current. Every other
-// non-connected state (no CLI, not logged in, connection not checked) has no
+// non-connected state (not logged in, connection not checked) has no
 // prior data to keep, so its card clears to the guidance instead.
 function renderNonUsageState(id, usage) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
   const message = String(usage.message || usage.error || '');
   const onCheck = () => fetchProvider(id);
+  const onConnect = () => connectExistingInstance(id, usage);
+  const onCancel = async () => {
+    await rpc('CancelAuth');
+    fetchProvider(id);
+  };
+  // Only reachable when usage.status is 'awaiting_code' - see
+  // connectExistingInstance, which is the only place that status is ever set.
+  const onSubmitCode = code => submitAuthCodeForInstance(id, code);
   if (shouldKeepStaleData(usage.status, state.lastSuccessAt)) {
-    showProviderError(meta.errorId, `${message} Showing data from ${formatAgo(state.lastSuccessAt)}.`, usage, onCheck);
+    showProviderError(meta.errorId, `${message} Showing data from ${formatAgo(state.lastSuccessAt)}.`, usage, onCheck, onConnect, onCancel, onSubmitCode);
   } else {
     document.getElementById(meta.groupsId).replaceChildren();
-    showProviderError(meta.errorId, message, usage, onCheck);
+    showProviderError(meta.errorId, message, usage, onCheck, onConnect, onCancel, onSubmitCode);
   }
   updateProviderStatus(id);
   requestWindowResize();
 }
 
+// Renders any provider's usage: DisplayUsage is already fully resolved on
+// the Go side (absolute reset times, sorted/labeled buckets), so this just
+// lays groups out - flat (no title) for a single unnamed group, as a titled
+// section otherwise.
 function renderUsage(id, usage) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  const groups = document.getElementById(meta.groupsId);
+  const container = document.getElementById(meta.groupsId);
   if (usage.error) {
     renderNonUsageState(id, usage);
     return;
@@ -471,19 +596,31 @@ function renderUsage(id, usage) {
   showProviderError(meta.errorId, '');
   state.plan = usage.plan || '';
   updateProviderStatus(id);
-  groups.replaceChildren();
+  container.replaceChildren();
+  if (!usage.groups?.length) {
+    requestWindowResize();
+    return;
+  }
   const nowMs = referenceNow(usage);
-  // Codex reports resets as seconds-from-now rather than an absolute
-  // timestamp; convert so renderBuckets can use the same absolute-time
-  // formatting as every other provider. Anchored to nowMs (not a fresh
-  // Date.now() here) so a frozen live-preview "now" applies to this
-  // conversion too, not just to the formatting below.
-  const toResetTime = seconds => (seconds > 0 ? new Date(nowMs + seconds * 1000).toISOString() : '');
-  renderBuckets(groups, [
-    { label: '5h', remaining: 100 - usage.fiveHour, resetTime: toResetTime(usage.fiveHourResetIn) },
-    { label: '7d', remaining: 100 - usage.sevenDay, resetTime: toResetTime(usage.sevenDayResetIn) },
-  ], nowMs);
+  const flat = usage.groups.length === 1 && !usage.groups[0].name;
+  for (const group of usage.groups) {
+    const target = flat ? container : appendGroupElement(container, group.name);
+    renderBuckets(target, group.buckets || [], nowMs);
+  }
   requestWindowResize();
+}
+
+function appendGroupElement(container, name) {
+  const groupElement = document.createElement('div');
+  groupElement.className = 'usage-group';
+  if (name) {
+    const title = document.createElement('div');
+    title.className = 'usage-group-title';
+    title.textContent = name;
+    groupElement.append(title);
+  }
+  container.append(groupElement);
+  return groupElement;
 }
 
 // Each row gets its own tooltip (a sibling of .inline-reset within .limit,
@@ -545,79 +682,14 @@ function renderBuckets(container, buckets, nowMs) {
   }
 }
 
-const antigravityWindowOrder = { '5h': 0, '24h': 1, weekly: 2 };
-const antigravityWindowLabels = { '5h': '5h', weekly: '7d' };
-
-function renderAntigravity(id, usage) {
-  const meta = PROVIDERS_BY_ID.get(id);
-  const state = providerState.get(id);
-  const groups = document.getElementById(meta.groupsId);
-  if (usage.error) {
-    renderNonUsageState(id, usage);
-    return;
-  }
-  showProviderError(meta.errorId, '');
-  state.plan = usage.plan || '';
-  updateProviderStatus(id);
-  groups.replaceChildren();
-  if (!usage.groups?.length) {
-    requestWindowResize();
-    return;
-  }
-  const nowMs = referenceNow(usage);
-  for (const group of usage.groups) {
-    const groupElement = document.createElement('div');
-    groupElement.className = 'agy-group';
-    const title = document.createElement('div');
-    title.className = 'agy-group-title';
-    title.textContent = group.name;
-    groupElement.append(title);
-    const buckets = [...(group.buckets || [])].sort((a, b) =>
-      (antigravityWindowOrder[a.window] ?? 3) - (antigravityWindowOrder[b.window] ?? 3));
-    renderBuckets(groupElement, buckets.map(bucket => ({
-      label: antigravityWindowLabels[bucket.window] ?? bucket.name,
-      remaining: bucket.remaining,
-      resetTime: bucket.resetTime,
-    })), nowMs);
-    groups.append(groupElement);
-  }
-  requestWindowResize();
-}
-
-function renderClaude(id, usage) {
-  const meta = PROVIDERS_BY_ID.get(id);
-  const state = providerState.get(id);
-  const groups = document.getElementById(meta.groupsId);
-  if (usage.error) {
-    renderNonUsageState(id, usage);
-    return;
-  }
-  showProviderError(meta.errorId, '');
-  state.plan = usage.plan || '';
-  updateProviderStatus(id);
-  groups.replaceChildren();
-  if (!usage.buckets?.length) {
-    requestWindowResize();
-    return;
-  }
-  renderBuckets(groups, usage.buckets.map(bucket => ({
-    label: bucket.name,
-    remaining: bucket.remaining,
-    resetTime: bucket.resetTime,
-  })), referenceNow(usage));
-  requestWindowResize();
-}
-
 async function fetchProvider(id) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  const sampleMode = viewMode === 'sample';
   if (state.fetching) return;
-  if (!sampleMode && !config.providers[id].enabled) return;
   state.fetching = true;
   setLoading(meta.dotId, true);
   try {
-    const usage = await rpc(sampleMode ? meta.sampleRpcMethod : meta.rpcMethod);
+    const usage = await rpc(meta.rpcMethod, meta.id);
     clearLoadingText(meta.cardId);
     state.status = usage.status || '';
     if (state.status && state.status !== 'connected') {
@@ -632,13 +704,13 @@ async function fetchProvider(id) {
       state.lastSuccessAt = Date.now();
       state.lastError = '';
     }
-    meta.render(id, usage);
+    renderUsage(id, usage);
   } catch (error) {
     clearLoadingText(meta.cardId);
     state.status = '';
     state.failureCount += 1;
     state.lastError = `Frontend call failed: ${error}`.slice(0, 120);
-    meta.render(id, { error: state.lastError });
+    renderUsage(id, { error: state.lastError });
   } finally {
     state.fetching = false;
     setLoading(meta.dotId, false);
@@ -646,40 +718,10 @@ async function fetchProvider(id) {
   }
 }
 
-document.querySelectorAll('.provider-refresh-btn').forEach(button => {
-  button.addEventListener('click', () => fetchProvider(button.dataset.providerId));
-});
-
-const settingsDialog = document.getElementById('settings-dialog');
-const providerListEl = document.getElementById('provider-list');
 const pinWindowBtn = document.getElementById('pin-window');
-const themeButtonGroup = document.querySelector('.theme-button-group');
-const refreshPresetSelect = document.getElementById('refresh-preset-select');
-const refreshIntervalInput = document.getElementById('refresh-interval-input');
-const warningEnabledInput = document.getElementById('warning-enabled');
-const warningThresholdInput = document.getElementById('warning-threshold');
-const criticalEnabledInput = document.getElementById('critical-enabled');
-const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
-const hotkeySelect = document.getElementById('hotkey-select');
-const hotkeyStatus = document.getElementById('hotkey-status');
-const hotkeyStatusText = document.getElementById('hotkey-status-text');
-const hotkeyRetryBtn = document.getElementById('hotkey-retry-btn');
-let hotkeyError = '';
-// config.hotkeyShortcut is the last successfully applied native binding.
-// A pending target exists only after a failed transition, when it may differ
-// from the still-working binding and must be retried without being persisted.
-let hotkeyPendingSettings = null;
-let hotkeyBusy = false;
-
-for (const option of [{ value: '', label: 'Disabled' }, ...HOTKEY_OPTIONS]) {
-  hotkeySelect.add(new Option(option.label, option.value));
-}
 
 let isAlwaysOnTop = false;
-// True while the first-run screen's diagnosis rows are already rendered, so
-// reopening Settings does not re-probe every provider.
-let setupRendered = false;
 
 function updateAlwaysOnTopUI(isTop) {
   pinWindowBtn.classList.toggle('active', isTop);
@@ -697,134 +739,147 @@ function toggleAlwaysOnTop() {
 pinWindowBtn.addEventListener('click', toggleAlwaysOnTop);
 updateAlwaysOnTopUI(isAlwaysOnTop);
 
+// One card's dot-button dropdown: the same status info the old hover
+// tooltip showed, plus Refresh and Delete actions - so the standalone
+// refresh button and any per-card "remove" control both fold into this one
+// menu instead of crowding the heading with more icons.
+const statusDropdowns = new Map();
+
+// Builds the DOM for one provider instance's usage card: heading (name,
+// status dot/dropdown), the usage groups area, and the error area.
+// Interaction wiring is attached here at creation time rather than through a
+// delegated or one-time document-wide listener, since cards themselves are
+// created and destroyed as provider instances are added and removed.
+function buildProviderCard(meta) {
+  const section = document.createElement('section');
+  section.className = 'usage-card';
+  section.id = meta.cardId;
+
+  const heading = document.createElement('div');
+  heading.className = 'heading';
+  const name = document.createElement('strong');
+  name.textContent = meta.label;
+
+  const statusArea = document.createElement('span');
+  statusArea.className = 'status-area';
+  const statusWrap = document.createElement('span');
+  statusWrap.className = 'status-wrap';
+
+  const dotBtn = document.createElement('button');
+  dotBtn.type = 'button';
+  dotBtn.className = 'status-dot-btn';
+  dotBtn.setAttribute('aria-haspopup', 'true');
+  dotBtn.setAttribute('aria-expanded', 'false');
+  dotBtn.setAttribute('aria-label', `${meta.label} connection status and actions`);
+  const dot = document.createElement('span');
+  dot.className = 'status-dot';
+  dot.id = meta.dotId;
+  dotBtn.append(dot);
+
+  const tooltip = document.createElement('span');
+  tooltip.className = 'status-tooltip';
+  tooltip.id = meta.tooltipId;
+  statusWrap.append(dotBtn, tooltip);
+
+  const dropdown = createDropdown(statusWrap, {
+    onOpen: () => {
+      closeOpenDetailsTooltips();
+      updateProviderStatus(meta.id);
+      tooltip.classList.add('is-open');
+      dotBtn.setAttribute('aria-expanded', 'true');
+      requestWindowResize();
+    },
+    onClose: () => {
+      tooltip.classList.remove('is-open');
+      dotBtn.setAttribute('aria-expanded', 'false');
+      requestWindowResize();
+    },
+  });
+  statusDropdowns.set(meta.id, dropdown);
+  dotBtn.addEventListener('click', event => {
+    event.stopPropagation();
+    dropdown.toggle();
+  });
+
+  statusArea.append(statusWrap);
+  heading.append(name, statusArea);
+
+  const groups = document.createElement('div');
+  groups.className = 'usage-groups';
+  groups.id = meta.groupsId;
+  const loading = document.createElement('div');
+  loading.className = 'plan loading-text';
+  loading.textContent = 'Loading usage...';
+  groups.append(loading);
+
+  const error = document.createElement('div');
+  error.className = 'provider-error';
+  error.id = meta.errorId;
+  error.setAttribute('role', 'status');
+  error.hidden = true;
+
+  section.append(heading, groups, error);
+
+  return section;
+}
+
+// Reconciles the DOM with config.providers: creates a card (and its state)
+// for any new instance, removes one for any instance that no longer exists,
+// and reorders the surviving cards to match. Called whenever config changes
+// - locally, or via the "aigauge:config-updated" event from the backend or
+// the settings window - so this is the one place card lifecycle is decided.
+function syncProviderCards() {
+  const usageSections = document.querySelector('.usage-sections');
+  const currentIds = new Set(config.providers.map(p => p.id));
+
+  for (const [id, section] of cardElements) {
+    if (currentIds.has(id)) continue;
+    const state = providerState.get(id);
+    if (state) clearTimeout(state.timerId);
+    providerState.delete(id);
+    PROVIDERS_BY_ID.delete(id);
+    statusDropdowns.get(id)?.close();
+    statusDropdowns.delete(id);
+    section.remove();
+    cardElements.delete(id);
+  }
+
+  for (const instance of config.providers) {
+    const meta = buildMeta(instance);
+    PROVIDERS_BY_ID.set(instance.id, meta);
+    let section = cardElements.get(instance.id);
+    if (!section) {
+      section = buildProviderCard(meta);
+      cardElements.set(instance.id, section);
+      ensureProviderState(instance.id);
+    }
+    usageSections.append(section);
+  }
+
+  updateProvidersVisibility();
+}
+
 function updateProvidersVisibility() {
-  const sampleMode = viewMode === 'sample';
-  let anyEnabled = false;
-
-  for (const provider of PROVIDERS) {
-    const enabled = config.providers[provider.id].enabled !== false;
-    anyEnabled = anyEnabled || enabled;
-    // The preview shows all three cards regardless of what the user has
-    // enabled - and without consulting that setting for anything else.
-    document.getElementById(provider.cardId).style.display = (sampleMode || enabled) ? '' : 'none';
-
-    const state = providerState.get(provider.id);
-    const action = providerVisibilityAction(sampleMode, enabled, Boolean(state.timerId));
-    if (action === 'restart') {
-      clearTimeout(state.timerId);
-      state.timerId = null;
-      fetchProvider(provider.id);
-    } else if (action === 'fetch') {
-      fetchProvider(provider.id);
-    } else if (action === 'stop') {
-      clearTimeout(state.timerId);
-      state.timerId = null;
+  // Every instance in config.providers always gets a card - presence in the
+  // list is the only "is it shown" signal (removing it is the only way to
+  // hide it), so there's nothing here to hide by instance.
+  for (const instance of config.providers) {
+    const state = providerState.get(instance.id);
+    const action = providerVisibilityAction(Boolean(state.timerId));
+    if (action === 'fetch') {
+      fetchProvider(instance.id);
     }
   }
 
-  const showSetup = !sampleMode && !anyEnabled;
+  const showSetup = config.providers.length === 0;
   document.getElementById('setup-screen').hidden = !showSetup;
-  document.getElementById('sample-bar').hidden = !sampleMode;
-  if (showSetup) {
-    // Re-run the diagnoses only on the way into the screen, not on every
-    // visibility recalculation, so opening Settings does not re-probe.
-    if (!setupRendered) {
-      setupRendered = true;
-      renderSetupProviders();
-    }
-  } else {
-    setupRendered = false;
-  }
 
-  const visibleCards = config.providerOrder
-    .map(id => document.getElementById(PROVIDERS_BY_ID.get(id).cardId))
-    .filter(card => card.style.display !== 'none');
+  const visibleCards = config.providers.map(instance => cardElements.get(instance.id));
   visibleCards.forEach((card, index) => {
     card.classList.toggle('card-divider', index > 0);
   });
 
   requestWindowResize();
-}
-
-function applyProviderOrder() {
-  const usageSections = document.querySelector('.usage-sections');
-  for (const id of config.providerOrder) {
-    usageSections.append(document.getElementById(PROVIDERS_BY_ID.get(id).cardId));
-  }
-  updateProvidersVisibility();
-}
-
-function renderProviderList() {
-  providerListEl.replaceChildren();
-  config.providerOrder.forEach((id, index) => {
-    const meta = PROVIDERS_BY_ID.get(id);
-    const row = document.createElement('div');
-    row.className = 'provider-row';
-    row.dataset.provider = id;
-
-    const checkboxLabel = document.createElement('label');
-    checkboxLabel.className = 'provider-setting';
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.dataset.action = 'toggle';
-    checkbox.checked = config.providers[id].enabled;
-    checkboxLabel.append(checkbox, document.createTextNode(` ${meta.label}`));
-
-    const moveButtons = document.createElement('span');
-    moveButtons.className = 'provider-move-buttons';
-    const upBtn = document.createElement('button');
-    upBtn.type = 'button';
-    upBtn.className = 'provider-move-btn';
-    upBtn.dataset.action = 'move-up';
-    upBtn.textContent = '▲';
-    upBtn.title = `Move ${meta.label} up`;
-    upBtn.setAttribute('aria-label', `Move ${meta.label} up`);
-    upBtn.disabled = index === 0;
-    const downBtn = document.createElement('button');
-    downBtn.type = 'button';
-    downBtn.className = 'provider-move-btn';
-    downBtn.dataset.action = 'move-down';
-    downBtn.textContent = '▼';
-    downBtn.title = `Move ${meta.label} down`;
-    downBtn.setAttribute('aria-label', `Move ${meta.label} down`);
-    downBtn.disabled = index === config.providerOrder.length - 1;
-    moveButtons.append(upBtn, downBtn);
-
-    row.append(checkboxLabel, moveButtons);
-    providerListEl.append(row);
-  });
-}
-
-providerListEl.addEventListener('change', event => {
-  const checkbox = event.target.closest('input[data-action="toggle"]');
-  if (!checkbox) return;
-  const id = checkbox.closest('[data-provider]').dataset.provider;
-  config.providers[id].enabled = checkbox.checked;
-  updateProvidersVisibility();
-  saveCurrentConfig();
-});
-
-providerListEl.addEventListener('click', event => {
-  const button = event.target.closest('button[data-action]');
-  if (!button) return;
-  const id = button.closest('[data-provider]').dataset.provider;
-  const order = config.providerOrder;
-  const index = order.indexOf(id);
-  const swapWith = button.dataset.action === 'move-up' ? index - 1 : index + 1;
-  if (swapWith < 0 || swapWith >= order.length) return;
-  [order[index], order[swapWith]] = [order[swapWith], order[index]];
-  renderProviderList();
-  applyProviderOrder();
-  saveCurrentConfig();
-});
-
-function updateThemeButtonsUI(theme) {
-  if (!themeButtonGroup) return;
-  themeButtonGroup.querySelectorAll('.theme-option-btn').forEach(button => {
-    const isActive = button.dataset.theme === theme;
-    button.classList.toggle('active', isActive);
-    button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-  });
 }
 
 function applyTheme(theme, persist = true) {
@@ -833,22 +888,10 @@ function applyTheme(theme, persist = true) {
     : (theme === 'dark' ? 'dark' : 'light');
   document.documentElement.dataset.theme = theme;
   document.documentElement.dataset.resolvedTheme = resolved;
-  updateThemeButtonsUI(theme);
   if (persist) {
-    // The selected mode, not the resolved light/dark - otherwise "System"
-    // could never be persisted (it would immediately collapse to whatever
-    // it resolved to right now) and would silently stop following the OS
-    // theme after the next launch.
     config.theme = theme;
-    saveCurrentConfig();
+    saveTheme(theme);
   }
-}
-
-if (themeButtonGroup) {
-  themeButtonGroup.addEventListener('click', event => {
-    const button = event.target.closest('.theme-option-btn');
-    if (button) applyTheme(button.dataset.theme, true);
-  });
 }
 
 let forcedTheme = '';
@@ -864,316 +907,137 @@ systemTheme.addEventListener('change', () => {
   if (document.documentElement.dataset.theme === 'system') applyTheme('system', false);
 });
 
-function updateRefreshPresetSelect(seconds) {
-  const matchingOption = refreshPresetSelect.querySelector(`option[value="${seconds}"]`);
-  refreshPresetSelect.value = matchingOption ? String(seconds) : 'custom';
+// ---------------------------------------------------------------------------
+// Settings button
+// ---------------------------------------------------------------------------
+
+const settingsBtn = document.getElementById('settings-btn');
+settingsBtn.addEventListener('click', event => {
+  event.stopPropagation();
+  rpc('OpenSettings').catch(() => { });
+});
+
+function applyExternalConfig(newConfig) {
+  if (!newConfig) return;
+  config = normalizeConfig(newConfig);
+  applyTheme(config.theme, false);
+  syncProviderCards();
+  config.providers.forEach(instance => scheduleProvider(instance.id));
+  refreshStatusTooltips();
+  refreshLimitStates();
+  requestWindowResize();
 }
 
-function setRefreshInterval(val) {
-  const seconds = typeof val === 'string' && val.trim() === '' ? config.refreshInterval : parseIntervalToSeconds(val);
-  refreshInterval = seconds;
-  config.refreshInterval = refreshInterval;
-  refreshIntervalInput.value = refreshInterval;
-  updateRefreshPresetSelect(refreshInterval);
-  saveCurrentConfig();
-  providerIds.forEach(scheduleProvider);
+wails.Events.On('aigauge:config-updated', event => {
+  applyExternalConfig(event.data || event);
+});
+
+if (config.hotkeyShortcut) {
+  rpc('SetGlobalHotkey', true, config.hotkeyShortcut).catch(() => { });
 }
 
-function updateHotkeyUI() {
-  // While a change is in flight (no error yet), show the target being
-  // applied optimistically. Once it fails, the backend leaves the
-  // previously active hotkey untouched (see setGlobalHotkey in
-  // internal/ui/runtime.go), so fall back to the true persisted state
-  // instead of the failed pending target - otherwise a failed "Disable"
-  // would show as disabled in the UI while the old hotkey stays live.
-  const displayedShortcut = hotkeyError
-    ? config.hotkeyShortcut
-    : (hotkeyPendingSettings ? hotkeyPendingSettings.shortcut : config.hotkeyShortcut);
-  hotkeySelect.value = displayedShortcut || '';
-  hotkeySelect.disabled = hotkeyBusy;
-  hotkeyRetryBtn.disabled = hotkeyBusy;
-  hotkeyRetryBtn.textContent = hotkeyBusy ? '...' : 'Retry';
+// ---------------------------------------------------------------------------
+// First-run onboarding & adding a provider
+//
+// Replaces the old screen that diagnosed three fixed providers. There is no
+// fixed catalog any more, so onboarding is just the entry point for adding
+// the first provider instance - the same flow available in Settings
+// item uses (see addProviderAndConnect below) - shown as a prominent card
+// instead of a menu item so a first-time user cannot miss it.
+// ---------------------------------------------------------------------------
 
-  if (hotkeyError && hotkeyPendingSettings) {
-    const target = hotkeyOptionLabel(hotkeyPendingSettings.shortcut);
-    hotkeyStatusText.textContent = `Target: ${target}. ${formatHotkeyError(hotkeyError, hotkeyPendingSettings.shortcut !== null)}`;
-    hotkeyStatusText.title = hotkeyError;
-    hotkeyRetryBtn.title = `Retry ${target}`;
-    hotkeyStatus.hidden = false;
-  } else {
-    hotkeyStatus.hidden = true;
-    hotkeyStatusText.textContent = '';
-    hotkeyStatusText.removeAttribute('title');
-    hotkeyRetryBtn.removeAttribute('title');
+// Shared by both entry points: the onboarding card above (a brand new
+// instance) and a live card's inline "Connect"/"Reconnect" action (an
+// existing instance that lost its credentials) - see connectExistingInstance.
+// Returns { ok, message } rather than throwing so callers can decide what "it
+// didn't work" should look like in their own context instead of catching a
+// generic rejection.
+async function connectProviderInstance(meta, diagnosis) {
+  if (diagnosis?.canImport) {
+    let useLocal = false;
+    try {
+      const choice = await wails.Dialogs.Question({
+        Title: 'AI Gauge',
+        Message: `Found an existing login session for ${meta.label}.\n\nWould you like to connect using this account?\n(Select 'No' to log in via browser with a different account)`,
+        Buttons: [
+          { Label: 'Yes', IsDefault: true },
+          { Label: 'No' },
+        ],
+      });
+      useLocal = choice === 'Yes';
+    } catch {
+      useLocal = window.confirm(`Found an existing login session for ${meta.label}.\n\nConnect using this account?`);
+    }
+
+    if (useLocal) {
+      try {
+        const diag = await rpc('ImportProvider', meta.id);
+        return diag?.status === 'connected'
+          ? { ok: true }
+          : { ok: false, message: diag?.message || 'Import failed.' };
+      } catch (error) {
+        return { ok: false, message: `Import failed: ${error?.message || error}` };
+      }
+    }
   }
-}
-
-async function applyHotkeySettings(settings) {
-  if (hotkeyBusy) return;
-
-  hotkeyPendingSettings = { ...settings };
-  hotkeyError = '';
-  hotkeyBusy = true;
-  updateHotkeyUI();
 
   try {
-    await rpc('SetGlobalHotkey', settings.shortcut !== null, settings.shortcut || '');
-    config.hotkeyShortcut = settings.shortcut;
-    saveCurrentConfig();
-    hotkeyError = '';
-    hotkeyPendingSettings = null;
+    const diag = await rpc('ConnectProvider', meta.id);
+    if (diag?.status === 'connected') return { ok: true };
+    // A manual-code provider (Claude) redirects to its own hosted page rather
+    // than back to AI Gauge, so ConnectProvider cannot block until login
+    // completes - it hands back this status instead, and the caller collects
+    // the code the user pastes back in and calls SubmitAuthCode with it.
+    if (diag?.status === 'awaiting_code') {
+      return { ok: false, awaitingCode: true, message: diag?.message || 'Paste the code shown in your browser.' };
+    }
+    return { ok: false, message: diag?.message || 'Authentication was cancelled or failed.' };
   } catch (error) {
-    hotkeyError = error?.message || String(error);
-    console.warn(`Unable to ${settings.shortcut !== null ? 'register' : 'unregister'} global hotkey:`, error);
-  } finally {
-    hotkeyBusy = false;
-    updateHotkeyUI();
-    requestWindowResize();
+    return { ok: false, message: `Authentication failed: ${error?.message || error}` };
   }
 }
 
-function saveHotkeySettings() {
-  return applyHotkeySettings({
-    shortcut: hotkeySelect.value || null,
-  });
+// Submits a manual-code provider's pasted code (see connectProviderInstance's
+// awaitingCode branch) and reflects whatever actually happened via the same
+// reloadConfigFromBackend path a normal connect uses.
+async function submitAuthCodeForInstance(id, code) {
+  try {
+    await rpc('SubmitAuthCode', id, code);
+  } catch {
+    // reloadConfigFromBackend below re-diagnoses regardless of outcome.
+  }
+  await reloadConfigFromBackend();
 }
 
-async function retryHotkeyOperation() {
-  if (!hotkeyPendingSettings || hotkeyBusy) return;
-  await applyHotkeySettings({ ...hotkeyPendingSettings });
-}
-
-async function syncHotkeySettings() {
-  if (!config.hotkeyShortcut) {
-    hotkeyError = '';
-    hotkeyPendingSettings = null;
-    updateHotkeyUI();
+// Reconnects a provider instance that already exists but lost its
+// credentials (shown as the "Connect"/"Check connection" action on a live
+// card's error state). The card's own next fetch - triggered by
+// reloadConfigFromBackend below, via the same fetch-on-visibility-recalc path
+// scheduleProvider/updateProvidersVisibility already use - reflects whatever
+// actually happened, so there is nothing else to update here.
+//
+// The one exception is a manual-code provider's awaiting_code result: that is
+// not something a fresh Diagnose*/GetXUsage call can reconstruct (no token is
+// stored yet), so it is rendered directly into the card instead of being
+// dropped by a reload, and stays there until submitAuthCodeForInstance runs.
+async function connectExistingInstance(id, diagnosis) {
+  const meta = PROVIDERS_BY_ID.get(id);
+  const state = providerState.get(id);
+  if (!meta || !state) return;
+  const result = await connectProviderInstance(meta, diagnosis);
+  if (result.awaitingCode) {
+    // Mirrors what fetchProvider does before calling a render function: set
+    // the state this card's badge/tooltip reads before drawing it.
+    state.status = 'awaiting_code';
+    state.lastError = result.message;
+    renderNonUsageState(id, { status: 'awaiting_code', message: result.message });
     return;
   }
-  await applyHotkeySettings({ shortcut: config.hotkeyShortcut });
+  await reloadConfigFromBackend();
 }
-
-hotkeySelect.addEventListener('change', saveHotkeySettings);
-hotkeyRetryBtn.addEventListener('click', retryHotkeyOperation);
-
-function openSettings() {
-  renderProviderList();
-  refreshIntervalInput.value = refreshInterval;
-  updateRefreshPresetSelect(refreshInterval);
-  warningEnabledInput.checked = config.thresholds.warning.enabled;
-  warningThresholdInput.value = config.thresholds.warning.value;
-  warningThresholdInput.disabled = !config.thresholds.warning.enabled;
-  criticalEnabledInput.checked = config.thresholds.critical.enabled;
-  criticalThresholdInput.value = config.thresholds.critical.value;
-  criticalThresholdInput.disabled = !config.thresholds.critical.enabled;
-  updateHotkeyUI();
-  settingsDialog.showModal();
-  requestWindowResize();
-}
-
-document.getElementById('settings').addEventListener('click', openSettings);
-wails.Events.On('aigauge:open-settings', openSettings);
-syncHotkeySettings();
-
-// ---------------------------------------------------------------------------
-// First-run screen
-//
-// Replaces the old bare "No providers enabled" message. It explains what the
-// app does and what it needs, then shows each provider's readiness with the
-// one action that moves it forward. Everything it calls is local-only: the
-// Diagnose* RPCs read installed files and run no-network status commands, so
-// opening AI Gauge on a machine that was never configured contacts nobody.
-// ---------------------------------------------------------------------------
-
-function setupRow(provider) {
-  return document.querySelector(`.setup-provider[data-provider-id="${provider.id}"]`);
-}
-
-function buildSetupRow(provider, diagnosis) {
-  const row = document.createElement('div');
-  row.className = 'setup-provider';
-  row.dataset.providerId = provider.id;
-
-  const head = document.createElement('div');
-  head.className = 'setup-provider-head';
-  const name = document.createElement('span');
-  name.className = 'setup-provider-name';
-  name.textContent = provider.label;
-  const badge = document.createElement('span');
-  badge.className = `setup-provider-badge ${badgeClass(diagnosis.status)}`.trim();
-  badge.textContent = STATUS_BADGES[diagnosis.status] || 'Checking...';
-  head.append(name, badge);
-
-  const message = document.createElement('p');
-  message.className = 'setup-provider-message';
-  renderFormattedMessage(message, diagnosis.message || '');
-  row.append(head, message);
-
-  if (!diagnosis.status) return row; // still checking: no actions to offer yet
-
-  const onCheck = diagnosis.status === 'auth_check_required'
-    ? () => checkConnection(provider)
-    : () => diagnoseProvider(provider);
-
-  row.append(...createDiagnosisActions(diagnosis, onCheck));
-  return row;
-}
-
-function showSetupRow(provider, diagnosis) {
-  const existing = setupRow(provider);
-  if (!existing) return;
-  existing.replaceWith(buildSetupRow(provider, diagnosis));
-  requestWindowResize();
-}
-
-async function diagnoseProvider(provider) {
-  try {
-    const diagnosis = await rpc(provider.diagnoseRpcMethod);
-    showSetupRow(provider, diagnosis || {});
-  } catch {
-    showSetupRow(provider, {
-      status: 'temporary_error',
-      message: 'Could not check this provider. Try again.',
-    });
-  }
-}
-
-// Each provider resolves independently so one slow diagnosis never holds up
-// the others - or the sample preview, which stays clickable throughout.
-function renderSetupProviders() {
-  const container = document.getElementById('setup-providers');
-  container.replaceChildren(...PROVIDERS.map(provider =>
-    buildSetupRow(provider, { status: '', message: 'Checking...' })));
-  requestWindowResize();
-  for (const provider of PROVIDERS) diagnoseProvider(provider);
-}
-
-// The one place the first-run screen is allowed to reach the network, and only
-// because the user just asked it to. A provider that answers with real usage is
-// enabled and the window switches to the live dashboard; anything else just
-// updates that provider's row and leaves the configuration alone.
-async function checkConnection(provider) {
-  try {
-    const usage = await rpc(provider.rpcMethod);
-    if (usage.status === 'connected') {
-      config.providers[provider.id].enabled = true;
-      saveCurrentConfig();
-      renderProviderList();
-      updateProvidersVisibility();
-      return;
-    }
-    showSetupRow(provider, usage || {});
-  } catch (error) {
-    showSetupRow(provider, {
-      status: 'temporary_error',
-      message: 'Could not reach this provider. Retry in a moment.',
-    });
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Sample-data preview
-//
-// Lets anyone - a Store reviewer on a clean machine, or a curious new user -
-// see the gauges, countdowns, thresholds and themes working without installing
-// a CLI or logging in to anything. It is a separate screen fed by separate
-// RPCs, not a mode layered over the real providers: nothing here reads or
-// writes the provider settings, so leaving the preview restores exactly the
-// setup the user came from.
-// ---------------------------------------------------------------------------
-
-function resetProviderRuntimeState() {
-  for (const id of providerIds) {
-    const state = providerState.get(id);
-    clearTimeout(state.timerId);
-    state.timerId = null;
-    state.failureCount = 0;
-    state.lastError = '';
-    state.lastSuccessAt = 0;
-    state.status = '';
-    state.plan = '';
-  }
-}
-
-function openSamplePreview() {
-  viewMode = 'sample';
-  resetProviderRuntimeState();
-  updateProvidersVisibility();
-}
-
-function closeSamplePreview() {
-  viewMode = 'live';
-  resetProviderRuntimeState();
-  updateProvidersVisibility();
-}
-
-document.getElementById('sample-preview-btn').addEventListener('click', openSamplePreview);
-document.getElementById('back-to-setup-btn').addEventListener('click', closeSamplePreview);
-
-document.querySelectorAll('.dialog-close').forEach(button => {
-  button.addEventListener('click', () => button.closest('dialog').close('cancel'));
-});
-
-settingsDialog.addEventListener('click', event => {
-  if (event.target === settingsDialog) settingsDialog.close();
-});
-settingsDialog.addEventListener('close', () => requestWindowResize());
 
 document.getElementById('hide-window').addEventListener('click', () => {
   wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.HideToTray').catch(() => wails.Window.Hide());
-});
-
-function parseThresholdInput(inputEl, fallback, min, max) {
-  const str = inputEl.value.trim();
-  if (str === '') return fallback;
-  const num = Number(str);
-  if (!Number.isFinite(num)) return fallback;
-  return Math.max(min, Math.min(max, Math.round(num)));
-}
-
-function saveThresholds() {
-  const warningEnabled = warningEnabledInput.checked;
-  const criticalEnabled = criticalEnabledInput.checked;
-
-  warningThresholdInput.disabled = !warningEnabled;
-  criticalThresholdInput.disabled = !criticalEnabled;
-
-  let warningValue = parseThresholdInput(warningThresholdInput, config.thresholds.warning.value, 1, 100);
-  let criticalValue = parseThresholdInput(criticalThresholdInput, config.thresholds.critical.value, 0, 99);
-
-  if (warningEnabled && criticalEnabled && criticalValue >= warningValue) {
-    criticalValue = Math.max(0, warningValue - 1);
-  }
-
-  warningThresholdInput.value = warningValue;
-  criticalThresholdInput.value = criticalValue;
-
-  config.thresholds = {
-    warning: { enabled: warningEnabled, value: warningValue },
-    critical: { enabled: criticalEnabled, value: criticalValue }
-  };
-  saveCurrentConfig();
-  refreshLimitStates();
-}
-
-warningEnabledInput.addEventListener('change', saveThresholds);
-criticalEnabledInput.addEventListener('change', saveThresholds);
-warningThresholdInput.addEventListener('change', saveThresholds);
-criticalThresholdInput.addEventListener('change', saveThresholds);
-
-refreshPresetSelect.addEventListener('change', () => {
-  if (refreshPresetSelect.value === 'custom') {
-    refreshIntervalInput.focus();
-    refreshIntervalInput.select();
-    return;
-  }
-  setRefreshInterval(Number(refreshPresetSelect.value));
-});
-
-refreshIntervalInput.addEventListener('change', () => setRefreshInterval(refreshIntervalInput.value));
-
-wails.Call.ByName('github.com/jmnote/aigauge/internal/app.App.GetVersion').then(version => {
-  document.getElementById('version').textContent = version || 'v—';
 });
 
 let lastReportedHeight = 0;
@@ -1194,21 +1058,6 @@ function requestWindowResize() {
     shell.style.height = 'auto';
     let height = Math.ceil(shell.scrollHeight);
     shell.style.height = previousHeight;
-    if (settingsDialog?.open) {
-      // settingsDialog.scrollHeight, not getBoundingClientRect().height: the
-      // dialog's own box is clamped by the browser to fit whatever room the
-      // window currently has (that's the clipping this whole branch exists
-      // to prevent), so its rendered height shrinks right along with that -
-      // scrollHeight is the one measurement that still reports its true,
-      // unclamped content height regardless. +2 for its own top/bottom
-      // border (outside scrollHeight); +31/+12 is the top/bottom space
-      // .settings-dialog reserves in style.css (clear of the main window's
-      // .titlebar, plus a little breathing room at the bottom) - the window
-      // needs to be at least that much taller than the dialog's natural
-      // height for it to fit without being clipped on either side.
-      const dialogHeight = Math.ceil(settingsDialog.scrollHeight) + 2 + 31 + 12;
-      if (dialogHeight > height) height = dialogHeight;
-    }
     if (height > 0 && Math.abs(height - lastReportedHeight) >= 2) {
       lastReportedHeight = height;
       // The backend preserves the window's current user-selected width and
@@ -1246,40 +1095,17 @@ window.addEventListener('resize', () => {
   if (width === config.windowWidth) return;
   config.windowWidth = width;
   clearTimeout(widthSaveTimer);
-  widthSaveTimer = setTimeout(saveCurrentConfig, 250);
+  widthSaveTimer = setTimeout(() => {
+    rpc('SetSavedWindowWidth', width).catch(error => console.warn('Failed to save window width:', error));
+  }, 250);
 });
 
-// The live server may deep-link into the sample screen for visual development.
-// Production navigation always goes through the visible preview button.
-if (globalThis.__AIGAUGE_LIVE__ && new URLSearchParams(location.search).get('view') === 'sample') {
-  openSamplePreview();
-} else {
-  applyProviderOrder();
-}
+syncProviderCards();
 
 function refreshStatusTooltips() {
-  for (const provider of PROVIDERS) {
-    if (config.providers[provider.id].enabled) updateProviderStatus(provider.id);
+  for (const instance of config.providers) {
+    updateProviderStatus(instance.id);
   }
-}
-
-// Hover and focus are independent CSS states, so without this a mouse-hover
-// tooltip and a Tab-focused tooltip could both be visible at once. Entering
-// any trigger suppresses every other tooltip via a class that outranks the
-// plain hover/focus display rules (see .tooltip-suppressed below); leaving
-// lifts the suppression so whatever's still legitimately hovered/focused (if
-// anything) can show again on its own.
-function setActiveTooltip(tooltip) {
-  closeOpenDetailsTooltips();
-  document.querySelectorAll('.status-tooltip').forEach(element => {
-    element.classList.toggle('tooltip-suppressed', element !== tooltip);
-  });
-}
-
-function clearActiveTooltip() {
-  document.querySelectorAll('.status-tooltip').forEach(element => {
-    element.classList.remove('tooltip-suppressed');
-  });
 }
 
 // A tooltip always opens downward from its anchor (never flips above) - the
@@ -1288,37 +1114,8 @@ function clearActiveTooltip() {
 // so it never changes .shell's own box size on its own (the ResizeObserver
 // below only reacts to that), but requestWindowResize()'s own measurement
 // picks up its extent regardless, so each show/hide needs its own explicit
-// call, same as every other content change.
-//
-// The status tooltip is triggered by the provider heading and anchored at a
-// fixed position below the status area. Moving the mouse cursor over the
-// tooltip keeps it open so users can read details and click links.
-document.querySelectorAll('.heading').forEach(element => {
-  const tooltip = element.querySelector('.status-tooltip');
-  element.addEventListener('mouseenter', () => {
-    refreshStatusTooltips();
-    setActiveTooltip(tooltip);
-    requestWindowResize();
-  });
-  element.addEventListener('mouseleave', () => {
-    clearActiveTooltip();
-    requestWindowResize();
-  });
-});
-
-document.querySelectorAll('.status-area').forEach(element => {
-  element.addEventListener('focusin', () => {
-    refreshStatusTooltips();
-    const tooltip = element.querySelector('.status-tooltip');
-    setActiveTooltip(tooltip);
-    requestWindowResize();
-  });
-  element.addEventListener('focusout', event => {
-    if (element.contains(event.relatedTarget)) return;
-    clearActiveTooltip();
-    requestWindowResize();
-  });
-});
+// call - see toggleStatusTooltip/closeStatusTooltip near buildProviderCard,
+// where the status tooltip's own open/close is handled.
 
 document.addEventListener('click', () => {
   closeOpenDetailsTooltips();
@@ -1346,7 +1143,7 @@ document.addEventListener('mouseout', event => {
 });
 
 setInterval(() => {
-  if (document.visibilityState === 'visible' && document.querySelector('.heading:hover, .status-area :focus-visible')) {
+  if (document.visibilityState === 'visible' && [...statusDropdowns.values()].some(d => d.isOpen())) {
     refreshStatusTooltips();
   }
 }, 1000);

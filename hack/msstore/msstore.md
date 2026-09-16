@@ -104,13 +104,11 @@ Use `hack/msstore/submission.mjs` or `build.ps1` tasks to inspect and validate s
 Before submitting a major update to certification, run these quick sanity checks on a clean test device:
 
 1. **First-run setup experience**:
-   - Run `.\build.ps1 ai-backup` to simulate a clean device with no CLI tools or credentials installed.
-   - Launch AI Gauge: Verify that missing providers display clear, polite setup guidance without errors or crash dialogs.
-2. **Sample preview mode**:
-   - Click **Preview with sample data**: Confirm that sample dashboard gauges, percentages, and reset times render cleanly without accounts or network requests.
+   - Run `.\build.ps1 logout` (or `go run . logout`) to simulate a clean device with no credentials configured.
+   - Launch AI Gauge: Verify that unauthenticated providers display the "Connect" button and guidance without errors or crash dialogs.
 3. **Settings & customization**:
    - Open Settings (gear icon): Test light/dark/system themes, threshold sliders, window width resizing, and global hotkeys.
 4. **System tray behavior**:
    - Test minimize-to-tray, tray icon click to restore, and right-click context menu options.
-5. **Restore environment**:
-   - Run `.\build.ps1 ai-restore` to restore local development credentials.
+5. **In-app connection**:
+   - Click "Connect" for a provider to verify the browser authentication flow opens and completes.

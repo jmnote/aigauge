@@ -7,97 +7,109 @@ import (
 	"time"
 )
 
-type CodexUsage struct {
-	Plan       string  `json:"plan"`
-	FiveHour   float64 `json:"fiveHour"`
-	SevenDay   float64 `json:"sevenDay"`
-	FiveHourIn int     `json:"fiveHourResetIn"`
-	SevenDayIn int     `json:"sevenDayResetIn"`
-	FetchedAt  string  `json:"fetchedAt"`
-
-	// See DiagnosisFields in status.go: it carries the structured diagnosis,
-	// shared by all three providers so applyDiagnosis is defined exactly once.
-	DiagnosisFields
-}
-
-type codexAuth struct {
-	Tokens struct {
-		AccessToken string `json:"access_token"`
-	} `json:"tokens"`
-}
-
-type codexUsageResponse struct {
-	PlanType  string `json:"plan_type"`
-	RateLimit struct {
-		PrimaryWindow struct {
-			UsedPercent       *float64 `json:"used_percent"`
-			ResetAfterSeconds *int     `json:"reset_after_seconds"`
-		} `json:"primary_window"`
-		SecondaryWindow struct {
-			UsedPercent       *float64 `json:"used_percent"`
-			ResetAfterSeconds *int     `json:"reset_after_seconds"`
-		} `json:"secondary_window"`
-	} `json:"rate_limit"`
-}
-
-func parseCodexUsage(data []byte) (CodexUsage, error) {
-	var response codexUsageResponse
-	if err := json.Unmarshal(data, &response); err != nil {
+// ParseCodexUsage unmarshals a raw Codex usage response with no validation
+// or conversion - see ToDisplay for that.
+func ParseCodexUsage(data []byte) (CodexUsage, error) {
+	var usage CodexUsage
+	if err := json.Unmarshal(data, &usage); err != nil {
 		return CodexUsage{}, err
 	}
-	if response.RateLimit.PrimaryWindow.UsedPercent == nil ||
-		response.RateLimit.PrimaryWindow.ResetAfterSeconds == nil ||
-		response.RateLimit.SecondaryWindow.UsedPercent == nil ||
-		response.RateLimit.SecondaryWindow.ResetAfterSeconds == nil {
-		return CodexUsage{}, fmt.Errorf("response is missing required usage fields")
-	}
-	primaryUsed := *response.RateLimit.PrimaryWindow.UsedPercent
-	secondaryUsed := *response.RateLimit.SecondaryWindow.UsedPercent
-	primaryReset := *response.RateLimit.PrimaryWindow.ResetAfterSeconds
-	secondaryReset := *response.RateLimit.SecondaryWindow.ResetAfterSeconds
-	if primaryUsed < 0 || primaryUsed > 100 || secondaryUsed < 0 || secondaryUsed > 100 ||
-		primaryReset < 0 || secondaryReset < 0 {
-		return CodexUsage{}, fmt.Errorf("response contains out-of-range usage fields")
-	}
-	return CodexUsage{
-		Plan:       response.PlanType,
-		FiveHour:   primaryUsed,
-		SevenDay:   secondaryUsed,
-		FiveHourIn: primaryReset,
-		SevenDayIn: secondaryReset,
-	}, nil
+	usage.Raw = append(json.RawMessage(nil), data...)
+	return usage, nil
 }
 
-// findCodexCredentials reads only the access token the usage request needs.
-// See findCredentials in diagnose.go for what "found" means.
-func findCodexCredentials(homeDir func() (string, error), readFile func(string) ([]byte, error)) (codexAuth, bool) {
-	return findCredentials(homeDir, readFile, codexCredentialRelPath, func(a codexAuth) bool {
-		return a.Tokens.AccessToken != ""
+// ToDisplay validates the raw rate_limit fields (present, 0-100 for a
+// percentage, non-negative for a reset) and converts Codex's relative-
+// seconds resets into absolute timestamps anchored to FetchedAt.
+func (u CodexUsage) ToDisplay() DisplayUsage {
+	display := DisplayUsage{FetchedAt: u.FetchedAt, DiagnosisFields: u.DiagnosisFields}
+	if u.Status != StatusConnected {
+		return display
+	}
+
+	primary := u.RateLimit.PrimaryWindow
+	secondary := u.RateLimit.SecondaryWindow
+	if primary.UsedPercent == nil || primary.ResetAfterSeconds == nil ||
+		secondary.UsedPercent == nil || secondary.ResetAfterSeconds == nil {
+		display.applyDiagnosis(usageUnreadableDiagnosis("Codex", ReasonUnsupportedResponse, fmt.Errorf("response is missing required usage fields")))
+		return display
+	}
+	if *primary.UsedPercent < 0 || *primary.UsedPercent > 100 ||
+		*secondary.UsedPercent < 0 || *secondary.UsedPercent > 100 ||
+		*primary.ResetAfterSeconds < 0 || *secondary.ResetAfterSeconds < 0 {
+		display.applyDiagnosis(usageUnreadableDiagnosis("Codex", ReasonUnsupportedResponse, fmt.Errorf("response contains out-of-range usage fields")))
+		return display
+	}
+
+	now := time.Now()
+	if parsed, err := time.Parse(time.RFC3339, u.FetchedAt); err == nil {
+		now = parsed
+	}
+	toResetTime := func(seconds int) string {
+		if seconds <= 0 {
+			return ""
+		}
+		return now.Add(time.Duration(seconds) * time.Second).Format(time.RFC3339)
+	}
+
+	display.Plan = u.PlanType
+	display.Groups = []DisplayUsageGroup{{
+		Buckets: []DisplayUsageBucket{
+			{Label: "5h", Remaining: 100 - *primary.UsedPercent, ResetTime: toResetTime(*primary.ResetAfterSeconds)},
+			{Label: "7d", Remaining: 100 - *secondary.UsedPercent, ResetTime: toResetTime(*secondary.ResetAfterSeconds)},
+		},
+	}}
+	display.Status = StatusConnected
+	return display
+}
+
+func GetCodexUsage(tokenKey string) CodexUsage {
+	return getCodexUsage(context.Background(), defaultDeps(), tokenKey, true)
+}
+
+// FetchCodexRawUsage returns the unconverted usage response for the Codex
+// instance whose token is stored under tokenKey, using the same auth/HTTP
+// path as GetCodexUsage. Used by hack/fixtures/fixtures.go to capture the
+// API's actual response shape for fixture development.
+func FetchCodexRawUsage(tokenKey string) ([]byte, error) {
+	ctx := context.Background()
+	deps := defaultDeps()
+	diagnosis, credentials, ok := diagnoseCodex(ctx, deps, tokenKey, true)
+	if !ok {
+		return nil, fmt.Errorf("%s", diagnosis.Message)
+	}
+	accessToken, err := authorizedAccessToken(ctx, deps, "codex", tokenKey, credentials.Tokens.AccessToken)
+	if err != nil {
+		return nil, err
+	}
+	return fetchAuthorizedJSON("https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
+		"Authorization": "Bearer " + accessToken,
 	})
 }
 
-func GetCodexUsage() CodexUsage {
-	return getCodexUsage(context.Background(), defaultDeps(), true)
-}
-
-func getCodexUsage(ctx context.Context, deps providerDeps, active bool) CodexUsage {
+func getCodexUsage(ctx context.Context, deps providerDeps, tokenKey string, active bool) CodexUsage {
 	usage := CodexUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
-	diagnosis, credentials, ok := diagnoseCodex(ctx, deps, active)
+	diagnosis, credentials, ok := diagnoseCodex(ctx, deps, tokenKey, active)
 	if !ok {
 		usage.applyDiagnosis(diagnosis)
 		return usage
 	}
 
+	accessToken, err := authorizedAccessToken(ctx, deps, "codex", tokenKey, credentials.Tokens.AccessToken)
+	if err != nil {
+		usage.applyDiagnosis(usageFailureDiagnosis("Codex", err))
+		return usage
+	}
 	body, err := fetchAuthorizedJSON("https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
-		"Authorization": "Bearer " + credentials.Tokens.AccessToken,
+		"Authorization": "Bearer " + accessToken,
 	})
 	if err != nil {
 		usage.applyDiagnosis(usageFailureDiagnosis("Codex", err))
 		return usage
 	}
 
-	parsed, err := parseCodexUsage(body)
+	parsed, err := ParseCodexUsage(body)
 	if err != nil {
 		usage.applyDiagnosis(usageUnreadableDiagnosis("Codex", ReasonUnsupportedResponse, err))
 		return usage

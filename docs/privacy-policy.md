@@ -4,15 +4,15 @@ AI Gauge is a standalone Windows desktop application that displays usage informa
 
 ## Data access and use
 
-AI Gauge reads existing local Codex and Claude Code login sessions and invokes the locally installed `agy` command-line tool when Antigravity monitoring is enabled. It uses the resulting quota, reset-time, and connection-status information only to display it in the app. AI Gauge does not operate an intermediary server, use the information for advertising, or sell personal information.
+For Codex and Claude Code, AI Gauge signs in through each service's own official login flow and stores the resulting access token itself. For Google Antigravity, AI Gauge invokes the locally installed `agy` command-line tool rather than signing in or storing a token of its own. It uses the resulting quota, reset-time, and connection-status information only to display it in the app. AI Gauge does not operate an intermediary server, use the information for advertising, or sell personal information.
 
 ## Credentials
 
-AI Gauge does not request or persist passwords, payment information, or authentication credentials in its own storage. It uses access tokens maintained by existing Codex and Claude Code login sessions, and authentication handled by the locally installed `agy` command-line tool for Google Antigravity. Codex and Claude Code tokens are used only in memory for direct HTTPS requests to the corresponding service; they are not logged or uploaded to the developer. `agy` manages its own authentication and connection to Google Antigravity.
+AI Gauge does not request or persist passwords or payment information. For Codex and Claude Code, it stores the OAuth access/refresh token from your own sign-in locally on your device (see Local storage), using it only in memory for direct HTTPS requests to the corresponding service; it is not logged or uploaded to the developer. For Google Antigravity, AI Gauge holds no credential of its own: the locally installed `agy` command-line tool manages its own authentication and connection to Google Antigravity, and AI Gauge only reads the quota information `agy` reports back.
 
 ## Third-party services
 
-When Codex or Claude Code is enabled, AI Gauge may send a direct HTTPS request to OpenAI or Anthropic to retrieve usage information. OpenAI or Anthropic receives the access token and request data needed to answer its respective request. When Google Antigravity is enabled, AI Gauge invokes the locally installed `agy` command-line tool. `agy` uses the authentication information it manages to request usage information from Google Antigravity; AI Gauge does not read or pass those credentials. Each service processes the request under its own privacy policy.
+When Codex or Claude Code is enabled, AI Gauge may send a direct HTTPS request to OpenAI or Anthropic to retrieve usage information. OpenAI or Anthropic receives the access token and request data needed to answer its respective request. When Google Antigravity is enabled, AI Gauge invokes the locally installed `agy` command-line tool, which requests usage information from Google Antigravity using the authentication it manages itself; AI Gauge does not read or pass those credentials. Each service processes the request under its own privacy policy.
 
 ## Local storage
 

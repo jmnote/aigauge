@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -33,6 +34,23 @@ func fetchAuthorizedJSON(url, providerLabel string, headers map[string]string) (
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
+	return doAuthorizedRequest(request, providerLabel, headers)
+}
+
+// postAuthorizedJSON performs an authenticated POST request against url with
+// the given JSON body and headers, returning the raw response body. Used by
+// providers whose usage API is an RPC-style POST rather than a plain GET -
+// Antigravity's Cloud Code-internal /v1internal:retrieveUserQuota, for one.
+func postAuthorizedJSON(url string, body []byte, providerLabel string, headers map[string]string) ([]byte, error) {
+	request, err := http.NewRequest(http.MethodPost, url, bytes.NewReader(body))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
+	request.Header.Set("Content-Type", "application/json")
+	return doAuthorizedRequest(request, providerLabel, headers)
+}
+
+func doAuthorizedRequest(request *http.Request, providerLabel string, headers map[string]string) ([]byte, error) {
 	for key, value := range headers {
 		request.Header.Set(key, value)
 	}

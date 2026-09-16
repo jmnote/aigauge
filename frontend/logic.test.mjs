@@ -12,15 +12,18 @@ import {
   MAX_REFRESH_SECONDS,
   MAX_RETRY_DELAY_SECONDS,
   MIN_REFRESH_SECONDS,
+  PROVIDER_TYPE_IDS,
   STATUS_BADGES,
   badgeClass,
   formatHotkeyError,
   hotkeyOptionLabel,
   normalizeConfig,
-  normalizeProviderOrder,
+  normalizeProviderInstance,
+  normalizeProviders,
   normalizeThreshold,
   normalizeWindowWidth,
   parseIntervalToSeconds,
+  providerTypeLabel,
   providerVisibilityAction,
   retryDelay,
   shouldCountFailure,
@@ -28,36 +31,31 @@ import {
   shouldScheduleRetry,
 } from './logic.mjs';
 
-const providerIds = ['codex', 'claude', 'antigravity'];
 const defaultConfig = {
-  providers: Object.fromEntries(providerIds.map(id => [id, { enabled: false }])),
-  providerOrder: providerIds.slice(),
+  providers: [],
   windowWidth: DEFAULT_WINDOW_WIDTH,
   theme: 'system',
-  hotkeyShortcut: null,
-  refreshInterval: DEFAULT_REFRESH_SECONDS,
+  hotkeyShortcut: '',
   thresholds: { warning: { enabled: true, value: 30 }, critical: { enabled: true, value: 10 } },
 };
 
-test('fresh install config keeps providers disabled by default', () => {
-  const fresh = normalizeConfig(defaultConfig, providerIds, defaultConfig);
-  assert.equal(fresh.providers.codex.enabled, false);
-  assert.equal(fresh.providers.claude.enabled, false);
-  assert.equal(fresh.providers.antigravity.enabled, false);
-  assert.equal(fresh.hotkeyShortcut, null);
+test('fresh install config has no provider instances', () => {
+  const fresh = normalizeConfig(defaultConfig, defaultConfig);
+  assert.deepEqual(fresh.providers, []);
+  assert.equal(fresh.hotkeyShortcut, '');
 });
 
 test('hotkey settings normalize to the supported choices', () => {
-  const primary = normalizeConfig({ hotkeyShortcut: 'Ctrl+Shift+G' }, providerIds, defaultConfig);
+  const primary = normalizeConfig({ hotkeyShortcut: 'Ctrl+Shift+G' }, defaultConfig);
   assert.equal(primary.hotkeyShortcut, 'Ctrl+Shift+G');
 
   for (const shortcut of ['Ctrl+Shift+Q', 'Ctrl+Shift+E']) {
-    const selected = normalizeConfig({ hotkeyShortcut: shortcut }, providerIds, defaultConfig);
+    const selected = normalizeConfig({ hotkeyShortcut: shortcut }, defaultConfig);
     assert.equal(selected.hotkeyShortcut, shortcut);
   }
 
-  const invalid = normalizeConfig({ hotkeyShortcut: 'Ctrl+Alt+X' }, providerIds, defaultConfig);
-  assert.equal(invalid.hotkeyShortcut, null);
+  const invalid = normalizeConfig({ hotkeyShortcut: 'Ctrl+Alt+X' }, defaultConfig);
+  assert.equal(invalid.hotkeyShortcut, '');
 });
 
 test('formatHotkeyError formats messages with informative fallback', () => {
@@ -79,8 +77,17 @@ test('hotkeyOptionLabel describes configured and disabled shortcuts', () => {
 });
 
 test('the first hotkey option is the default', () => {
-  const normalized = normalizeConfig({}, providerIds, defaultConfig);
-  assert.equal(normalized.hotkeyShortcut, null);
+  const normalized = normalizeConfig({}, defaultConfig);
+  assert.equal(normalized.hotkeyShortcut, '');
+});
+
+test('normalizeConfig falls back to DEFAULT_CONFIG when defaultConfig is omitted', () => {
+  const normalized = normalizeConfig({});
+  assert.equal(normalized.hotkeyShortcut, '');
+  assert.equal(normalized.theme, 'system');
+  assert.deepEqual(normalized.providers, []);
+  assert.equal(normalized.thresholds.warning.value, 50);
+  assert.equal(normalized.thresholds.critical.value, 20);
 });
 
 test('window width is restored within the supported range', () => {
@@ -90,10 +97,8 @@ test('window width is restored within the supported range', () => {
   assert.equal(normalizeWindowWidth('invalid'), DEFAULT_WINDOW_WIDTH);
 });
 
-const EXPECTED = ['not_installed', 'auth_check_required', 'login_required'];
-const FAILURES = ['temporary_error', 'usage_unavailable', 'unsupported_cli'];
-// unsupported_cli counts as a failure like the others above, but - unlike
-// them - retrying it automatically can never succeed, so it is excluded here.
+const EXPECTED = ['auth_check_required', 'login_required', 'authenticating', 'awaiting_code', 'not_installed'];
+const FAILURES = ['temporary_error', 'usage_unavailable'];
 const RETRIED = ['temporary_error', 'usage_unavailable'];
 
 // --- the rule the certification failure came down to -----------------------
@@ -122,9 +127,10 @@ test('an expected setup state schedules no automatic retry', () => {
   }
 });
 
-test('an unsupported CLI counts as a failure but never auto-retries, since only a CLI update fixes it', () => {
+test('unsupported CLI is blocked but does not auto-retry', () => {
   assert.equal(shouldCountFailure('unsupported_cli'), true);
   assert.equal(shouldScheduleRetry('unsupported_cli'), false);
+  assert.equal(badgeClass('unsupported_cli'), 'is-blocked');
 });
 
 test('a recoverable state keeps its automatic retry', () => {
@@ -160,10 +166,8 @@ test('retry delay backs off from the refresh interval and stays capped', () => {
 });
 
 test('visibility changes preserve an existing live refresh timer', () => {
-  assert.equal(providerVisibilityAction(false, true, true), 'preserve');
-  assert.equal(providerVisibilityAction(false, true, false), 'fetch');
-  assert.equal(providerVisibilityAction(false, false, true), 'stop');
-  assert.equal(providerVisibilityAction(true, false, true), 'restart');
+  assert.equal(providerVisibilityAction(true), 'preserve');
+  assert.equal(providerVisibilityAction(false), 'fetch');
 });
 
 // --- corrupted or foreign settings -----------------------------------------
@@ -190,13 +194,45 @@ test('a refresh interval is clamped into range', () => {
   assert.equal(parseIntervalToSeconds(99999), MAX_REFRESH_SECONDS);
 });
 
-test('provider order survives unknown, duplicated and missing ids', () => {
+test('a provider instance needs a valid id and a recognized type', () => {
   assert.deepEqual(
-    normalizeProviderOrder(['claude', 'gemini', 'claude'], providerIds),
-    ['claude', 'codex', 'antigravity'],
+    normalizeProviderInstance({ id: 'abc123', type: 'claude' }),
+    { id: 'abc123', type: 'claude', label: 'Claude', refreshInterval: DEFAULT_REFRESH_SECONDS },
   );
-  assert.deepEqual(normalizeProviderOrder('not an array', providerIds), providerIds);
-  assert.deepEqual(normalizeProviderOrder(undefined, providerIds), providerIds);
+  assert.equal(normalizeProviderInstance({ id: 'abc123', type: 'gemini' }), null, 'unknown type');
+  assert.equal(normalizeProviderInstance({ type: 'claude' }), null, 'missing id');
+  assert.equal(normalizeProviderInstance(null), null);
+  assert.equal(normalizeProviderInstance('claude'), null);
+});
+
+test('a blank or missing label falls back to the provider type name', () => {
+  assert.equal(normalizeProviderInstance({ id: 'a', type: 'codex', label: '' }).label, 'Codex');
+  assert.equal(normalizeProviderInstance({ id: 'a', type: 'codex', label: '   ' }).label, 'Codex');
+});
+
+test('providerTypeLabel names every known type and echoes back an unknown one', () => {
+  assert.equal(providerTypeLabel('codex'), 'Codex');
+  assert.equal(providerTypeLabel('claude'), 'Claude');
+  assert.equal(providerTypeLabel('antigravity'), 'Antigravity');
+  assert.equal(PROVIDER_TYPE_IDS.length, 3);
+  assert.equal(providerTypeLabel('gemini'), 'gemini');
+});
+
+test('a provider list keeps order, drops bad entries, and de-duplicates by id', () => {
+  assert.deepEqual(
+    normalizeProviders([
+      { id: 'c1', type: 'claude' },
+      { id: 'bad', type: 'gemini' },
+      { id: 'x1', type: 'codex' },
+      { id: 'c1', type: 'claude', label: 'duplicate id, ignored' },
+    ]),
+    [
+      { id: 'c1', type: 'claude', label: 'Claude', refreshInterval: DEFAULT_REFRESH_SECONDS },
+      { id: 'x1', type: 'codex', label: 'Codex', refreshInterval: DEFAULT_REFRESH_SECONDS },
+    ],
+  );
+  assert.deepEqual(normalizeProviders('not an array'), []);
+  assert.deepEqual(normalizeProviders(undefined), []);
 });
 
 test('a threshold out of range or of the wrong type falls back to its default', () => {
@@ -208,10 +244,8 @@ test('a threshold out of range or of the wrong type falls back to its default', 
 
 test('a corrupted config normalizes into a complete, usable one', () => {
   for (const stored of [null, undefined, 42, 'nonsense', [], { providers: 'no' }, { thresholds: null }]) {
-    const config = normalizeConfig(stored, providerIds, defaultConfig);
-    assert.deepEqual(Object.keys(config.providers).sort(), [...providerIds].sort(), String(stored));
-    assert.deepEqual([...config.providerOrder].sort(), [...providerIds].sort(), String(stored));
-    assert.equal(Number.isFinite(config.refreshInterval), true, String(stored));
+    const config = normalizeConfig(stored, defaultConfig);
+    assert.deepEqual(config.providers, [], String(stored));
     assert.equal(['light', 'dark', 'system'].includes(config.theme), true, String(stored));
     assert.equal(Number.isFinite(config.thresholds.warning.value), true, String(stored));
     assert.equal(Number.isFinite(config.thresholds.critical.value), true, String(stored));
@@ -219,13 +253,13 @@ test('a corrupted config normalizes into a complete, usable one', () => {
 });
 
 test('the legacy "auto" theme is carried over to "system"', () => {
-  assert.equal(normalizeConfig({ theme: 'auto' }, providerIds, defaultConfig).theme, 'system');
+  assert.equal(normalizeConfig({ theme: 'auto' }, defaultConfig).theme, 'system');
 });
 
 test('critical is pushed below warning when a stored config has them crossed', () => {
   const config = normalizeConfig({
     thresholds: { warning: { enabled: true, value: 20 }, critical: { enabled: true, value: 50 } },
-  }, providerIds, defaultConfig);
+  }, defaultConfig);
   assert.equal(config.thresholds.critical.value < config.thresholds.warning.value, true);
 });
 
@@ -247,8 +281,6 @@ test('badge text stays short enough for a 250px window', () => {
 test('waiting-for-setup states are not styled as errors', () => {
   assert.equal(badgeClass('auth_check_required'), 'is-ready');
   assert.equal(badgeClass('connected'), 'is-ready');
-  assert.equal(badgeClass('not_installed'), '');
   assert.equal(badgeClass('login_required'), '');
   assert.equal(badgeClass('temporary_error'), 'is-blocked');
-  assert.equal(badgeClass('unsupported_cli'), 'is-blocked');
 });

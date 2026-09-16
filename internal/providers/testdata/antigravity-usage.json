@@ -6,6 +6,7 @@
           "name": "Gemini",
           "buckets": [
             {
+              "id": "gemini-daily",
               "name": "daily",
               "window": "24h",
               "remaining_fraction": 0.875,

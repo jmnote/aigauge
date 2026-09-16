@@ -10,7 +10,6 @@ Listings:
         - Multiple AI usage providers with visibility and ordering controls
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
-        - Built-in sample preview without provider setup
         - Global hotkey toggle to show and hide the window
       ReleaseNotes: Global hotkey settings are now available. Choose a shortcut in Settings to show or hide AI Gauge from anywhere.
 
@@ -18,13 +17,10 @@ NotesForCertification: |
   AI Gauge is a lightweight Windows system tray utility that monitors quota usage and reset times for OpenAI Codex, Anthropic Claude Code, and Google Antigravity.
 
   [No test accounts or third-party CLI tools required]
-  The app includes a built-in interactive sample preview designed specifically to verify all UI and feature behaviors on a clean test machine without any accounts, CLI installations, or external network access.
-
   Steps to verify the app:
   1. Launch AI Gauge: The initial screen displays local readiness status, gracefully showing "Not installed" guidance on a clean system.
-  2. Click "Preview with sample data": Immediately opens the complete dashboard with sample gauges, reset-time calculations, percentage indicators, and manual refresh.
-  3. Open Settings (gear icon): Test light/dark/system themes, warning/critical thresholds, window width adjustment, and the optional global hotkey (disabled by default).
-  4. Test system tray integration: Confirm minimize to tray, restore from tray icon, and "Always on top" pinning.
+  2. Open Settings (gear icon): Test light/dark/system themes, warning/critical thresholds, window width adjustment, and the optional global hotkey (disabled by default).
+  3. Test system tray integration: Confirm minimize to tray, restore from tray icon, and "Always on top" pinning.
   5. Click "Back to setup" to verify smooth navigation back to the initial setup screen.
 
   Network behavior:

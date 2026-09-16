@@ -1,0 +1,22 @@
+{
+  "plan": "plus",
+  "groups": [
+    {
+      "name": "",
+      "buckets": [
+        {
+          "label": "5h",
+          "remaining": 0,
+          "resetTime": "2026-09-17T05:40:19+09:00"
+        },
+        {
+          "label": "7d",
+          "remaining": 34,
+          "resetTime": "2026-09-19T17:12:19+09:00"
+        }
+      ]
+    }
+  ],
+  "fetchedAt": "2026-09-17T04:44:43+09:00",
+  "status": "connected"
+}

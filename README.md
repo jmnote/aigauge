@@ -1,7 +1,7 @@
 # AI Gauge
 
 <p align="center">
-  <img src="frontend/logo.svg" width="96" alt="AI Gauge logo">
+  <img src="frontend/images/logo.svg" width="96" alt="AI Gauge logo">
 </p>
 
 <p align="center">A lightweight Windows tray widget for monitoring OpenAI Codex, Claude Code, and Google Antigravity usage.</p>

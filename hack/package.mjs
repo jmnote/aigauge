@@ -31,8 +31,8 @@ export function resolveVersion(requested) {
 }
 
 export async function convertLogo(options = {}) {
-  const source = path.join(repoRoot, "frontend", "logo.svg");
-  const output = path.join(repoRoot, "frontend", "logo.png");
+  const source = path.join(repoRoot, "frontend", "images", "logo.svg");
+  const output = path.join(repoRoot, "frontend", "images", "logo.png");
   const expectedHash = "85e14c2328a97674fdde7c896155180a24ccdf29b5f4a46d23938d44de649e59";
 
   const sourceContent = fs.readFileSync(source);
@@ -70,7 +70,7 @@ function findGoWinres() {
 export async function prepareWinres(version = "0.0.0") {
   const numericVersion = resolveVersion(version);
   const winresBin = findGoWinres();
-  const iconPath = path.join(repoRoot, "frontend", "logo.png");
+  const iconPath = path.join(repoRoot, "frontend", "images", "logo.png");
   const outPath = path.join(repoRoot, "rsrc");
 
   if (!fs.existsSync(iconPath)) {
@@ -162,7 +162,7 @@ const MSIX_ASSETS = [
 ];
 
 async function generateMsixAssets(assetsDir) {
-  const svgPath = path.join(repoRoot, "frontend", "logo.svg");
+  const svgPath = path.join(repoRoot, "frontend", "images", "logo.svg");
   const svgContent = fs.readFileSync(svgPath);
   const Resvg = await getResvg();
 
@@ -264,7 +264,7 @@ function printUsage() {
   console.log(`Usage: node hack/package.mjs <command> [options]
 
 Commands:
-  logo                     Convert frontend/logo.svg to frontend/logo.png
+  logo                     Convert frontend/images/logo.svg to frontend/images/logo.png
   winres                   Generate Windows PE binary resources (go-winres)
   msix                     Package application as MSIX
   version                  Print normalized 4-part semantic version

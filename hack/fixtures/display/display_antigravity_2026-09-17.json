@@ -1,0 +1,37 @@
+{
+  "plan": "",
+  "groups": [
+    {
+      "name": "Gemini Models",
+      "buckets": [
+        {
+          "label": "5h",
+          "remaining": 98.00465106964111,
+          "resetTime": "2026-09-16T20:06:32Z"
+        },
+        {
+          "label": "7d",
+          "remaining": 99.66744184494019,
+          "resetTime": "2026-09-23T15:06:32Z"
+        }
+      ]
+    },
+    {
+      "name": "Claude and GPT models",
+      "buckets": [
+        {
+          "label": "5h",
+          "remaining": 100,
+          "resetTime": "2026-09-17T00:44:55Z"
+        },
+        {
+          "label": "7d",
+          "remaining": 99.91244077682495,
+          "resetTime": "2026-09-19T10:02:15Z"
+        }
+      ]
+    }
+  ],
+  "fetchedAt": "2026-09-17T04:44:44+09:00",
+  "status": "connected"
+}

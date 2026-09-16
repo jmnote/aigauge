@@ -1,0 +1,23 @@
+
+.icon {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  background-color: currentColor;
+  mask: center / contain no-repeat;
+  flex-shrink: 0;
+}
+
+.icon-pin { mask-image: url('/icons/pin.svg'); }
+.icon-cog { mask-image: url('/icons/cog.svg'); }
+.icon-close { mask-image: url('/icons/close.svg'); }
+.icon-sun { mask-image: url('/icons/sun.svg'); }
+.icon-moon { mask-image: url('/icons/moon.svg'); }
+.icon-system { mask-image: url('/icons/system.svg'); }
+.icon-menu { mask-image: url('/icons/menu.svg'); }
+.icon-trash { mask-image: url('/icons/trash.svg'); }
+.icon-refresh { mask-image: url('/icons/refresh.svg'); }
+.icon-info { mask-image: url('/icons/info.svg'); }
+.icon-copy { mask-image: url('/icons/copy.svg'); }
+.icon-check { mask-image: url('/icons/check.svg'); }
+.icon-codex { mask-image: url('/images/codex.svg'); }

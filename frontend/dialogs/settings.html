@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI Gauge Settings</title>
+  <link rel="stylesheet" href="/styles/style.css" />
+  <link rel="stylesheet" href="/styles/icon.css" />
+</head>
+
+<body class="settings-body">
+  <main class="settings-shell">
+    <div class="titlebar settings-window-titlebar">
+      <div class="brand">
+        <span class="icon icon-cog settings-window-icon" aria-hidden="true"></span>
+        <span class="brand-name">Settings</span>
+      </div>
+      <div class="actions">
+        <span class="window-buttons">
+          <button id="close-settings" title="Close" aria-label="Close">
+            <span class="icon icon-close" aria-hidden="true"></span>
+          </button>
+        </span>
+      </div>
+    </div>
+    <form class="settings-form" id="settings-form">
+      <section class="settings-section">
+        <h2 class="settings-section-title">Providers</h2>
+        <div id="provider-list" class="provider-options"></div>
+        <div class="provider-add-area">
+          <span class="provider-add-label">Add</span>
+          <div id="provider-add-buttons" class="provider-add-buttons"></div>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h2 class="settings-section-title">Thresholds</h2>
+        <div class="threshold-settings">
+          <div class="threshold-setting">
+            <label class="threshold-label">
+              <input id="warning-enabled" type="checkbox" />
+              <span class="threshold-text warning">Warning</span>
+            </label>
+            <span class="threshold-value">
+              <input id="warning-threshold" type="number" min="1" max="100" step="1" /><span>%</span>
+            </span>
+          </div>
+          <div class="threshold-setting">
+            <label class="threshold-label">
+              <input id="critical-enabled" type="checkbox" />
+              <span class="threshold-text critical">Critical</span>
+            </label>
+            <span class="threshold-value">
+              <input id="critical-threshold" type="number" min="0" max="99" step="1" /><span>%</span>
+            </span>
+          </div>
+        </div>
+      </section>
+
+      <section class="settings-section">
+        <h2 class="settings-section-title">Preferences</h2>
+        <div class="theme-setting-row">
+          <span class="theme-label">Theme</span>
+          <span class="theme-button-group" role="group" aria-label="Theme">
+            <button type="button" class="theme-option-btn" data-theme="light" title="Light" aria-label="Light">
+              <span class="icon icon-sun" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="theme-option-btn" data-theme="dark" title="Dark" aria-label="Dark">
+              <span class="icon icon-moon" aria-hidden="true"></span>
+            </button>
+            <button type="button" class="theme-option-btn" data-theme="system" title="System" aria-label="System">
+              <span class="icon icon-system" aria-hidden="true"></span>
+            </button>
+          </span>
+        </div>
+        <div class="hotkey-setting-row">
+          <label class="hotkey-label" for="hotkey-select">Hotkey</label>
+          <div class="hotkey-setting-controls">
+            <select id="hotkey-select" aria-label="Global hotkey"></select>
+            <div id="hotkey-status" class="hotkey-status" role="alert" hidden>
+              <span id="hotkey-status-text" class="hotkey-status-text"></span>
+              <button type="button" id="hotkey-retry-btn" class="hotkey-retry-btn">Retry</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="settings-version">
+        <span>AI Gauge</span> <span id="version">v—</span>
+      </div>
+    </form>
+    <div id="provider-add-dialog" class="provider-add-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="provider-add-dialog-title">
+      <div class="provider-add-dialog-card">
+        <button id="provider-add-dialog-close" class="provider-add-dialog-close" type="button" aria-label="Close"><span class="icon icon-close" aria-hidden="true"></span></button>
+        <h2 id="provider-add-dialog-title">Add provider</h2>
+        <p id="provider-add-dialog-status"></p>
+        <button id="provider-add-dialog-login" class="provider-add-dialog-login primary-action" type="button" hidden>Login</button>
+        <input id="provider-add-dialog-code" type="text" placeholder="Auth code" autocomplete="off" hidden />
+        <button id="provider-add-dialog-submit" type="button" hidden>Submit code</button>
+        <button id="provider-add-dialog-action-close" type="button" hidden>Close</button>
+      </div>
+    </div>
+    <div id="confirm-dialog" class="provider-add-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">
+      <div class="provider-add-dialog-card">
+        <button id="confirm-dialog-close" class="provider-add-dialog-close" type="button" aria-label="Close"><span class="icon icon-close" aria-hidden="true"></span></button>
+        <h2 id="confirm-dialog-title">Remove provider?</h2>
+        <p id="confirm-dialog-message"></p>
+        <div class="confirm-dialog-actions">
+          <button id="confirm-dialog-cancel" type="button">Cancel</button>
+          <button id="confirm-dialog-ok" class="confirm-dialog-remove" type="button">Remove</button>
+        </div>
+      </div>
+    </div>
+  </main>
+  <script type="module" src="settings.js"></script>
+</body>
+
+</html>
