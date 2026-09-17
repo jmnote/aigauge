@@ -97,6 +97,7 @@ const providerAddDialog = document.getElementById('provider-add-dialog');
 const providerAddDialogTitle = document.getElementById('provider-add-dialog-title');
 const providerAddDialogStatus = document.getElementById('provider-add-dialog-status');
 const providerAddDialogLogin = document.getElementById('provider-add-dialog-login');
+const providerAddDialogImport = document.getElementById('provider-add-dialog-import');
 const providerAddDialogCode = document.getElementById('provider-add-dialog-code');
 const providerAddDialogSubmit = document.getElementById('provider-add-dialog-submit');
 const providerAddDialogClose = document.getElementById('provider-add-dialog-close');
@@ -139,6 +140,8 @@ providerAddDialogClose.addEventListener('click', async () => {
   }
   providerAddDialog.hidden = true;
   providerAddDialogLogin.hidden = true;
+  providerAddDialogImport.hidden = true;
+  providerAddDialogImport.disabled = false;
   providerAddDialogLogin.disabled = false;
   providerAddDialogStatus.classList.remove('is-loading');
   providerAddDialogCode.hidden = true;
@@ -177,10 +180,49 @@ providerAddDialogSubmit.addEventListener('click', async () => {
   }
 });
 
+providerAddDialogImport.addEventListener('click', async () => {
+  if (!pendingLogin) return;
+  const { provider, instance, generation } = pendingLogin;
+  providerAddDialogImport.hidden = true;
+  providerAddDialogImport.disabled = true;
+  providerAddDialogLogin.hidden = true;
+  providerAddDialogStatus.classList.add('is-loading');
+  providerAddDialogStatus.textContent = `Using existing ${providerTypeLabel(provider)} credentials…`;
+  try {
+    const connection = await rpc('ImportProvider', instance.id);
+    if (generation !== providerFlowGeneration || pendingLogin?.instance.id !== instance.id) return;
+    if (connection?.status !== 'connected') {
+      throw new Error(connection?.message || 'The existing credentials could not be used.');
+    }
+    providerAddDialogStatus.textContent = `Adding ${instance.label}…`;
+    pendingProviderId = null;
+    addingProviders.delete(provider);
+    pendingLogin = null;
+    await rpc('CommitProviderInstance', instance.id);
+    providerAddDialog.hidden = true;
+    showToast(`${instance.label} added successfully.`);
+  } catch (error) {
+    if (generation !== providerFlowGeneration || pendingLogin?.instance.id !== instance.id) return;
+    console.warn(`Failed to import ${provider}:`, error);
+    try { await rpc('RemoveProviderInstance', instance.id); } catch { /* best effort cleanup */ }
+    pendingProviderId = null;
+    pendingLogin = null;
+    providerAddDialogStatus.textContent = `Could not use existing credentials: ${error?.message || error}`;
+  } finally {
+    if (generation !== providerFlowGeneration) return;
+    providerAddDialogStatus.classList.remove('is-loading');
+    providerAddDialogImport.disabled = false;
+    providerAddDialogLogin.disabled = false;
+    addingProviders.delete(provider);
+    await reloadConfig();
+  }
+});
+
 providerAddDialogLogin.addEventListener('click', async () => {
   if (!pendingLogin) return;
   const { provider, instance, generation } = pendingLogin;
   providerAddDialogLogin.hidden = true;
+  providerAddDialogImport.hidden = true;
   providerAddDialogLogin.disabled = true;
   providerAddDialogStatus.classList.add('is-loading');
   providerAddDialogStatus.textContent = `Connecting to ${instance.label}…`;
@@ -506,6 +548,7 @@ function renderProviderList() {
         providerAddDialogStatus.classList.remove('is-loading');
         providerAddDialogStatus.textContent = "Multiple Antigravity entries aren't supported. AI Gauge uses the session from the installed agy CLI, so additional entries would use the same session.";
         providerAddDialogLogin.hidden = true;
+        providerAddDialogImport.hidden = true;
         providerAddDialogCode.hidden = true;
         providerAddDialogSubmit.hidden = true;
         providerAddDialogActionClose.hidden = false;
@@ -519,6 +562,7 @@ function renderProviderList() {
         providerAddDialogStatus.textContent = `Adding ${providerTypeLabel(provider)}…`;
         providerAddDialogClose.disabled = true;
         providerAddDialogLogin.hidden = true;
+        providerAddDialogImport.hidden = true;
         providerAddDialogActionClose.hidden = true;
         renderProviderList();
         try {
@@ -532,12 +576,24 @@ function renderProviderList() {
           pendingProviderId = instance.id;
           pendingLogin = { provider, instance, generation };
           renderProviderList();
-          providerAddDialogStatus.textContent = 'Click Login to continue.';
-          providerAddDialogLogin.textContent = provider === 'antigravity' ? 'Start monitoring with agy CLI' : 'Login';
+          providerAddDialogStatus.textContent = 'Choose how to connect this account.';
+          providerAddDialogLogin.textContent = provider === 'antigravity' ? 'Start monitoring with agy CLI' : 'Sign in with browser';
           if (provider === 'antigravity') {
             providerAddDialogStatus.textContent = 'AI Gauge will track your quota usage through the installed agy CLI.';
           }
           providerAddDialogLogin.hidden = false;
+          if (provider !== 'antigravity') {
+            try {
+              const diagnosis = await rpc(PROVIDER_TYPE_RPC[provider].diagnoseRpcMethod, instance.id);
+              const canImport = diagnosis?.canImport === true;
+              providerAddDialogImport.hidden = !canImport;
+              if (canImport) {
+                providerAddDialogStatus.textContent = 'An existing credential file was found. You can try it, or sign in with a different account in your browser.';
+              }
+            } catch {
+              providerAddDialogImport.hidden = true;
+            }
+          }
           providerAddDialogClose.disabled = false;
         } catch (error) {
           console.warn(`Failed to add ${provider}:`, error);
