@@ -83,7 +83,6 @@ async function reloadConfig() {
   renderProviderList();
 }
 
-const providerState = new Map();
 const addingProviders = new Set();
 let pendingProviderId = null;
 let pendingAuthCode = null;
@@ -450,9 +449,8 @@ function renderProviderList() {
   // Only the instance currently being authenticated is temporary. Existing
   // persistent instances of the same provider type must remain visible while
   // another one is being added.
-  config.providers.filter(instance => instance.id !== pendingProviderId).forEach((instance, index, visibleProviders) => {
-    if (!providerState.has(instance.id)) providerState.set(instance.id, { status: 'unknown' });
-
+  const visibleProviders = config.providers.filter(instance => instance.id !== pendingProviderId);
+  visibleProviders.forEach((instance, index) => {
     const row = document.createElement('div');
     row.className = 'provider-row';
     row.dataset.provider = instance.id;
@@ -621,7 +619,6 @@ providerListEl.addEventListener('click', async event => {
     button.disabled = true;
     try {
       await rpc('RemoveProviderInstance', id);
-      providerState.delete(id);
     } catch (error) {
       console.warn('Failed to remove provider instance:', error);
     } finally {
@@ -633,30 +630,21 @@ providerListEl.addEventListener('click', async event => {
   if (!instance) return;
 
   if (action === 'move-up' || action === 'move-down') {
+    const visibleProviders = config.providers.filter(item => item.id !== pendingProviderId);
+    const visibleIndex = visibleProviders.indexOf(instance);
+    const swapIndex = action === 'move-up' ? visibleIndex - 1 : visibleIndex + 1;
+    if (swapIndex < 0 || swapIndex >= visibleProviders.length) return;
+    const swapWith = visibleProviders[swapIndex];
     const order = config.providers;
     const index = order.indexOf(instance);
-    const swapWith = action === 'move-up' ? index - 1 : index + 1;
-    if (swapWith < 0 || swapWith >= order.length) return;
-    [order[index], order[swapWith]] = [order[swapWith], order[index]];
+    const otherIndex = order.indexOf(swapWith);
+    [order[index], order[otherIndex]] = [order[otherIndex], order[index]];
     renderProviderList();
     saveSetting('SetProviderOrder', order.map(providerInstance => providerInstance.id));
   }
 });
 
-async function diagnoseAllProviders() {
-  for (const instance of config.providers) {
-    try {
-      const diag = await rpc(PROVIDER_TYPE_RPC[instance.type].diagnoseRpcMethod, instance.id);
-      providerState.set(instance.id, { status: diag.status, canImport: diag.canImport });
-    } catch {
-      providerState.set(instance.id, { status: 'unknown', canImport: false });
-    }
-  }
-  renderProviderList();
-}
-
 renderProviderList();
-diagnoseAllProviders();
 resizeToContent();
 
 // ---------------------------------------------------------------------------
