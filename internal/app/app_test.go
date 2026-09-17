@@ -213,7 +213,7 @@ func TestAppAuthMethods(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
 
 	// Test CancelAuth
-	if err := app.CancelAuth(); err != nil {
+	if err := app.CancelAuth("test-instance"); err != nil {
 		t.Errorf("CancelAuth() error = %v", err)
 	}
 

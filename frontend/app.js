@@ -578,7 +578,7 @@ function renderNonUsageState(id, usage) {
   const onCheck = () => fetchProvider(id);
   const onConnect = () => connectExistingInstance(id, usage);
   const onCancel = async () => {
-    await rpc('CancelAuth');
+    await rpc('CancelAuth', id);
     fetchProvider(id);
   };
   // Only reachable when usage.status is 'awaiting_code' - see

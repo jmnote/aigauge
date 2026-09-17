@@ -128,14 +128,14 @@ providerAddDialogClose.addEventListener('click', async () => {
   // Wake a login flow waiting for an auth code so it can observe the
   // cancellation and exit without touching a subsequent add flow.
   authCode?.resolve();
-  // Stop the backend OAuth flow and wait for its fixed-port listener to close
-  // before allowing another provider login to start.
-  try { await rpc('CancelAuth'); } catch { /* best effort cleanup */ }
   if (pendingLogin) {
     const { provider, instance } = pendingLogin;
     pendingLogin = null;
     pendingProviderId = null;
     addingProviders.delete(provider);
+    // Stop only this instance's OAuth flow and wait for its fixed-port
+    // listener to close before allowing another provider login to start.
+    try { await rpc('CancelAuth', instance.id); } catch { /* best effort cleanup */ }
     try { await rpc('RemoveProviderInstance', instance.id); } catch { /* best effort cleanup */ }
   }
   providerAddDialog.hidden = true;

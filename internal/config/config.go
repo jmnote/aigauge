@@ -1,16 +1,9 @@
-// Package config persists AI Gauge's settings - provider instances (including
-// their refresh intervals), thresholds, theme and hotkey - as a single JSON document owned by the
-// Go backend. It replaces the previous design where the frontend kept this
-// state in each window's localStorage and reconciled the two windows with a
-// storage-event/Wails-event round trip: now Go is the single source of truth,
-// and both windows read it through GetSettings, apply field-level updates
-// through backend RPCs, and are notified of changes via a Wails event.
+// Package config persists AI Gauge's provider instances, thresholds, theme,
+// window width and hotkey as a single JSON document owned by the Go backend.
 package config
 
-// ProviderInstance is one user-added provider connection. Unlike the previous
-// model - one fixed row per provider type - a user may add several instances
-// of the same Type (for example two separate Claude accounts), so ID rather
-// than Type identifies a row and is what the auth token store is keyed by.
+// ProviderInstance is one user-added provider connection. ID identifies the
+// instance and is also the key used by the auth token store.
 // Presence in Settings.Providers is the only "is it shown" signal - there is
 // no separate enabled/disabled flag - so removing an instance is the only
 // way to hide it, in both windows at once.

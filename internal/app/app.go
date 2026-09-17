@@ -300,9 +300,10 @@ func diagnoseConnectedInstance(instance config.ProviderInstance) providers.Diagn
 	return providers.Diagnosis{Status: providers.StatusConnected}
 }
 
-// CancelAuth cancels any running OAuth authentication flow.
-func (a *App) CancelAuth() error {
-	auth.CancelActiveFlowAndWait()
+// CancelAuth cancels the OAuth authentication flow for instanceID.
+func (a *App) CancelAuth(instanceID string) error {
+	auth.CancelAuthFlowAndWait(instanceID)
+	auth.CancelManualAuthFlow(instanceID)
 	return nil
 }
 

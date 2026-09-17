@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"html"
 	"net"
 	"net/http"
 	"sync"
@@ -112,8 +113,9 @@ func (ls *LoopbackServer) handleCallback(w http.ResponseWriter, r *http.Request)
 		if desc == "" {
 			desc = errParam
 		}
+		displayDesc := html.EscapeString(desc)
 		w.WriteHeader(http.StatusBadRequest)
-		_, _ = w.Write([]byte(fmt.Sprintf(`<!DOCTYPE html><html><head><title>AI Gauge - Authentication Cancelled</title><style>body{font-family:system-ui,sans-serif;text-align:center;padding:50px;background:#1e1e1e;color:#fff;}h1{color:#ff6b6b;}</style></head><body><h1>Authentication Cancelled</h1><p>%s</p><p>You can close this window and return to AI Gauge.</p></body></html>`, desc)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`<!DOCTYPE html><html><head><title>AI Gauge - Authentication Cancelled</title><style>body{font-family:system-ui,sans-serif;text-align:center;padding:50px;background:#1e1e1e;color:#fff;}h1{color:#ff6b6b;}</style></head><body><h1>Authentication Cancelled</h1><p>%s</p><p>You can close this window and return to AI Gauge.</p></body></html>`, displayDesc)))
 		ls.sendResult("", fmt.Errorf("oauth provider error: %s", desc))
 		return
 	}

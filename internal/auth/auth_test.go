@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -147,6 +149,31 @@ func TestLoopbackServerRejectsStateMismatch(t *testing.T) {
 	_, err = server.WaitForCode(ctx)
 	if err == nil {
 		t.Error("WaitForCode() want error on state mismatch, got nil")
+	}
+}
+
+func TestLoopbackServerEscapesProviderErrorDescription(t *testing.T) {
+	server, err := StartLoopbackServer("expected-state", 0, "", "")
+	if err != nil {
+		t.Fatalf("StartLoopbackServer() error = %v", err)
+	}
+	defer func() { _ = server.Close() }()
+
+	resp, err := http.Get(server.CallbackURL() + "?state=expected-state&error=access_denied&error_description=%3Cscript%3Ealert(1)%3C%2Fscript%3E")
+	if err != nil {
+		t.Fatalf("GET callback error = %v", err)
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("ReadAll() error = %v", err)
+	}
+	text := string(body)
+	if strings.Contains(text, "<script>alert(1)</script>") {
+		t.Fatal("callback response rendered an unescaped script tag")
+	}
+	if !strings.Contains(text, "&lt;script&gt;alert(1)&lt;/script&gt;") {
+		t.Errorf("callback response = %q, want escaped error description", text)
 	}
 }
 
