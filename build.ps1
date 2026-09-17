@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures", "fixtures-raw", "fixtures-json", "fixtures-go", "ai-backup", "ai-restore", "submission", "submission-get", "submission-yaml", "submission-validate")]
+    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures-usage", "fixtures-tokens", "submission", "submission-get", "submission-yaml", "submission-validate")]
     [string]$Task = "build",
     [Alias("Provider", "Target")]
     [string]$Version = "",
@@ -103,7 +103,7 @@ switch ($Task) {
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "checks" {
-        foreach ($asset in @("frontend\logo.svg", "frontend\logo.png")) {
+        foreach ($asset in @("frontend\images\logo.svg", "frontend\images\logo.png")) {
             $assetPath = Join-Path $PSScriptRoot $asset
             if (-not (Test-Path -LiteralPath $assetPath -PathType Leaf)) {
                 throw "Required logo asset was not found: $assetPath"
@@ -168,10 +168,6 @@ switch ($Task) {
         if (Test-Path -LiteralPath $rootSyso) {
             Remove-Item -LiteralPath $rootSyso -Force
         }
-        $hackTemp = Join-Path $PSScriptRoot "hack\temp"
-        if (Test-Path -LiteralPath $hackTemp) {
-            Remove-Item -LiteralPath $hackTemp -Recurse -Force
-        }
         if (Test-Path -LiteralPath $distPath) {
             Remove-Item -LiteralPath $distPath -Recurse -Force
             Write-Output "Cleaned build artifacts: $distPath"
@@ -183,54 +179,30 @@ switch ($Task) {
         & node (Join-Path $PSScriptRoot "hack\live-server.mjs")
         exit $LASTEXITCODE
     }
-    "ai-backup" {
-        # Renames this machine's real Codex/Claude/agy credential and
-        # executable files to *.bak, so internal/providers sees exactly what
-        # a clean certification device with none of them installed would -
-        # letting that first-run "no CLI, no sign-in" state be tested here
-        # without a second Windows account or a VM. Reversed by ai-restore.
-        # Accepts an optional provider argument: all (default), antigravity, claude, codex.
-        $provider = if ($Version) { $Version } else { "all" }
-        & node (Join-Path $PSScriptRoot "hack\ai-credentials.mjs") backup --provider $provider
-        exit $LASTEXITCODE
-    }
-    "ai-restore" {
-        $provider = if ($Version) { $Version } else { "all" }
-        & node (Join-Path $PSScriptRoot "hack\ai-credentials.mjs") restore --provider $provider
-        exit $LASTEXITCODE
-    }
-    "fixtures" {
-        foreach ($fixturesTask in @("fixtures-json", "fixtures-go")) {
-            & $PSCommandPath -Task $fixturesTask
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        }
-    }
-    "fixtures-raw" {
-        # Captures unconverted usage response(s) for fixture development into hack/fixtures/raw/.
-        # Accepts an optional provider argument via -Version: all (default), codex, claude, antigravity.
+    "fixtures-usage" {
+        # Captures a usage snapshot using AI Gauge's own stored credentials
+        # (one API call per provider) into both hack/fixtures/usage/ (the
+        # API's raw response) and hack/fixtures/display/ (that same
+        # response converted to DisplayUsage). Needs a connected provider
+        # instance of the requested type. Accepts an optional provider
+        # argument via -Version: all (default), codex, claude, antigravity.
         $target = if ($Version) { $Version } else { "all" }
-        & node (Join-Path $PSScriptRoot "hack\fixtures\raw.mjs") $target
-        exit $LASTEXITCODE
-    }
-    "fixtures-json" {
-        # Fetches real usage data (needs local Codex/Claude sign-in and the
-        # `agy` CLI) and writes it to hack/fixtures/samples/sample-*.json.
         Push-Location $PSScriptRoot
         try {
-            go run hack/fixtures/gen-samples.go
+            go run hack/fixtures/fixtures.go $target
         } finally {
             Pop-Location
         }
         exit $LASTEXITCODE
     }
-    "fixtures-go" {
-        # Compiles hack/fixtures/samples/sample-*.json into
-        # internal/app/fixtures/fixtures.go for the app's sample-data preview.
-        # Pure local transform - no accounts or network needed - so unlike
-        # fixtures-json this is safe to run in CI or by any contributor.
+    "fixtures-tokens" {
+        # Fetches/extracts token samples for each provider into hack/fixtures/tokens/.
+        # Accepts an optional provider argument via -Version: all (default), codex, claude.
+        # Antigravity is not covered - AI Gauge holds no OAuth token of its own for it.
+        $target = if ($Version) { $Version } else { "all" }
         Push-Location $PSScriptRoot
         try {
-            go run hack/fixtures/gen-samples-go.go
+            go run hack/fixtures/get-tokens.go $target
         } finally {
             Pop-Location
         }

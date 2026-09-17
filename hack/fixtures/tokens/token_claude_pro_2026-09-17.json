@@ -1,0 +1,18 @@
+{
+  "claudeAiOauth": {
+    "accessToken": "su-wya-ceg02-4WYACi6EkmGoqIKtMOvxQzbS8dUfhXZBDFjH1JlLNnpr3P5uRwyTVY7Aa9cegC2i-kEmoqG4IKsMvOxzQSb6df-hEXAMPLE",
+    "expiresAt": 1789615400667,
+    "rateLimitTier": "default_claude_ai",
+    "refreshToken": "su-wya-ceg02-IKMik4OQm68o13Sqt-vUWxYz57AbCd9-fEGhjlnJ2p4r6LNPRuwyTaVcXZeg8B0iDkmoq35F79s-vHKM1xzbOd-4EXAMPLE",
+    "refreshTokenExpiresAt": 1791604643667,
+    "scopes": [
+      "user:file_upload",
+      "user:inference",
+      "user:mcp_servers",
+      "user:profile",
+      "user:sessions:claude_code"
+    ],
+    "subscriptionType": "pro"
+  },
+  "organizationUuid": "ea246c8f-03bd-5791-4a6c-e8b02EXAMPLE"
+}

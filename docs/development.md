@@ -46,7 +46,6 @@ or a network:
 ```text
 /?state=login_required                  all three cards at once
 /?codex=not_installed&claude=connected     one provider at a time
-/?view=sample                              open in the sample preview
 ```
 
 Before opening a PR, the combined local gate can be run with:
@@ -65,9 +64,9 @@ Remove generated packaging output explicitly when it is no longer needed:
 .\build.ps1 clean
 ```
 
-`frontend/logo.svg` is the source logo. The checked-in `frontend/logo.png` is the raster asset used
+`frontend/images/logo.svg` is the source logo. The checked-in `frontend/images/logo.png` is the raster asset used
 by Windows executable resources and MSIX package icons. Windows builds also generate an ignored
-`rsrc_windows_amd64.syso` file from `frontend/logo.png`. The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
+`rsrc_windows_amd64.syso` file from `frontend/images/logo.png`. The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
 resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
 available.
 The MSIX manifest supplies the Store icons on its own, so the PR-check workflows (`msix.yml`,
@@ -84,37 +83,24 @@ Start the fixture-backed browser preview:
 ```
 
 Open `http://localhost:8080/?theme=light` or `http://localhost:8080/?theme=dark`.
-The preview uses `hack/fixtures/samples/sample-codex.json`, `sample-claude.json`, and
-`sample-antigravity.json` - one fixture per provider, each holding exactly what that provider's
-Wails RPC method returns - does not call Codex or Antigravity, and watches both the `frontend/`
-and `hack/fixtures/` directories. Saving any frontend file or fixture causes the browser preview
-to reload.
+The preview serves whichever `hack/fixtures/display/display_<provider>_*.json` snapshot is newest per
+provider - each holding exactly what that provider's Wails RPC method returns (`DisplayUsage`) -
+does not call Codex, Claude or Antigravity, and watches both the `frontend/` and `hack/fixtures/`
+directories. Saving any frontend file or fixture causes the browser preview to reload.
 
-To refresh those fixtures with real data (using your own local Codex/Claude session and the local
-`agy` CLI), run:
-
-```powershell
-.\build.ps1 fixtures-json
-```
-
-Because the output reflects your own account (plan tier, usage percentages, reset times), review
-the diff before committing `hack/fixtures/samples/sample-*.json`.
-
-The app's sample-data preview does not read `hack/fixtures/samples/*.json` directly - it imports
-`internal/app/fixtures`, a small generated package (`internal/app/fixtures/fixtures.go`) that
-embeds each fixture's JSON as a Go byte-slice constant, so the sample data compiles straight into
-the binary with no file read of any kind at runtime. Regenerate it after changing
-`hack/fixtures/samples/*.json`:
+To capture a fresh snapshot (using AI Gauge's own stored credentials for an already-connected
+provider instance), run:
 
 ```powershell
-.\build.ps1 fixtures-go
+.\build.ps1 fixtures-usage
 ```
 
-Unlike `fixtures-json`, this is a pure local transform (no accounts, no network), so it's safe to
-run in CI or by any contributor. `.\build.ps1 fixtures` runs both `fixtures-json` and `fixtures-go`
-in sequence. `internal/app/fixtures/fixtures.go` is generated code and is committed to git like any
-other generated file - `go build`/`go test` do not regenerate it on their own, so remember to run
-`fixtures-go` and commit the result whenever `hack/fixtures/*.json` changes.
+One API call per provider writes two files: `hack/fixtures/usage/usage_<provider>_*.json`, the API's raw
+response byte for byte (Codex's `user_id`/`email` redacted) - useful on its own as a reference for
+what that (often undocumented) endpoint actually returns - and `hack/fixtures/display/display_<provider>_*.json`,
+that same response parsed and converted (`ParseXUsage` + `ToDisplay` - `internal/providers`) into the
+`DisplayUsage` shape the app renders. Because the output reflects your own account (plan tier, usage
+percentages, reset times), review it before committing either directory.
 
 ## Listing screenshots
 
@@ -125,12 +111,6 @@ Capture the native Wails window in both themes:
 ```
 
 `screenshot-light`/`screenshot-dark` launch the app in its current configured state. The
-application intentionally has no startup switch that bypasses its user-visible navigation. To
-capture the sample-data preview, first disable all providers in Settings. Then run the individual
-capture helper with a long enough render wait and select **Preview with sample data** in the window
-it launches before the capture occurs. For automated browser-based visual work, the live server's
-`?view=sample` route remains available.
-
 This runs the Light and Dark captures sequentially and writes:
 
 - `docs/screenshots/aigauge-native-light.png`

@@ -25,13 +25,15 @@ const params = new URLSearchParams(location.search);
 const theme = params.get('theme');
 
 // Each provider's fixture file holds exactly what its Wails RPC method
-// returns - no combined/wrapper file - so it doubles as a raw per-provider
-// snapshot (see hack/fixtures/gen-samples.go) and the live-server fixture with no
-// conversion step between the two.
+// returns (DisplayUsage - see hack/fixtures/fixtures.go), so it doubles as
+// the live-server fixture with no conversion step between the two. The
+// server resolves "latest/<provider>.json" to whichever
+// hack/fixtures/display/display_<provider>_*.json snapshot is newest, so a fresh
+// \`.\\build.ps1 fixtures-usage\` capture needs no server restart.
 const providers = {
-  Codex: 'samples/sample-codex.json',
-  Claude: 'samples/sample-claude.json',
-  Antigravity: 'samples/sample-antigravity.json',
+  Codex: 'latest/codex.json',
+  Claude: 'latest/claude.json',
+  Antigravity: 'latest/antigravity.json',
 };
 
 // Every provider state the real app can show, reproducible here with no CLI,
@@ -39,7 +41,6 @@ const providers = {
 //
 //   /?state=login_required                        all three cards at once
 //   /?codex=not_installed&claude=connected       one provider at a time
-//   /?view=sample                                open in the sample preview
 //
 // The wording only has to be close enough to lay out like the real thing; the
 // authoritative copy lives in internal/providers.
@@ -51,6 +52,20 @@ const stateMessages = {
   temporary_error: 'Could not reach the service right now. Retry in a moment.',
   unsupported_cli: 'This CLI version is not supported. Update the CLI.',
   connected: '',
+};
+
+// A static stand-in for internal/config.Settings: one provider instance per
+// fixture, enough for app.js's backend-settings-based dashboard to
+// render the three provider cards used by the fixture-backed browser server.
+let mockSettings = {
+  providers: Object.keys(providers).map(key => ({
+    id: key.toLowerCase(), type: key.toLowerCase(), label: key, enabled: true,
+  })),
+  windowWidth: 250,
+  theme: 'system',
+  refreshInterval: 120,
+  thresholds: { warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 20 } },
+  hotkeyShortcut: '',
 };
 
 const stateFor = key => params.get(key.toLowerCase()) || params.get('state') || '';
@@ -85,10 +100,14 @@ const usageFor = async key => {
 export const Call = {
   ByName: async name => {
     for (const key of Object.keys(providers)) {
-      if (name.endsWith(\`GetSample\${key}Usage\`)) return fixture(key);
       if (name.endsWith(\`Diagnose\${key}\`)) return diagnosisFor(key);
       if (name.endsWith(\`Get\${key}Usage\`)) return usageFor(key);
     }
+    if (name.endsWith('GetSettings')) return mockSettings;
+    if (name.endsWith('SetTheme') || name.endsWith('SetSavedWindowWidth') ||
+        name.endsWith('SetThresholds') || name.endsWith('SetHotkeyShortcut') ||
+        name.endsWith('SetProviderRefreshInterval') || name.endsWith('SetProviderOrder')) return null;
+    if (name.endsWith('AddProviderInstance') || name.endsWith('RemoveProviderInstance')) return null;
     if (name.endsWith('GetThemeOverride')) return ['light', 'dark', 'system'].includes(theme) ? theme : '';
     if (name.endsWith('GetVersion')) return 'vDEV';
     if (name.endsWith('SetContentHeight')) return null;
@@ -98,10 +117,13 @@ export const Call = {
     return null;
   }
 };
-export const Events = { On: () => () => {} };
+export const Events = { On: () => () => {}, Emit: () => {} };
 export const Window = { Close: () => {}, Hide: () => {}, SetAlwaysOnTop: () => {} };
 export const Application = { Quit: () => {} };
 export const Browser = { OpenURL: async url => { window.open(url, '_blank'); } };
+export const Dialogs = {
+  Question: async options => (window.confirm(options.Message) ? 'Yes' : 'No'),
+};
 `;
 
 function getFilesRecursively(dir) {
@@ -161,6 +183,27 @@ const server = http.createServer((req, res) => {
       "Cache-Control": "no-cache, no-store",
     });
     res.end(WAILS_RUNTIME);
+    return;
+  }
+
+  if (pathname.startsWith("/fixtures/latest/")) {
+    const match = /^([a-z]+)\.json$/.exec(pathname.substring("/fixtures/latest/".length));
+    const displayDir = path.join(fixturesRoot, "display");
+    const candidates = match && fs.existsSync(displayDir)
+      ? fs.readdirSync(displayDir).filter(f => f.startsWith(`display_${match[1]}_`) && f.endsWith(".json"))
+      : [];
+    if (candidates.length === 0) {
+      res.writeHead(404);
+      res.end("Not Found");
+      return;
+    }
+    candidates.sort((a, b) => fs.statSync(path.join(displayDir, b)).mtimeMs - fs.statSync(path.join(displayDir, a)).mtimeMs);
+    const content = fs.readFileSync(path.join(displayDir, candidates[0]));
+    res.writeHead(200, {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-cache, no-store",
+    });
+    res.end(content);
     return;
   }
 
@@ -261,7 +304,5 @@ server.listen(PORT, () => {
   console.log(
     `  States: connected, not_installed, auth_check_required, login_required, usage_unavailable, temporary_error, unsupported_cli`
   );
-  console.log(`  Sample preview: ?view=sample`);
   console.log(`Press Ctrl+C to stop.`);
 });
-

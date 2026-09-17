@@ -15,50 +15,28 @@ import (
 type Status string
 
 const (
-	// StatusConnected means the sign-in was confirmed *and* the usage lookup
-	// succeeded. A locally stored credential alone is never enough: both
-	// Claude and Codex can report a local login whose token the server has
-	// since rejected, so this is only set after real usage data comes back.
-	StatusConnected Status = "connected"
+	StatusConnected         Status = "connected"
+	StatusAuthCheckRequired Status = "auth_check_required"
+	StatusLoginRequired     Status = "login_required"
+	StatusUsageUnavailable  Status = "usage_unavailable"
+	StatusTemporaryError    Status = "temporary_error"
+	StatusAwaitingCode      Status = "awaiting_code"
 
-	// StatusNotInstalled means the CLI executable was not found in PATH or in
-	// the supported default install location.
+	// StatusNotInstalled means a CLI-backed provider's executable was not
+	// found in PATH or in the supported default install location. Only
+	// Antigravity (via the agy CLI) can report this today.
 	StatusNotInstalled Status = "not_installed"
 
-	// StatusAuthCheckRequired means the CLI is installed and whatever could be
-	// determined locally has been, but the network verification that would
-	// settle the provider's real state has not been requested yet. This is the
-	// state that keeps a disabled provider from making any outbound request on
-	// startup, which is why it is a first-class code rather than an error.
-	StatusAuthCheckRequired Status = "auth_check_required"
-
-	// StatusLoginRequired means the CLI is present but not logged in - either
-	// its own status command said so, or a usage request was rejected as
-	// unauthorized despite a local credential being present.
-	StatusLoginRequired Status = "login_required"
-
-	// StatusUsageUnavailable means authentication worked but the provider
-	// returned no usable quota data.
-	StatusUsageUnavailable Status = "usage_unavailable"
-
-	// StatusTemporaryError means a network or service failure that is expected
-	// to resolve on its own. Anything unrecognized lands here rather than in
-	// StatusLoginRequired: telling a logged-in user they are logged out is a
-	// worse failure than asking them to retry.
-	StatusTemporaryError Status = "temporary_error"
-
-	// StatusUnsupportedCLI means the installed CLI version does not provide the
-	// command or option this app needs.
+	// StatusUnsupportedCLI means a CLI-backed provider's installed CLI
+	// version does not provide the command or option this app needs.
 	StatusUnsupportedCLI Status = "unsupported_cli"
 )
 
 // NeedsUserAction reports whether status is one of the expected, user-fixable
 // setup states rather than a failure. Callers use it to keep these states out
-// of failure counters, automatic retry loops, and red error styling - the
-// behavior that made the previous certification submission look broken on a
-// clean review device.
+// of failure counters, automatic retry loops, and red error styling.
 func (s Status) NeedsUserAction() bool {
-	return s == StatusNotInstalled || s == StatusAuthCheckRequired || s == StatusLoginRequired
+	return s == StatusAuthCheckRequired || s == StatusLoginRequired || s == StatusAwaitingCode || s == StatusNotInstalled
 }
 
 // Reason narrows a status whose recovery differs case by case. Only
@@ -95,10 +73,11 @@ const (
 // a 250px window - "Check connection" fits there, "Credentials found - check
 // connection" does not.
 type Diagnosis struct {
-	Status  Status `json:"status"`
-	Reason  Reason `json:"reason,omitempty"`
-	Message string `json:"message"`
-	Details string `json:"details,omitempty"`
+	Status    Status `json:"status"`
+	Reason    Reason `json:"reason,omitempty"`
+	Message   string `json:"message"`
+	Details   string `json:"details,omitempty"`
+	CanImport bool   `json:"canImport,omitempty"`
 }
 
 // DiagnosisFields is embedded in every provider's usage struct (ClaudeUsage,
@@ -107,11 +86,12 @@ type Diagnosis struct {
 // Error mirrors Message so the current frontend, which only knows how to read
 // a message string, keeps working until it switches to reading Status.
 type DiagnosisFields struct {
-	Error   string `json:"error,omitempty"`
-	Status  Status `json:"status,omitempty"`
-	Reason  Reason `json:"reason,omitempty"`
-	Message string `json:"message,omitempty"`
-	Details string `json:"details,omitempty"`
+	Error     string `json:"error,omitempty"`
+	Status    Status `json:"status,omitempty"`
+	Reason    Reason `json:"reason,omitempty"`
+	Message   string `json:"message,omitempty"`
+	Details   string `json:"details,omitempty"`
+	CanImport bool   `json:"canImport,omitempty"`
 }
 
 func (f *DiagnosisFields) applyDiagnosis(diagnosis Diagnosis) {
@@ -120,6 +100,14 @@ func (f *DiagnosisFields) applyDiagnosis(diagnosis Diagnosis) {
 	f.Message = diagnosis.Message
 	f.Details = diagnosis.Details
 	f.Error = diagnosis.Message
+	f.CanImport = diagnosis.CanImport
+}
+
+// ToDiagnosis is the inverse of applyDiagnosis, letting a caller that only
+// has a provider's usage struct (which embeds DiagnosisFields) recover the
+// Diagnosis it was built from.
+func (f DiagnosisFields) ToDiagnosis() Diagnosis {
+	return Diagnosis{Status: f.Status, Reason: f.Reason, Message: f.Message, Details: f.Details, CanImport: f.CanImport}
 }
 
 // maxDetailLength caps how much command output can reach the UI. CLI failures

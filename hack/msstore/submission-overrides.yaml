@@ -10,22 +10,19 @@ Listings:
         - Multiple AI usage providers with visibility and ordering controls
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
-        - Built-in sample preview without provider setup
         - Global hotkey toggle to show and hide the window
       ReleaseNotes: Global hotkey settings are now available. Choose a shortcut in Settings to show or hide AI Gauge from anywhere.
 
 NotesForCertification: |
   AI Gauge is a lightweight Windows system tray utility that monitors quota usage and reset times for OpenAI Codex, Anthropic Claude Code, and Google Antigravity.
 
-  [No test accounts or third-party CLI tools required]
-  The app includes a built-in interactive sample preview designed specifically to verify all UI and feature behaviors on a clean test machine without any accounts, CLI installations, or external network access.
-
+  No test accounts are supplied or required for the Codex and Claude Code login flows. Antigravity testing requires the supported `agy` CLI and an account signed in through that CLI.
   Steps to verify the app:
-  1. Launch AI Gauge: The initial screen displays local readiness status, gracefully showing "Not installed" guidance on a clean system.
-  2. Click "Preview with sample data": Immediately opens the complete dashboard with sample gauges, reset-time calculations, percentage indicators, and manual refresh.
-  3. Open Settings (gear icon): Test light/dark/system themes, warning/critical thresholds, window width adjustment, and the optional global hotkey (disabled by default).
-  4. Test system tray integration: Confirm minimize to tray, restore from tray icon, and "Always on top" pinning.
-  5. Click "Back to setup" to verify smooth navigation back to the initial setup screen.
+  1. Launch AI Gauge on a clean system: The initial setup guidance appears without errors or crash dialogs.
+  2. Open Settings (gear icon): Test light/dark/system themes, warning/critical thresholds, window width adjustment, and the optional global hotkey (disabled by default).
+  3. Test system tray integration: Confirm minimize to tray, restore from tray icon, and "Always on top" pinning.
+  4. Add a provider and click "Connect" to verify the official browser authentication flow. For Antigravity, use a supported, pre-installed `agy` CLI.
+  5. Reopen Settings and click "Disconnect" on the connected provider to verify its removal.
 
   Network behavior:
-  The setup screen runs only local system checks. No network traffic is initiated unless the user explicitly checks connection or enables a configured provider.
+  No provider network traffic is initiated until the user explicitly connects or checks a configured provider. Antigravity checks use the locally installed `agy` CLI.

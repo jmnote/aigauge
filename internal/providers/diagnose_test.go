@@ -8,6 +8,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jmnote/aigauge/internal/auth"
 )
 
 // fakeRunner replays a recorded command result and remembers what it was asked
@@ -32,244 +34,177 @@ func missingPath() pathLookup {
 	return func(string) (string, error) { return "", exec.ErrNotFound }
 }
 
-// testDeps wires a diagnosis to a fake CLI and a fake home directory. files is
-// keyed by slash-separated suffix (".claude/.credentials.json"), which keeps the
-// tests readable and portable across the separator the code joins with.
-func testDeps(runner commandRunner, lookPath pathLookup, files map[string]string) providerDeps {
+// cliDeps wires a diagnosis to a fake CLI, the seams the agy-CLI-backed
+// Antigravity path uses. Unlike testTokenDeps, no getToken/canImport is set:
+// Antigravity's diagnosis never consults the token store.
+func cliDeps(runner commandRunner, lookPath pathLookup) providerDeps {
 	return providerDeps{
 		runner:     runner,
 		lookPath:   lookPath,
 		homeDir:    func() (string, error) { return filepath.FromSlash("/home/tester"), nil },
 		pathExists: func(string) bool { return false },
-		readFile: func(path string) ([]byte, error) {
-			for suffix, content := range files {
-				if strings.HasSuffix(filepath.ToSlash(path), suffix) {
-					return []byte(content), nil
-				}
+		readFile:   func(string) ([]byte, error) { return nil, os.ErrNotExist },
+	}
+}
+
+// scriptedRunner answers differently per command, keyed by the first argument
+// ("--version", "-p" for the /usage prompt, "models"). The Antigravity path
+// chains up to three commands, and the interesting cases are exactly the ones
+// where they disagree - /usage fails but models succeeds, say.
+type scriptedRunner struct {
+	results map[string]commandResult
+	errs    map[string]error
+	calls   [][]string
+}
+
+func (r *scriptedRunner) run(_ context.Context, name string, args ...string) (commandResult, error) {
+	r.calls = append(r.calls, append([]string{name}, args...))
+	key := ""
+	if len(args) > 0 {
+		key = args[0]
+	}
+	return r.results[key], r.errs[key]
+}
+
+func (r *scriptedRunner) ran(key string) bool {
+	for _, call := range r.calls {
+		for _, arg := range call {
+			if arg == key {
+				return true
 			}
-			return nil, os.ErrNotExist
+		}
+	}
+	return false
+}
+
+func antigravityRunner(results map[string]commandResult) *scriptedRunner {
+	if _, ok := results["--version"]; !ok {
+		results["--version"] = commandResult{Stdout: "1.1.28"}
+	}
+	return &scriptedRunner{results: results, errs: map[string]error{}}
+}
+
+func testTokenDeps(tokens map[string]*auth.Token, importable map[string]bool) providerDeps {
+	return providerDeps{
+		getToken: func(provider string) (*auth.Token, error) {
+			if tokens != nil {
+				return tokens[provider], nil
+			}
+			return nil, nil
+		},
+		canImport: func(provider string) bool {
+			if importable != nil {
+				return importable[provider]
+			}
+			return false
 		},
 	}
 }
 
-const claudeCredentialFile = `{"claudeAiOauth":{"accessToken":"test-token","subscriptionType":"pro"}}`
-const codexCredentialFile = `{"tokens":{"access_token":"test-token"}}`
+func TestDiagnoseClaudeWithToken(t *testing.T) {
+	deps := testTokenDeps(map[string]*auth.Token{
+		"claude": {AccessToken: "test-claude-token", Extra: auth.Extra{Plan: "pro"}},
+	}, nil)
 
-func TestDiagnoseClaudeUsesCredentialsWithoutConsultingTheCLI(t *testing.T) {
-	runner := &fakeRunner{}
-	deps := testDeps(runner, missingPath(), map[string]string{".claude/.credentials.json": claudeCredentialFile})
-
-	diagnosis, credentials, ok := diagnoseClaude(context.Background(), deps, true)
+	// When active, returns ok=true with credentials
+	diagActive, creds, ok := diagnoseClaude(context.Background(), deps, "claude", true)
 	if !ok {
-		t.Fatalf("diagnoseClaude() ok = false (%#v), want true - a readable credential is all the usage request needs", diagnosis)
+		t.Fatalf("diagnoseClaude(active) ok = false (%#v), want true", diagActive)
 	}
-	if credentials.ClaudeAiOauth.AccessToken != "test-token" {
-		t.Errorf("AccessToken = %q, want the token from the credential file", credentials.ClaudeAiOauth.AccessToken)
+	if creds.ClaudeAiOauth.AccessToken != "test-claude-token" {
+		t.Errorf("AccessToken = %q, want %q", creds.ClaudeAiOauth.AccessToken, "test-claude-token")
 	}
-	// The lookup above reports the CLI as missing on purpose: a user whose
-	// `claude` binary is not on the PATH this app inherited must still get quota.
-	if len(runner.calls) != 0 {
-		t.Errorf("ran %v, want no CLI command when a credential was found", runner.calls)
+	if creds.ClaudeAiOauth.SubscriptionType != "pro" {
+		t.Errorf("SubscriptionType = %q, want %q", creds.ClaudeAiOauth.SubscriptionType, "pro")
 	}
-}
 
-func TestDiagnoseClaudeStopsAtAuthCheckWhenProviderIsInactive(t *testing.T) {
-	runner := &fakeRunner{}
-	deps := testDeps(runner, foundPath("claude"), map[string]string{".claude/.credentials.json": claudeCredentialFile})
-
-	diagnosis, _, ok := diagnoseClaude(context.Background(), deps, false)
+	// When inactive, stops at StatusAuthCheckRequired
+	diagInactive, _, ok := diagnoseClaude(context.Background(), deps, "claude", false)
 	if ok {
-		t.Error("diagnoseClaude() ok = true, want false so an inactive provider never reaches the usage request")
+		t.Error("diagnoseClaude(inactive) ok = true, want false")
 	}
-	if diagnosis.Status != StatusAuthCheckRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
+	if diagInactive.Status != StatusAuthCheckRequired {
+		t.Errorf("Status = %q, want %q", diagInactive.Status, StatusAuthCheckRequired)
 	}
-	if !strings.Contains(diagnosis.Message, "Credentials found") {
-		t.Errorf("Message = %q, want the credential-based explanation", diagnosis.Message)
-	}
-	if len(runner.calls) != 0 {
-		t.Errorf("ran %v, want no command for an inactive provider with a credential", runner.calls)
+	if !strings.Contains(diagInactive.Message, "Credentials found") {
+		t.Errorf("Message = %q, want 'Credentials found'", diagInactive.Message)
 	}
 }
 
-func TestDiagnoseClaudeFallsBackToTheCLIWhenCredentialsAreUnreadable(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stdout: string(readFixture(t, "claude-auth-status-signed-out.json"))}}
-	deps := testDeps(runner, foundPath("claude"), map[string]string{".claude/.credentials.json": "{ not json"})
-
-	diagnosis, _, _ := diagnoseClaude(context.Background(), deps, true)
-	if diagnosis.Status != StatusLoginRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusLoginRequired)
-	}
-	want := []string{"claude", "auth", "status", "--json"}
-	if len(runner.calls) != 1 || strings.Join(runner.calls[0], " ") != strings.Join(want, " ") {
-		t.Errorf("ran %v, want a single %v", runner.calls, want)
-	}
-}
-
-func TestDiagnoseClaudeReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
-	runner := &fakeRunner{}
-	deps := testDeps(runner, missingPath(), nil)
-
-	diagnosis, _, ok := diagnoseClaude(context.Background(), deps, true)
+func TestDiagnoseClaudeWithoutToken(t *testing.T) {
+	// Without token, but importable
+	depsImportable := testTokenDeps(nil, map[string]bool{"claude": true})
+	diag, _, ok := diagnoseClaude(context.Background(), depsImportable, "claude", true)
 	if ok {
-		t.Error("diagnoseClaude() ok = true, want false with neither credential nor CLI")
+		t.Error("diagnoseClaude without token ok = true, want false")
 	}
-	if diagnosis.Status != StatusNotInstalled {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
+	if diag.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", diag.Status, StatusLoginRequired)
 	}
-	if !strings.Contains(diagnosis.Details, "CLI Not Found") {
-		t.Errorf("Details = %q, want Details to mention CLI Not Found", diagnosis.Details)
+	if !diag.CanImport {
+		t.Error("CanImport = false, want true when legacy credentials exist")
 	}
-	if strings.Contains(diagnosis.Details, "credentials") {
-		t.Errorf("Details = %q, want Details not to mention credentials file", diagnosis.Details)
+
+	// Without token and not importable
+	depsNotImportable := testTokenDeps(nil, map[string]bool{"claude": false})
+	diag2, _, _ := diagnoseClaude(context.Background(), depsNotImportable, "claude", true)
+	if diag2.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", diag2.Status, StatusLoginRequired)
 	}
-	wantLink := "https://code.claude.com/docs/ko/quickstart#step-1-install-claude-code"
-	if !strings.Contains(diagnosis.Message, wantLink) {
-		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
+	if diag2.CanImport {
+		t.Error("CanImport = true, want false when legacy credentials do not exist")
 	}
 }
 
-func TestDiagnoseClaudeReportsSignedInLocallyWhenInactiveWithoutCredentials(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stdout: string(readFixture(t, "claude-auth-status-signed-in.json"))}}
-	deps := testDeps(runner, foundPath("claude"), nil)
+func TestDiagnoseCodexWithToken(t *testing.T) {
+	deps := testTokenDeps(map[string]*auth.Token{
+		"codex": {AccessToken: "test-codex-token", Extra: auth.Extra{Plan: "team"}},
+	}, nil)
 
-	diagnosis, _, _ := diagnoseClaude(context.Background(), deps, false)
-	if diagnosis.Status != StatusAuthCheckRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
-	}
-	if !strings.Contains(diagnosis.Message, "Logged in locally") {
-		t.Errorf("Message = %q, want the CLI-based explanation", diagnosis.Message)
-	}
-}
-
-func TestDiagnoseClaudeReportsUnsupportedCredentialSource(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stdout: string(readFixture(t, "claude-auth-status-signed-in.json"))}}
-	deps := testDeps(runner, foundPath("claude"), nil)
-
-	diagnosis, _, ok := diagnoseClaude(context.Background(), deps, true)
-	if ok {
-		t.Error("diagnoseClaude() ok = true, want false - there is no token to make the request with")
-	}
-	if diagnosis.Status != StatusUsageUnavailable || diagnosis.Reason != ReasonUnsupportedCredentialSource {
-		t.Errorf("(Status, Reason) = (%q, %q), want (%q, %q)",
-			diagnosis.Status, diagnosis.Reason, StatusUsageUnavailable, ReasonUnsupportedCredentialSource)
-	}
-}
-
-func TestDiagnoseClaudeTrustsReadableJSONOverExitCode(t *testing.T) {
-	// The signed-out exit code is still an open item in the release gate, so a
-	// parseable answer decides the state even when the process exited non-zero.
-	runner := &fakeRunner{result: commandResult{
-		Stdout:   string(readFixture(t, "claude-auth-status-signed-out.json")),
-		ExitCode: 1,
-	}}
-	diagnosis, _, _ := diagnoseClaude(context.Background(), testDeps(runner, foundPath("claude"), nil), true)
-	if diagnosis.Status != StatusLoginRequired {
-		t.Errorf("Status = %q, want %q even though the command exited non-zero", diagnosis.Status, StatusLoginRequired)
-	}
-}
-
-func TestDiagnoseClaudeReportsUnsupportedCLIForRejectedCommand(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stderr: "unknown command: auth", ExitCode: 2}}
-	diagnosis, _, _ := diagnoseClaude(context.Background(), testDeps(runner, foundPath("claude"), nil), true)
-	if diagnosis.Status != StatusUnsupportedCLI {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusUnsupportedCLI)
-	}
-}
-
-func TestDiagnoseClaudeDoesNotInferSignOutFromUnknownFailure(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stderr: "panic: something went wrong", ExitCode: 3}}
-	diagnosis, _, _ := diagnoseClaude(context.Background(), testDeps(runner, foundPath("claude"), nil), true)
-	if diagnosis.Status != StatusTemporaryError {
-		t.Errorf("Status = %q, want %q - an unrecognized failure must not be reported as signed out", diagnosis.Status, StatusTemporaryError)
-	}
-}
-
-func TestDiagnoseClaudeReportsTemporaryErrorOnTimeout(t *testing.T) {
-	runner := &fakeRunner{err: context.DeadlineExceeded}
-	diagnosis, _, ok := diagnoseClaude(context.Background(), testDeps(runner, foundPath("claude"), nil), true)
-	if ok {
-		t.Error("diagnoseClaude() ok = true, want false on a timeout")
-	}
-	if diagnosis.Status != StatusTemporaryError {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusTemporaryError)
-	}
-}
-
-func TestDiagnoseCodexUsesCredentialsWithoutConsultingTheCLI(t *testing.T) {
-	runner := &fakeRunner{}
-	deps := testDeps(runner, missingPath(), map[string]string{".codex/auth.json": codexCredentialFile})
-
-	diagnosis, credentials, ok := diagnoseCodex(context.Background(), deps, true)
+	// When active, returns ok=true with credentials
+	diagActive, creds, ok := diagnoseCodex(context.Background(), deps, "codex", true)
 	if !ok {
-		t.Fatalf("diagnoseCodex() ok = false (%#v), want true", diagnosis)
+		t.Fatalf("diagnoseCodex(active) ok = false (%#v), want true", diagActive)
 	}
-	if credentials.Tokens.AccessToken != "test-token" {
-		t.Errorf("AccessToken = %q, want the token from the credential file", credentials.Tokens.AccessToken)
+	if creds.Tokens.AccessToken != "test-codex-token" {
+		t.Errorf("AccessToken = %q, want %q", creds.Tokens.AccessToken, "test-codex-token")
 	}
-	if len(runner.calls) != 0 {
-		t.Errorf("ran %v, want no CLI command when a credential was found", runner.calls)
-	}
-}
 
-func TestDiagnoseCodexStopsAtAuthCheckWhenProviderIsInactive(t *testing.T) {
-	runner := &fakeRunner{}
-	deps := testDeps(runner, foundPath("codex"), map[string]string{".codex/auth.json": codexCredentialFile})
-
-	diagnosis, _, ok := diagnoseCodex(context.Background(), deps, false)
+	// When inactive, stops at StatusAuthCheckRequired
+	diagInactive, _, ok := diagnoseCodex(context.Background(), deps, "codex", false)
 	if ok {
-		t.Error("diagnoseCodex() ok = true, want false so an inactive provider never reaches the usage request")
+		t.Error("diagnoseCodex(inactive) ok = true, want false")
 	}
-	if diagnosis.Status != StatusAuthCheckRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
+	if diagInactive.Status != StatusAuthCheckRequired {
+		t.Errorf("Status = %q, want %q", diagInactive.Status, StatusAuthCheckRequired)
 	}
-}
-
-func TestDiagnoseCodexReportsLoginRequiredOnNonZeroExit(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stderr: "Not logged in", ExitCode: 1}}
-	diagnosis, _, _ := diagnoseCodex(context.Background(), testDeps(runner, foundPath("codex"), nil), true)
-	if diagnosis.Status != StatusLoginRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusLoginRequired)
+	if !strings.Contains(diagInactive.Message, "Credentials found") {
+		t.Errorf("Message = %q, want 'Credentials found'", diagInactive.Message)
 	}
 }
 
-func TestDiagnoseCodexReportsUnsupportedCLIForRejectedCommand(t *testing.T) {
-	runner := &fakeRunner{result: commandResult{Stderr: "error: unknown subcommand 'status'", ExitCode: 2}}
-	diagnosis, _, _ := diagnoseCodex(context.Background(), testDeps(runner, foundPath("codex"), nil), true)
-	if diagnosis.Status != StatusUnsupportedCLI {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusUnsupportedCLI)
-	}
-}
-
-func TestDiagnoseCodexReportsUnsupportedCredentialSource(t *testing.T) {
-	// Verified behavior of codex-cli 0.146.0 when signed in: exit 0, empty
-	// stdout, the message on stderr. With no readable credential file, that
-	// combination means the session is stored somewhere this app cannot use.
-	runner := &fakeRunner{result: commandResult{Stderr: "Logged in", ExitCode: 0}}
-	diagnosis, _, ok := diagnoseCodex(context.Background(), testDeps(runner, foundPath("codex"), nil), true)
+func TestDiagnoseCodexWithoutToken(t *testing.T) {
+	// Without token, but importable
+	depsImportable := testTokenDeps(nil, map[string]bool{"codex": true})
+	diag, _, ok := diagnoseCodex(context.Background(), depsImportable, "codex", true)
 	if ok {
-		t.Error("diagnoseCodex() ok = true, want false - there is no token to make the request with")
+		t.Error("diagnoseCodex without token ok = true, want false")
 	}
-	if diagnosis.Status != StatusUsageUnavailable || diagnosis.Reason != ReasonUnsupportedCredentialSource {
-		t.Errorf("(Status, Reason) = (%q, %q), want (%q, %q)",
-			diagnosis.Status, diagnosis.Reason, StatusUsageUnavailable, ReasonUnsupportedCredentialSource)
+	if diag.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", diag.Status, StatusLoginRequired)
 	}
-}
+	if !diag.CanImport {
+		t.Error("CanImport = false, want true when legacy credentials exist")
+	}
 
-func TestDiagnoseCodexReportsNotInstalledOnlyWhenNothingIsFound(t *testing.T) {
-	diagnosis, _, _ := diagnoseCodex(context.Background(), testDeps(&fakeRunner{}, missingPath(), nil), true)
-	if diagnosis.Status != StatusNotInstalled {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
+	// Without token and not importable
+	depsNotImportable := testTokenDeps(nil, map[string]bool{"codex": false})
+	diag2, _, _ := diagnoseCodex(context.Background(), depsNotImportable, "codex", true)
+	if diag2.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", diag2.Status, StatusLoginRequired)
 	}
-	if !strings.Contains(diagnosis.Details, "CLI Not Found") {
-		t.Errorf("Details = %q, want Details to mention CLI Not Found", diagnosis.Details)
-	}
-	if strings.Contains(diagnosis.Details, "credentials") {
-		t.Errorf("Details = %q, want Details not to mention credentials file", diagnosis.Details)
-	}
-	wantLink := "https://learn.chatgpt.com/docs/codex/cli#getting-started"
-	if !strings.Contains(diagnosis.Message, wantLink) {
-		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
+	if diag2.CanImport {
+		t.Error("CanImport = true, want false when legacy credentials do not exist")
 	}
 }
 
@@ -283,7 +218,7 @@ func TestDiagnoseAntigravityStopsBeforeAnyNetworkCommandWhenInactive(t *testing.
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
 	}
 	if len(runner.calls) != 1 || runner.calls[0][1] != "--version" {
-		t.Errorf("ran %v, want only the local `agy --version` check", runner.calls)
+		t.Errorf("calls = %v, want exactly one --version call", runner.calls)
 	}
 }
 
@@ -296,9 +231,8 @@ func TestDiagnoseAntigravityReportsUnsupportedCLI(t *testing.T) {
 	if diagnosis.Status != StatusUnsupportedCLI {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusUnsupportedCLI)
 	}
-	wantLink := antigravityInstallGuideURL
-	if !strings.Contains(diagnosis.Message, wantLink) {
-		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
+	if !strings.Contains(diagnosis.Message, antigravityInstallGuideURL) {
+		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, antigravityInstallGuideURL)
 	}
 }
 
@@ -310,17 +244,187 @@ func TestDiagnoseAntigravityProceedsWhenActive(t *testing.T) {
 }
 
 func TestFindAgyReportsNotInstalledWithGuideLink(t *testing.T) {
-	deps := testDeps(&fakeRunner{}, missingPath(), nil)
+	deps := cliDeps(&fakeRunner{}, missingPath())
 	_, diagnosis, ok := findAgy(deps)
 	if ok {
-		t.Error("findAgy() ok = true, want false when agy is not installed")
+		t.Error("findAgy() ok = true, want false when agy is not found")
 	}
 	if diagnosis.Status != StatusNotInstalled {
 		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusNotInstalled)
 	}
-	wantLink := "https://antigravity.google/docs/cli/install"
-	if !strings.Contains(diagnosis.Message, wantLink) {
-		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, wantLink)
+	if !strings.Contains(diagnosis.Message, antigravityInstallGuideURL) {
+		t.Errorf("Message = %q, want it to contain %q", diagnosis.Message, antigravityInstallGuideURL)
+	}
+}
+
+func TestDiagnoseAntigravityLocalNeverRunsANetworkCommand(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{})
+	diagnosis := diagnoseAntigravityLocal(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity")
+
+	if diagnosis.Status != StatusAuthCheckRequired {
+		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
+	}
+	if runner.ran("-p") || runner.ran("models") {
+		t.Errorf("calls = %v, want only --version for a local-only diagnosis", runner.calls)
+	}
+}
+
+func TestGetAntigravityUsageReportsNotInstalledWithoutRawPathError(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{})
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, missingPath()), "antigravity", true)
+
+	if usage.Status != StatusNotInstalled {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusNotInstalled)
+	}
+	if !strings.Contains(usage.Message, "agy") {
+		t.Errorf("Message = %q, want it to name the agy CLI", usage.Message)
+	}
+}
+
+func TestGetAntigravityUsageStopsBeforeUsageWhenInactive(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{})
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity", false)
+
+	if usage.Status != StatusAuthCheckRequired {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusAuthCheckRequired)
+	}
+	if runner.ran("-p") {
+		t.Errorf("calls = %v, want /usage never run for an inactive check", runner.calls)
+	}
+}
+
+func TestGetAntigravityUsageConnectsOnValidUsage(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{
+		"-p": {Stdout: string(readFixture(t, "antigravity-usage.json"))},
+	})
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity", true)
+
+	if usage.Status != StatusConnected {
+		t.Fatalf("Status = %q (%q), want %q", usage.Status, usage.Message, StatusConnected)
+	}
+	if len(usage.Groups) == 0 {
+		t.Fatal("Groups is empty, want at least one group from the fixture")
+	}
+}
+
+func TestGetAntigravityUsageSeparatesNoDataFromUnreadableResponse(t *testing.T) {
+	empty := antigravityRunner(map[string]commandResult{"-p": {Stdout: `{"command":{"data":{"groups":[]}}}`}})
+	usage := getAntigravityUsage(context.Background(), cliDeps(empty, foundPath("agy")), "antigravity", true)
+	if usage.Status != StatusUsageUnavailable || usage.Reason != ReasonNoUsageData {
+		t.Errorf("empty groups: (Status, Reason) = (%q, %q), want (%q, %q)",
+			usage.Status, usage.Reason, StatusUsageUnavailable, ReasonNoUsageData)
+	}
+
+	garbled := antigravityRunner(map[string]commandResult{"-p": {Stdout: "not json at all"}})
+	usage = getAntigravityUsage(context.Background(), cliDeps(garbled, foundPath("agy")), "antigravity", true)
+	if usage.Status != StatusUsageUnavailable || usage.Reason != ReasonUnsupportedResponse {
+		t.Errorf("garbled output: (Status, Reason) = (%q, %q), want (%q, %q)",
+			usage.Status, usage.Reason, StatusUsageUnavailable, ReasonUnsupportedResponse)
+	}
+}
+
+func TestGetAntigravityUsageReportsLoginRequiredOnAuthMarker(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{
+		"-p": {Stderr: "Error: not logged in. Run agy to sign in.", ExitCode: 1},
+	})
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity", true)
+
+	if usage.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusLoginRequired)
+	}
+	if !runner.ran("models") {
+		t.Errorf("calls = %v, want models authentication check before usage", runner.calls)
+	}
+}
+
+func TestGetAntigravityUsageReportsUnsupportedCLIOnRejectedCommand(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{
+		"-p": {Stderr: `Error: unexpected argument "--output-format".`, ExitCode: 2},
+	})
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity", true)
+
+	if usage.Status != StatusUnsupportedCLI {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusUnsupportedCLI)
+	}
+}
+
+func TestGetAntigravityUsageUsesModelsToDisambiguateAnUnreadableFailure(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{
+		"-p":     {Stderr: "Error: something unexpected happened", ExitCode: 1},
+		"models": {Stdout: "gemini-3-pro\ngpt-5.2\n", Stderr: "Fetching available models..."},
+	})
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity", true)
+
+	if !runner.ran("models") {
+		t.Fatalf("ran %v, want the secondary diagnostic for an ambiguous failure", runner.calls)
+	}
+	if usage.Status != StatusUsageUnavailable || usage.Reason != ReasonUnsupportedResponse {
+		t.Errorf("(Status, Reason) = (%q, %q), want (%q, %q)", usage.Status, usage.Reason, StatusUsageUnavailable, ReasonUnsupportedResponse)
+	}
+}
+
+func TestGetAntigravityUsageNeverGuessesSignOutFromAnUnknownFailure(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{
+		"-p":     {Stderr: "Error: something unexpected happened", ExitCode: 1},
+		"models": {Stderr: "Error: something unexpected happened", ExitCode: 1},
+	})
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity", true)
+
+	if usage.Status != StatusTemporaryError {
+		t.Errorf("Status = %q, want %q - neither command said anything about authentication", usage.Status, StatusTemporaryError)
+	}
+}
+
+func TestGetAntigravityUsageReportsTemporaryErrorOnUsageTimeout(t *testing.T) {
+	runner := antigravityRunner(map[string]commandResult{})
+	runner.errs["-p"] = context.DeadlineExceeded
+	usage := getAntigravityUsage(context.Background(), cliDeps(runner, foundPath("agy")), "antigravity", true)
+
+	if usage.Status != StatusTemporaryError {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusTemporaryError)
+	}
+}
+
+func TestGetClaudeUsageWithoutToken(t *testing.T) {
+	depsImportable := testTokenDeps(nil, map[string]bool{"claude": true})
+	usage := getClaudeUsage(context.Background(), depsImportable, "claude", true)
+	if usage.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusLoginRequired)
+	}
+	if !usage.CanImport {
+		t.Error("CanImport = false, want true")
+	}
+}
+
+func TestGetCodexUsageWithoutToken(t *testing.T) {
+	depsImportable := testTokenDeps(nil, map[string]bool{"codex": true})
+	usage := getCodexUsage(context.Background(), depsImportable, "codex", true)
+	if usage.Status != StatusLoginRequired {
+		t.Errorf("Status = %q, want %q", usage.Status, StatusLoginRequired)
+	}
+	if !usage.CanImport {
+		t.Error("CanImport = false, want true")
+	}
+}
+
+func TestLocalDiagnosisNeverReportsConnected(t *testing.T) {
+	deps := testTokenDeps(map[string]*auth.Token{
+		"claude": {AccessToken: "token-claude", Extra: auth.Extra{Plan: "pro"}},
+		"codex":  {AccessToken: "token-codex", Extra: auth.Extra{Plan: "team"}},
+	}, nil)
+
+	claude, _, _ := diagnoseClaude(context.Background(), deps, "claude", false)
+	codex, _, _ := diagnoseCodex(context.Background(), deps, "codex", false)
+	antigravity := diagnoseAntigravityLocal(context.Background(),
+		cliDeps(antigravityRunner(map[string]commandResult{}), foundPath("agy")), "antigravity")
+
+	for name, diagnosis := range map[string]Diagnosis{"claude": claude, "codex": codex, "antigravity": antigravity} {
+		if diagnosis.Status == StatusConnected {
+			t.Errorf("%s: Status = %q, want any state but connected from a local-only diagnosis", name, diagnosis.Status)
+		}
+		if diagnosis.Status != StatusAuthCheckRequired {
+			t.Errorf("%s: Status = %q, want %q", name, diagnosis.Status, StatusAuthCheckRequired)
+		}
 	}
 }
 
@@ -360,9 +464,10 @@ func TestUsageUnreadableDiagnosisKeepsTheReasonsApart(t *testing.T) {
 
 func TestNeedsUserActionCoversTheExpectedSetupStates(t *testing.T) {
 	expected := map[Status]bool{
-		StatusNotInstalled:      true,
 		StatusAuthCheckRequired: true,
 		StatusLoginRequired:     true,
+		StatusAwaitingCode:      true,
+		StatusNotInstalled:      true,
 		StatusConnected:         false,
 		StatusUsageUnavailable:  false,
 		StatusTemporaryError:    false,
@@ -409,219 +514,47 @@ func TestTechnicalDetailsCollapsesAndTruncates(t *testing.T) {
 	}
 }
 
-func TestLimitedBufferStopsAtTheLimitWithoutShortWrites(t *testing.T) {
-	buffer := &limitedBuffer{limit: 8}
-	written, err := buffer.Write([]byte("0123456789"))
-	if err != nil || written != 10 {
-		t.Errorf("Write() = (%d, %v), want (10, nil) so an oversized write never kills the child process", written, err)
+func TestAuthorizedAccessTokenPrefersARefreshedToken(t *testing.T) {
+	var gotCfgType, gotTokenKey string
+	deps := providerDeps{
+		getValidAccessToken: func(ctx context.Context, cfgType, tokenKey string) (string, error) {
+			gotCfgType, gotTokenKey = cfgType, tokenKey
+			return "refreshed-token", nil
+		},
 	}
-	if got := buffer.String(); got != "01234567" {
-		t.Errorf("String() = %q, want the first 8 bytes only", got)
+	got, err := authorizedAccessToken(context.Background(), deps, "codex", "instance-1", "stale-token")
+	if err != nil {
+		t.Fatalf("authorizedAccessToken() error = %v", err)
 	}
-}
-
-// scriptedRunner answers differently per command, keyed by the first argument
-// ("--version", "-p" for the /usage prompt, "models"). The Antigravity path
-// chains up to three commands, and the interesting cases are exactly the ones
-// where they disagree - /usage fails but models succeeds, say.
-type scriptedRunner struct {
-	results map[string]commandResult
-	errs    map[string]error
-	calls   [][]string
-}
-
-func (r *scriptedRunner) run(_ context.Context, name string, args ...string) (commandResult, error) {
-	key := ""
-	if len(args) > 0 {
-		key = args[0]
+	if got != "refreshed-token" {
+		t.Errorf("authorizedAccessToken() = %q, want the refreshed token", got)
 	}
-	r.calls = append(r.calls, append([]string{name}, args...))
-	return r.results[key], r.errs[key]
-}
-
-func (r *scriptedRunner) ran(key string) bool {
-	for _, call := range r.calls {
-		if len(call) > 1 && call[1] == key {
-			return true
-		}
-	}
-	return false
-}
-
-func antigravityRunner(results map[string]commandResult) *scriptedRunner {
-	if _, ok := results["--version"]; !ok {
-		results["--version"] = commandResult{Stdout: "1.1.28"}
-	}
-	return &scriptedRunner{results: results, errs: map[string]error{}}
-}
-
-func TestGetAntigravityUsageReportsNotInstalledWithoutRawPathError(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{})
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, missingPath(), nil), true)
-
-	if usage.Status != StatusNotInstalled {
-		t.Errorf("Status = %q, want %q", usage.Status, StatusNotInstalled)
-	}
-	// Message provides clean, actionable guidance that names the command to install.
-	if strings.Contains(usage.Message, "PATH") {
-		t.Errorf("Message = %q, want guidance rather than the raw lookup error", usage.Message)
-	}
-	if !strings.Contains(usage.Message, "agy") {
-		t.Errorf("Message = %q, want guidance to name the agy CLI", usage.Message)
-	}
-	// Details provides concrete lookup locations so the user can see what was searched.
-	if usage.Details == "" || !strings.Contains(usage.Details, "CLI Not Found") {
-		t.Errorf("Details = %q, want Details to mention CLI Not Found", usage.Details)
-	}
-	if len(runner.calls) != 0 {
-		t.Errorf("ran %v, want no command when the executable was never resolved", runner.calls)
+	if gotCfgType != "codex" || gotTokenKey != "instance-1" {
+		t.Errorf("getValidAccessToken called with (%q, %q), want (codex, instance-1)", gotCfgType, gotTokenKey)
 	}
 }
 
-func TestGetAntigravityUsageStopsBeforeUsageWhenInactive(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{})
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), false)
-
-	if usage.Status != StatusAuthCheckRequired {
-		t.Errorf("Status = %q, want %q", usage.Status, StatusAuthCheckRequired)
+func TestAuthorizedAccessTokenReturnsRefreshFailure(t *testing.T) {
+	deps := providerDeps{
+		getValidAccessToken: func(ctx context.Context, cfgType, tokenKey string) (string, error) {
+			return "", errors.New("refresh failed")
+		},
 	}
-	if runner.ran("-p") {
-		t.Errorf("ran %v, want no /usage request for an inactive provider", runner.calls)
-	}
-}
-
-func TestGetAntigravityUsageConnectsOnValidUsage(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{
-		"-p": {Stdout: string(readFixture(t, "antigravity-usage.json"))},
-	})
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), true)
-
-	if usage.Status != StatusConnected {
-		t.Fatalf("Status = %q (%q), want %q", usage.Status, usage.Message, StatusConnected)
-	}
-	if len(usage.Groups) == 0 {
-		t.Error("Groups is empty, want the parsed usage groups")
-	}
-	if usage.Error != "" {
-		t.Errorf("Error = %q, want empty on success", usage.Error)
-	}
-	if runner.ran("models") {
-		t.Errorf("ran %v, want no secondary diagnostic after a clean /usage", runner.calls)
-	}
-	if !runner.ran("--version") {
-		t.Errorf("ran %v, want the local `agy --version` check before /usage even for an active check", runner.calls)
+	got, err := authorizedAccessToken(context.Background(), deps, "codex", "instance-1", "stale-token")
+	if err == nil || got != "" {
+		t.Errorf("authorizedAccessToken() = (%q, %v), want empty token and refresh error", got, err)
 	}
 }
 
-func TestGetAntigravityUsageSeparatesNoDataFromUnreadableResponse(t *testing.T) {
-	empty := antigravityRunner(map[string]commandResult{"-p": {Stdout: `{"command":{"data":{"groups":[]}}}`}})
-	usage := getAntigravityUsage(context.Background(), testDeps(empty, foundPath("agy"), nil), true)
-	if usage.Status != StatusUsageUnavailable || usage.Reason != ReasonNoUsageData {
-		t.Errorf("empty groups: (Status, Reason) = (%q, %q), want (%q, %q)",
-			usage.Status, usage.Reason, StatusUsageUnavailable, ReasonNoUsageData)
+func TestAuthorizedAccessTokenFallsBackWhenNotWired(t *testing.T) {
+	// The diagnose-only tests above build a providerDeps with no
+	// getValidAccessToken at all; a usage fetch given that same deps must
+	// degrade to the credential's own token rather than panic.
+	got, err := authorizedAccessToken(context.Background(), providerDeps{}, "codex", "instance-1", "stale-token")
+	if err != nil {
+		t.Fatalf("authorizedAccessToken() error = %v", err)
 	}
-
-	garbled := antigravityRunner(map[string]commandResult{"-p": {Stdout: "not json at all"}})
-	usage = getAntigravityUsage(context.Background(), testDeps(garbled, foundPath("agy"), nil), true)
-	if usage.Status != StatusUsageUnavailable || usage.Reason != ReasonUnsupportedResponse {
-		t.Errorf("garbled output: (Status, Reason) = (%q, %q), want (%q, %q)",
-			usage.Status, usage.Reason, StatusUsageUnavailable, ReasonUnsupportedResponse)
-	}
-}
-
-func TestGetAntigravityUsageReportsLoginRequiredOnAuthMarker(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{
-		"-p": {Stderr: "Error: not logged in. Run agy to sign in.", ExitCode: 1},
-	})
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), true)
-
-	if usage.Status != StatusLoginRequired {
-		t.Errorf("Status = %q, want %q", usage.Status, StatusLoginRequired)
-	}
-	if runner.ran("models") {
-		t.Errorf("ran %v, want no secondary diagnostic once the failure is already clear", runner.calls)
-	}
-}
-
-func TestGetAntigravityUsageReportsUnsupportedCLIOnRejectedCommand(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{
-		"-p": {Stderr: `Error: unexpected argument "--output-format".`, ExitCode: 2},
-	})
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), true)
-
-	if usage.Status != StatusUnsupportedCLI {
-		t.Errorf("Status = %q, want %q", usage.Status, StatusUnsupportedCLI)
-	}
-}
-
-func TestGetAntigravityUsageUsesModelsToDisambiguateAnUnreadableFailure(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{
-		"-p":     {Stderr: "Error: something unexpected happened", ExitCode: 1},
-		"models": {Stdout: "gemini-3-pro\ngpt-5.2\n", Stderr: "Fetching available models..."},
-	})
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), true)
-
-	if !runner.ran("models") {
-		t.Fatalf("ran %v, want the secondary diagnostic for an ambiguous failure", runner.calls)
-	}
-	// models answering normally proves the session is fine, so the failure
-	// belongs to the usage response rather than to authentication.
-	if usage.Status != StatusUsageUnavailable || usage.Reason != ReasonUnsupportedResponse {
-		t.Errorf("(Status, Reason) = (%q, %q), want (%q, %q)",
-			usage.Status, usage.Reason, StatusUsageUnavailable, ReasonUnsupportedResponse)
-	}
-}
-
-func TestGetAntigravityUsageNeverGuessesSignOutFromAnUnknownFailure(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{
-		"-p":     {Stderr: "Error: something unexpected happened", ExitCode: 1},
-		"models": {Stderr: "Error: something unexpected happened", ExitCode: 1},
-	})
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), true)
-
-	if usage.Status != StatusTemporaryError {
-		t.Errorf("Status = %q, want %q - neither command said anything about authentication", usage.Status, StatusTemporaryError)
-	}
-}
-
-func TestGetAntigravityUsageReportsTemporaryErrorOnUsageTimeout(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{})
-	runner.errs["-p"] = context.DeadlineExceeded
-	usage := getAntigravityUsage(context.Background(), testDeps(runner, foundPath("agy"), nil), true)
-
-	if usage.Status != StatusTemporaryError {
-		t.Errorf("Status = %q, want %q", usage.Status, StatusTemporaryError)
-	}
-}
-
-func TestDiagnoseAntigravityLocalNeverRunsANetworkCommand(t *testing.T) {
-	runner := antigravityRunner(map[string]commandResult{})
-	diagnosis := diagnoseAntigravityLocal(context.Background(), testDeps(runner, foundPath("agy"), nil))
-
-	if diagnosis.Status != StatusAuthCheckRequired {
-		t.Errorf("Status = %q, want %q", diagnosis.Status, StatusAuthCheckRequired)
-	}
-	if runner.ran("-p") || runner.ran("models") {
-		t.Errorf("ran %v, want only the local version check on the first-run screen", runner.calls)
-	}
-}
-
-func TestLocalDiagnosisNeverReportsConnected(t *testing.T) {
-	// The first-run screen must not be able to claim a working connection: only
-	// a real usage response can, and none of these paths make one.
-	claude, _, _ := diagnoseClaude(context.Background(),
-		testDeps(&fakeRunner{}, foundPath("claude"), map[string]string{".claude/.credentials.json": claudeCredentialFile}), false)
-	codex, _, _ := diagnoseCodex(context.Background(),
-		testDeps(&fakeRunner{}, foundPath("codex"), map[string]string{".codex/auth.json": codexCredentialFile}), false)
-	antigravity := diagnoseAntigravityLocal(context.Background(),
-		testDeps(antigravityRunner(map[string]commandResult{}), foundPath("agy"), nil))
-
-	for name, diagnosis := range map[string]Diagnosis{"claude": claude, "codex": codex, "antigravity": antigravity} {
-		if diagnosis.Status == StatusConnected {
-			t.Errorf("%s: Status = %q, want any state but connected from a local-only diagnosis", name, diagnosis.Status)
-		}
-		if diagnosis.Status != StatusAuthCheckRequired {
-			t.Errorf("%s: Status = %q, want %q", name, diagnosis.Status, StatusAuthCheckRequired)
-		}
+	if got != "stale-token" {
+		t.Errorf("authorizedAccessToken() = %q, want the fallback token when unwired", got)
 	}
 }

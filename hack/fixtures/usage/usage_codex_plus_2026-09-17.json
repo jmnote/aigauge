@@ -1,0 +1,76 @@
+{
+  "account_id": "",
+  "additional_rate_limits": null,
+  "code_review_rate_limit": null,
+  "credits": {
+    "approx_cloud_messages": [
+      0,
+      0
+    ],
+    "approx_local_messages": [
+      0,
+      0
+    ],
+    "balance": "0",
+    "has_credits": false,
+    "overage_limit_reached": false,
+    "unlimited": false
+  },
+  "email": "oqsuwy@acegi.kmp",
+  "model_usage": {
+    "gpt-6-astra": {
+      "available": false,
+      "available_at": "2026-09-16T20:40:20.593661Z",
+      "credits_would_enable": true
+    }
+  },
+  "plan_type": "plus",
+  "promo": null,
+  "rate_limit": {
+    "allowed": false,
+    "limit_reached": true,
+    "primary_window": {
+      "limit_window_seconds": 18000,
+      "reset_after_seconds": 3336,
+      "reset_at": 1789591219,
+      "used_percent": 100
+    },
+    "secondary_window": {
+      "limit_window_seconds": 604800,
+      "reset_after_seconds": 217656,
+      "reset_at": 1789805540,
+      "used_percent": 66
+    }
+  },
+  "rate_limit_reached_type": {
+    "details": "default",
+    "type": "rate_limit_reached"
+  },
+  "rate_limit_reset_credits": {
+    "applicable_available_count": 2,
+    "available_count": 2
+  },
+  "rate_limit_upsell": {
+    "banner_type": "plus_rate_limit_reached",
+    "ctas": [
+      {
+        "action": "open_pricing_dialog",
+        "label": "Upgrade"
+      },
+      {
+        "action": "reset_usage",
+        "label": "Reset usage"
+      }
+    ],
+    "description": "Your rate limit resets on {time}. Upgrade or use one of your rate limit resets now.",
+    "referral": null,
+    "request_url": null,
+    "reset_at": 1789591219,
+    "title": "You're out of Codex messages"
+  },
+  "spend_control": {
+    "individual_limit": null,
+    "reached": false
+  },
+  "user_id": "uwya-ceGgIKiMkmOQSo2qUEXAMPLE"
+}

@@ -17,222 +17,183 @@ func readFixture(t *testing.T, name string) []byte {
 }
 
 func TestParseCodexUsage(t *testing.T) {
-	usage, err := parseCodexUsage(readFixture(t, "codex-usage.json"))
+	usage, err := ParseCodexUsage(readFixture(t, "codex-usage.json"))
 	if err != nil {
-		t.Fatalf("parseCodexUsage() error = %v", err)
+		t.Fatalf("ParseCodexUsage() error = %v", err)
 	}
-	if usage.Plan != "pro" {
-		t.Errorf("Plan = %q, want %q", usage.Plan, "pro")
+	if usage.PlanType != "pro" {
+		t.Errorf("PlanType = %q, want %q", usage.PlanType, "pro")
 	}
-	if usage.FiveHour != 37.5 || usage.SevenDay != 62.25 {
-		t.Errorf("usage percentages = (%v, %v), want (37.5, 62.25)", usage.FiveHour, usage.SevenDay)
+	if *usage.RateLimit.PrimaryWindow.UsedPercent != 37.5 || *usage.RateLimit.SecondaryWindow.UsedPercent != 62.25 {
+		t.Errorf("used percentages = (%v, %v), want (37.5, 62.25)", *usage.RateLimit.PrimaryWindow.UsedPercent, *usage.RateLimit.SecondaryWindow.UsedPercent)
 	}
-	if usage.FiveHourIn != 3600 || usage.SevenDayIn != 86400 {
-		t.Errorf("reset seconds = (%d, %d), want (3600, 86400)", usage.FiveHourIn, usage.SevenDayIn)
+	if *usage.RateLimit.PrimaryWindow.ResetAfterSeconds != 3600 || *usage.RateLimit.SecondaryWindow.ResetAfterSeconds != 86400 {
+		t.Errorf("reset seconds = (%d, %d), want (3600, 86400)", *usage.RateLimit.PrimaryWindow.ResetAfterSeconds, *usage.RateLimit.SecondaryWindow.ResetAfterSeconds)
 	}
 }
 
 func TestParseAntigravityUsage(t *testing.T) {
-	usage, err := parseAntigravityUsage(readFixture(t, "antigravity-usage.json"))
+	usage, err := ParseAntigravityUsage(readFixture(t, "antigravity-usage.json"))
 	if err != nil {
-		t.Fatalf("parseAntigravityUsage() error = %v", err)
+		t.Fatalf("ParseAntigravityUsage() error = %v", err)
 	}
-	if len(usage.Groups) != 1 || usage.Groups[0].Name != "Gemini" {
+	if len(usage.Groups) != 1 || usage.Groups[0].DisplayName != "Gemini" {
 		t.Fatalf("Groups = %#v, want one Gemini group", usage.Groups)
 	}
 	if len(usage.Groups[0].Buckets) != 1 {
 		t.Fatalf("Buckets = %#v, want one bucket", usage.Groups[0].Buckets)
 	}
 	bucket := usage.Groups[0].Buckets[0]
-	if bucket.Name != "daily" || bucket.Window != "24h" {
-		t.Errorf("bucket identity = (%q, %q), want (daily, 24h)", bucket.Name, bucket.Window)
+	if bucket.DisplayName != "daily" || bucket.Window != "24h" {
+		t.Errorf("bucket identity = (%q, %q), want (daily, 24h)", bucket.DisplayName, bucket.Window)
 	}
-	if bucket.Remaining != 87.5 {
-		t.Errorf("Remaining = %v, want 87.5", bucket.Remaining)
+	if bucket.RemainingFraction != 0.875 {
+		t.Errorf("RemainingFraction = %v, want 0.875", bucket.RemainingFraction)
 	}
 	if bucket.ResetTime != "2026-08-30T00:00:00Z" {
 		t.Errorf("ResetTime = %q, want %q", bucket.ResetTime, "2026-08-30T00:00:00Z")
 	}
 }
 
-func TestResolveExecutableReturnsLookupPathWhenFound(t *testing.T) {
-	calledFallback := false
-	deps := providerDeps{
-		lookPath: foundPath("/usr/bin/agy"),
-		homeDir: func() (string, error) {
-			calledFallback = true
-			return "", nil
-		},
-	}
-	path, fallback := resolveExecutable("agy", func(string) (string, bool) {
-		calledFallback = true
-		return "", false
-	}, deps)
-	if path != "/usr/bin/agy" || fallback != "" {
-		t.Errorf("resolveExecutable() = (%q, %q), want (\"/usr/bin/agy\", \"\")", path, fallback)
-	}
-	if calledFallback {
-		t.Error("resolveExecutable() consulted the fallback path when the lookup already succeeded")
-	}
-}
-
-func TestResolveExecutableReturnsEmptyWhenHomeDirFails(t *testing.T) {
-	deps := providerDeps{
-		lookPath: missingPath(),
-		homeDir:  func() (string, error) { return "", errors.New("no home dir") },
-	}
-	path, fallback := resolveExecutable("agy", antigravityFallbackPath, deps)
-	if path != "" || fallback != "" {
-		t.Errorf("resolveExecutable() = (%q, %q), want (\"\", \"\") when the home directory can't be determined", path, fallback)
-	}
-}
-
-func TestResolveExecutableFallsBackWhenLookupFails(t *testing.T) {
-	home := filepath.Join("C:", "Users", "test")
-	wantCodex, codexSupported := codexFallbackPath(home)
-	wantClaude, claudeSupported := claudeFallbackPath(home)
-	wantAgy, agySupported := antigravityFallbackPath(home)
-
-	deps := providerDeps{
-		lookPath:   missingPath(),
-		homeDir:    func() (string, error) { return home, nil },
-		pathExists: func(p string) bool { return p == wantCodex || p == wantClaude || p == wantAgy },
-	}
-
-	if codexSupported {
-		path, _ := resolveExecutable("codex", codexFallbackPath, deps)
-		if path != wantCodex {
-			t.Errorf("resolveExecutable(codex) = %q, want %q", path, wantCodex)
-		}
-	}
-	if claudeSupported {
-		path, _ := resolveExecutable("claude", claudeFallbackPath, deps)
-		if path != wantClaude {
-			t.Errorf("resolveExecutable(claude) = %q, want %q", path, wantClaude)
-		}
-	}
-	if agySupported {
-		path, _ := resolveExecutable("agy", antigravityFallbackPath, deps)
-		if path != wantAgy {
-			t.Errorf("resolveExecutable(agy) = %q, want %q", path, wantAgy)
-		}
-	}
-}
-
-func TestResolveExecutableReportsTheFallbackPathWhenItDoesNotExist(t *testing.T) {
-	home := filepath.Join("C:", "Users", "test")
-	wantAgy, supported := antigravityFallbackPath(home)
-	if !supported {
-		t.Skip("no fallback path is defined for this platform")
-	}
-
-	deps := providerDeps{
-		lookPath:   missingPath(),
-		homeDir:    func() (string, error) { return home, nil },
-		pathExists: func(string) bool { return false },
-	}
-	path, fallback := resolveExecutable("agy", antigravityFallbackPath, deps)
-	if path != "" || fallback != wantAgy {
-		t.Errorf("resolveExecutable() = (%q, %q), want (\"\", %q) when the fallback binary doesn't exist on disk", path, fallback, wantAgy)
-	}
-}
-
-func TestNotFoundDetails(t *testing.T) {
-	if got := notFoundDetails(""); got != "CLI Not Found: PATH" {
-		t.Errorf("notFoundDetails(\"\") = %q, want %q", got, "CLI Not Found: PATH")
-	}
-	want := "CLI Not Found: C:\\bin\\tool.exe"
-	if got := notFoundDetails("C:\\bin\\tool.exe"); got != want {
-		t.Errorf("notFoundDetails(...) = %q, want %q", got, want)
-	}
-}
-
 func TestParseClaudeUsage(t *testing.T) {
-	usage, err := parseClaudeUsage(readFixture(t, "claude-usage.json"))
+	usage, err := ParseClaudeUsage(readFixture(t, "claude-usage.json"))
 	if err != nil {
-		t.Fatalf("parseClaudeUsage() error = %v", err)
+		t.Fatalf("ParseClaudeUsage() error = %v", err)
 	}
-	if len(usage.Buckets) != 3 {
-		t.Fatalf("Buckets = %#v, want 3 buckets", usage.Buckets)
+	if *usage.FiveHour.Utilization != 37.5 || usage.FiveHour.ResetsAt != "2026-08-30T05:00:00Z" {
+		t.Errorf("FiveHour = %#v, want (37.5, 2026-08-30T05:00:00Z)", usage.FiveHour)
 	}
-	fiveHour, sevenDay, sevenDayOpus := usage.Buckets[0], usage.Buckets[1], usage.Buckets[2]
-	if fiveHour.Name != "5h" || fiveHour.Remaining != 62.5 {
-		t.Errorf("five hour bucket = %#v, want (5h, 62.5)", fiveHour)
+	if *usage.SevenDay.Utilization != 62.25 {
+		t.Errorf("SevenDay.Utilization = %v, want 62.25", *usage.SevenDay.Utilization)
 	}
-	if sevenDay.Name != "7d" || sevenDay.Remaining != 37.75 {
-		t.Errorf("seven day bucket = %#v, want (7d, 37.75)", sevenDay)
+	if usage.SevenDayOpus == nil || *usage.SevenDayOpus.Utilization != 10 {
+		t.Errorf("SevenDayOpus = %#v, want utilization 10", usage.SevenDayOpus)
 	}
-	if sevenDayOpus.Name != "7d (Opus)" || sevenDayOpus.Remaining != 90 {
-		t.Errorf("seven day opus bucket = %#v, want (7d (Opus), 90)", sevenDayOpus)
-	}
-	if fiveHour.ResetTime != "2026-08-30T05:00:00Z" {
-		t.Errorf("ResetTime = %q, want %q", fiveHour.ResetTime, "2026-08-30T05:00:00Z")
-	}
-}
-
-func TestParseClaudeUsageDegradesWhenAWindowIsAbsent(t *testing.T) {
-	data := []byte(`{"five_hour":{"utilization":10,"resets_at":"x"}}`)
-	usage, err := parseClaudeUsage(data)
-	if err != nil {
-		t.Fatalf("parseClaudeUsage() error = %v, want the present 5h window to still parse", err)
-	}
-	if len(usage.Buckets) != 1 || usage.Buckets[0].Name != "5h" {
-		t.Fatalf("Buckets = %#v, want just the 5h window", usage.Buckets)
-	}
-}
-
-func TestParseClaudeUsageSkipsMalformedOptionalWindow(t *testing.T) {
-	data := []byte(`{"five_hour":{"utilization":10,"resets_at":"x"},"seven_day":{"utilization":20,"resets_at":"y"},"seven_day_opus":{"utilization":150,"resets_at":"z"}}`)
-	usage, err := parseClaudeUsage(data)
-	if err != nil {
-		t.Fatalf("parseClaudeUsage() error = %v, want required 5h/7d buckets to still parse", err)
-	}
-	if len(usage.Buckets) != 2 {
-		t.Fatalf("Buckets = %#v, want the malformed optional 7d (Opus) window skipped", usage.Buckets)
-	}
-}
-
-func TestParseClaudeUsageRejectsMissingAndOutOfRangeFields(t *testing.T) {
-	for _, data := range [][]byte{
-		[]byte(`{}`),
-		[]byte(`{"five_hour":{"utilization":-1,"resets_at":"x"},"seven_day":{"utilization":1,"resets_at":"x"}}`),
-	} {
-		if _, err := parseClaudeUsage(data); err == nil {
-			t.Errorf("parseClaudeUsage(%s) error = nil, want validation error", data)
-		}
+	if usage.SevenDaySonnet != nil {
+		t.Errorf("SevenDaySonnet = %#v, want nil (absent from the fixture)", usage.SevenDaySonnet)
 	}
 }
 
 func TestParseUsageRejectsInvalidJSON(t *testing.T) {
-	if _, err := parseCodexUsage([]byte(`{`)); err == nil {
-		t.Error("parseCodexUsage() error = nil, want invalid JSON error")
+	if _, err := ParseCodexUsage([]byte(`{`)); err == nil {
+		t.Error("ParseCodexUsage() error = nil, want invalid JSON error")
 	}
-	if _, err := parseAntigravityUsage([]byte(`{`)); err == nil {
-		t.Error("parseAntigravityUsage() error = nil, want invalid JSON error")
+	if _, err := ParseAntigravityUsage([]byte(`{`)); err == nil {
+		t.Error("ParseAntigravityUsage() error = nil, want invalid JSON error")
 	}
-	if _, err := parseClaudeUsage([]byte(`{`)); err == nil {
-		t.Error("parseClaudeUsage() error = nil, want invalid JSON error")
+	if _, err := ParseClaudeUsage([]byte(`{`)); err == nil {
+		t.Error("ParseClaudeUsage() error = nil, want invalid JSON error")
 	}
 }
 
-func TestParseCodexUsageRejectsMissingAndOutOfRangeFields(t *testing.T) {
+// connectedCodex/connectedClaude parse data and mark the result StatusConnected,
+// the state ToDisplay requires to do any conversion - mirroring what
+// getCodexUsage/getClaudeUsage set after a successful fetch, since
+// ToDisplay itself no longer does that (see ParseXUsage's doc comment).
+
+func connectedCodex(t *testing.T, data []byte) CodexUsage {
+	t.Helper()
+	usage, err := ParseCodexUsage(data)
+	if err != nil {
+		t.Fatalf("ParseCodexUsage() error = %v", err)
+	}
+	usage.Status = StatusConnected
+	return usage
+}
+
+func connectedClaude(t *testing.T, data []byte) ClaudeUsage {
+	t.Helper()
+	usage, err := ParseClaudeUsage(data)
+	if err != nil {
+		t.Fatalf("ParseClaudeUsage() error = %v", err)
+	}
+	usage.Status = StatusConnected
+	return usage
+}
+
+func TestCodexToDisplay(t *testing.T) {
+	display := connectedCodex(t, readFixture(t, "codex-usage.json")).ToDisplay()
+	if display.Error != "" {
+		t.Fatalf("ToDisplay() error = %s", display.Error)
+	}
+	if display.Plan != "pro" {
+		t.Errorf("Plan = %q, want %q", display.Plan, "pro")
+	}
+	if len(display.Groups) != 1 || len(display.Groups[0].Buckets) != 2 {
+		t.Fatalf("Groups = %#v, want one group with 5h/7d buckets", display.Groups)
+	}
+	fiveHour, sevenDay := display.Groups[0].Buckets[0], display.Groups[0].Buckets[1]
+	if fiveHour.Label != "5h" || fiveHour.Remaining != 62.5 {
+		t.Errorf("5h bucket = %#v, want (5h, 62.5)", fiveHour)
+	}
+	if sevenDay.Label != "7d" || sevenDay.Remaining != 37.75 {
+		t.Errorf("7d bucket = %#v, want (7d, 37.75)", sevenDay)
+	}
+}
+
+func TestCodexToDisplayRejectsMissingAndOutOfRangeFields(t *testing.T) {
 	for _, data := range [][]byte{
 		[]byte(`{}`),
 		[]byte(`{"plan_type":"pro","rate_limit":{"primary_window":{"used_percent":-1,"reset_after_seconds":1},"secondary_window":{"used_percent":1,"reset_after_seconds":1}}}`),
 	} {
-		if _, err := parseCodexUsage(data); err == nil {
-			t.Errorf("parseCodexUsage(%s) error = nil, want validation error", data)
+		display := connectedCodex(t, data).ToDisplay()
+		if display.Error == "" {
+			t.Errorf("ToDisplay(%s).Error = \"\", want a validation error", data)
 		}
 	}
 }
 
-func TestParseCodexUsageAllowsMissingPlan(t *testing.T) {
+func TestCodexToDisplayAllowsMissingPlan(t *testing.T) {
 	data := []byte(`{"rate_limit":{"primary_window":{"used_percent":1,"reset_after_seconds":1},"secondary_window":{"used_percent":2,"reset_after_seconds":2}}}`)
-	usage, err := parseCodexUsage(data)
-	if err != nil {
-		t.Fatalf("parseCodexUsage() error = %v", err)
+	display := connectedCodex(t, data).ToDisplay()
+	if display.Error != "" {
+		t.Fatalf("ToDisplay() error = %s", display.Error)
 	}
-	if usage.Plan != "" {
-		t.Errorf("Plan = %q, want empty", usage.Plan)
+	if display.Plan != "" {
+		t.Errorf("Plan = %q, want empty", display.Plan)
+	}
+}
+
+func TestClaudeToDisplayDegradesWhenAWindowIsAbsent(t *testing.T) {
+	data := []byte(`{"five_hour":{"utilization":10,"resets_at":"x"}}`)
+	display := connectedClaude(t, data).ToDisplay()
+	if display.Error != "" {
+		t.Fatalf("ToDisplay() error = %s, want the present 5h window to still convert", display.Error)
+	}
+	if len(display.Groups) != 1 || len(display.Groups[0].Buckets) != 1 || display.Groups[0].Buckets[0].Label != "5h" {
+		t.Fatalf("Groups = %#v, want just the 5h bucket", display.Groups)
+	}
+}
+
+func TestClaudeToDisplaySkipsMalformedOptionalWindow(t *testing.T) {
+	data := []byte(`{"five_hour":{"utilization":10,"resets_at":"x"},"seven_day":{"utilization":20,"resets_at":"y"},"seven_day_opus":{"utilization":150,"resets_at":"z"}}`)
+	display := connectedClaude(t, data).ToDisplay()
+	if display.Error != "" {
+		t.Fatalf("ToDisplay() error = %s, want required 5h/7d buckets to still convert", display.Error)
+	}
+	if len(display.Groups) != 1 || len(display.Groups[0].Buckets) != 2 {
+		t.Fatalf("Groups = %#v, want the malformed optional 7d (Opus) window skipped", display.Groups)
+	}
+}
+
+func TestClaudeToDisplayRejectsMissingAndOutOfRangeFields(t *testing.T) {
+	for _, data := range [][]byte{
+		[]byte(`{}`),
+		[]byte(`{"five_hour":{"utilization":-1,"resets_at":"x"},"seven_day":{"utilization":1,"resets_at":"x"}}`),
+	} {
+		display := connectedClaude(t, data).ToDisplay()
+		if display.Error == "" {
+			t.Errorf("ToDisplay(%s).Error = \"\", want a validation error", data)
+		}
+	}
+}
+
+func TestClaudeToDisplayNoWindowsReasonIsNoUsageData(t *testing.T) {
+	display := connectedClaude(t, []byte(`{}`)).ToDisplay()
+	if display.Reason != ReasonNoUsageData {
+		t.Errorf("Reason = %q, want %q", display.Reason, ReasonNoUsageData)
+	}
+	if !errors.Is(errNoUsageWindows, errNoUsageWindows) {
+		t.Fatal("sanity: errNoUsageWindows should be comparable to itself")
 	}
 }

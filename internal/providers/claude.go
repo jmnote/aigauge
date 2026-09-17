@@ -8,135 +8,131 @@ import (
 	"time"
 )
 
-// errNoUsageWindows marks a usage response that parsed cleanly but described no
-// window to show. It is a sentinel rather than a plain error string so the
-// caller can tell "this account has nothing to report" apart from "this
-// response is a shape we cannot read" when choosing the Reason to surface.
 var errNoUsageWindows = errors.New("response contains no usable usage windows")
 
-type ClaudeUsage struct {
-	Plan      string              `json:"plan"`
-	Buckets   []ClaudeUsageBucket `json:"buckets"`
-	FetchedAt string              `json:"fetchedAt"`
-
-	// See DiagnosisFields in status.go: it carries the structured diagnosis,
-	// shared by all three providers so applyDiagnosis is defined exactly once.
-	DiagnosisFields
+// ParseClaudeUsage unmarshals a raw Claude usage response with no
+// validation or conversion - see ToDisplay for that.
+func ParseClaudeUsage(data []byte) (ClaudeUsage, error) {
+	var usage ClaudeUsage
+	if err := json.Unmarshal(data, &usage); err != nil {
+		return ClaudeUsage{}, err
+	}
+	usage.Raw = append(json.RawMessage(nil), data...)
+	return usage, nil
 }
 
-type ClaudeUsageBucket struct {
-	Name      string  `json:"name"`
-	Remaining float64 `json:"remaining"`
-	ResetTime string  `json:"resetTime"`
-}
-
-type claudeCredentials struct {
-	ClaudeAiOauth struct {
-		AccessToken      string `json:"accessToken"`
-		SubscriptionType string `json:"subscriptionType"`
-	} `json:"claudeAiOauth"`
-}
-
-type claudeUsageWindow struct {
-	Utilization *float64 `json:"utilization"`
-	ResetsAt    string   `json:"resets_at"`
-}
-
-type claudeUsageResponse struct {
-	FiveHour       claudeUsageWindow  `json:"five_hour"`
-	SevenDay       claudeUsageWindow  `json:"seven_day"`
-	SevenDayOpus   *claudeUsageWindow `json:"seven_day_opus"`
-	SevenDaySonnet *claudeUsageWindow `json:"seven_day_sonnet"`
-}
-
-func newClaudeBucket(name string, window claudeUsageWindow) (ClaudeUsageBucket, error) {
+func displayBucket(label string, window claudeUsageWindow) (DisplayUsageBucket, error) {
 	if window.Utilization == nil {
-		return ClaudeUsageBucket{}, fmt.Errorf("missing utilization for %s window", name)
+		return DisplayUsageBucket{}, fmt.Errorf("missing utilization for %s window", label)
 	}
 	utilization := *window.Utilization
 	if utilization < 0 || utilization > 100 {
-		return ClaudeUsageBucket{}, fmt.Errorf("utilization out of range for %s window", name)
+		return DisplayUsageBucket{}, fmt.Errorf("utilization out of range for %s window", label)
 	}
-	return ClaudeUsageBucket{
-		Name:      name,
+	return DisplayUsageBucket{
+		Label:     label,
 		Remaining: 100 - utilization,
 		ResetTime: window.ResetsAt,
 	}, nil
 }
 
-func parseClaudeUsage(data []byte) (ClaudeUsage, error) {
-	var response claudeUsageResponse
-	if err := json.Unmarshal(data, &response); err != nil {
-		return ClaudeUsage{}, err
+// ToDisplay validates each window (5h/7d required, the per-model weekly
+// windows optional and undocumented) and converts utilization into
+// remaining percentage.
+func (u ClaudeUsage) ToDisplay() DisplayUsage {
+	display := DisplayUsage{Plan: u.Plan, FetchedAt: u.FetchedAt, DiagnosisFields: u.DiagnosisFields}
+	if u.Status != StatusConnected {
+		return display
 	}
 
-	usage := ClaudeUsage{}
-
-	// The 5h/7d windows are normally always present, but this is an undocumented
-	// endpoint, so treat an absent window as "not reported for this account" rather
-	// than an error: skip it and keep whichever windows did come back, only
-	// propagating an error when the window is present but fails validation (e.g.
-	// an out-of-range utilization), which does indicate a real parsing problem.
+	var buckets []DisplayUsageBucket
+	// The 5h/7d windows are normally always present, but this is an
+	// undocumented endpoint, so treat an absent window as "not reported for
+	// this account" rather than an error: skip it and keep whichever
+	// windows did come back, only failing when a present window fails
+	// validation (e.g. an out-of-range utilization), which does indicate a
+	// real parsing problem.
 	for _, w := range []struct {
-		name   string
+		label  string
 		window claudeUsageWindow
 	}{
-		{"5h", response.FiveHour},
-		{"7d", response.SevenDay},
+		{"5h", u.FiveHour},
+		{"7d", u.SevenDay},
 	} {
 		if w.window.Utilization == nil {
 			continue
 		}
-		bucket, err := newClaudeBucket(w.name, w.window)
+		bucket, err := displayBucket(w.label, w.window)
 		if err != nil {
-			return ClaudeUsage{}, err
+			display.applyDiagnosis(usageUnreadableDiagnosis("Claude", ReasonUnsupportedResponse, err))
+			return display
 		}
-		usage.Buckets = append(usage.Buckets, bucket)
+		buckets = append(buckets, bucket)
 	}
 
-	// The per-model weekly windows are optional and undocumented; skip a malformed
-	// one instead of failing the whole response.
-	if response.SevenDayOpus != nil {
-		if bucket, err := newClaudeBucket("7d (Opus)", *response.SevenDayOpus); err == nil {
-			usage.Buckets = append(usage.Buckets, bucket)
+	// The per-model weekly windows are optional and undocumented; skip a
+	// malformed one instead of failing the whole response.
+	if u.SevenDayOpus != nil {
+		if bucket, err := displayBucket("7d (Opus)", *u.SevenDayOpus); err == nil {
+			buckets = append(buckets, bucket)
 		}
 	}
-	if response.SevenDaySonnet != nil {
-		if bucket, err := newClaudeBucket("7d (Sonnet)", *response.SevenDaySonnet); err == nil {
-			usage.Buckets = append(usage.Buckets, bucket)
+	if u.SevenDaySonnet != nil {
+		if bucket, err := displayBucket("7d (Sonnet)", *u.SevenDaySonnet); err == nil {
+			buckets = append(buckets, bucket)
 		}
 	}
 
-	if len(usage.Buckets) == 0 {
-		return ClaudeUsage{}, errNoUsageWindows
+	if len(buckets) == 0 {
+		display.applyDiagnosis(usageUnreadableDiagnosis("Claude", ReasonNoUsageData, errNoUsageWindows))
+		return display
 	}
-	return usage, nil
+	display.Groups = []DisplayUsageGroup{{Buckets: buckets}}
+	display.Status = StatusConnected
+	return display
 }
 
-// findClaudeCredentials reads the minimum this app needs to call the usage
-// API: the access token, plus the subscription label shown on the card. See
-// findCredentials in diagnose.go for what "found" means.
-func findClaudeCredentials(homeDir func() (string, error), readFile func(string) ([]byte, error)) (claudeCredentials, bool) {
-	return findCredentials(homeDir, readFile, claudeCredentialRelPath, func(c claudeCredentials) bool {
-		return c.ClaudeAiOauth.AccessToken != ""
+func GetClaudeUsage(tokenKey string) ClaudeUsage {
+	return getClaudeUsage(context.Background(), defaultDeps(), tokenKey, true)
+}
+
+// FetchClaudeRawUsage returns the unconverted usage response for the Claude
+// instance whose token is stored under tokenKey, using the same auth/HTTP
+// path as GetClaudeUsage. Used by hack/fixtures/fixtures.go to capture the
+// API's actual response shape for fixture development.
+func FetchClaudeRawUsage(tokenKey string) ([]byte, error) {
+	ctx := context.Background()
+	deps := defaultDeps()
+	diagnosis, credentials, ok := diagnoseClaude(ctx, deps, tokenKey, true)
+	if !ok {
+		return nil, fmt.Errorf("%s", diagnosis.Message)
+	}
+	accessToken, err := authorizedAccessToken(ctx, deps, "claude", tokenKey, credentials.ClaudeAiOauth.AccessToken)
+	if err != nil {
+		return nil, err
+	}
+	return fetchAuthorizedJSON(ctx, "https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
+		"Authorization":  "Bearer " + accessToken,
+		"anthropic-beta": "oauth-2025-04-20",
 	})
 }
 
-func GetClaudeUsage() ClaudeUsage {
-	return getClaudeUsage(context.Background(), defaultDeps(), true)
-}
-
-func getClaudeUsage(ctx context.Context, deps providerDeps, active bool) ClaudeUsage {
+func getClaudeUsage(ctx context.Context, deps providerDeps, tokenKey string, active bool) ClaudeUsage {
 	usage := ClaudeUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
-	diagnosis, credentials, ok := diagnoseClaude(ctx, deps, active)
+	diagnosis, credentials, ok := diagnoseClaude(ctx, deps, tokenKey, active)
 	if !ok {
 		usage.applyDiagnosis(diagnosis)
 		return usage
 	}
 
-	body, err := fetchAuthorizedJSON("https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
-		"Authorization":  "Bearer " + credentials.ClaudeAiOauth.AccessToken,
+	accessToken, err := authorizedAccessToken(ctx, deps, "claude", tokenKey, credentials.ClaudeAiOauth.AccessToken)
+	if err != nil {
+		usage.applyDiagnosis(usageFailureDiagnosis("Claude", err))
+		return usage
+	}
+	body, err := fetchAuthorizedJSON(ctx, "https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
+		"Authorization":  "Bearer " + accessToken,
 		"anthropic-beta": "oauth-2025-04-20",
 	})
 	if err != nil {
@@ -144,16 +140,9 @@ func getClaudeUsage(ctx context.Context, deps providerDeps, active bool) ClaudeU
 		return usage
 	}
 
-	parsed, err := parseClaudeUsage(body)
+	parsed, err := ParseClaudeUsage(body)
 	if err != nil {
-		// An account that simply reports no window is a different problem from a
-		// response shape this version cannot read: the first is nothing the user
-		// can act on, the second may be fixed by an update.
-		reason := ReasonUnsupportedResponse
-		if errors.Is(err, errNoUsageWindows) {
-			reason = ReasonNoUsageData
-		}
-		usage.applyDiagnosis(usageUnreadableDiagnosis("Claude", reason, err))
+		usage.applyDiagnosis(usageUnreadableDiagnosis("Claude", ReasonUnsupportedResponse, err))
 		return usage
 	}
 	parsed.FetchedAt = usage.FetchedAt

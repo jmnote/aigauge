@@ -14,7 +14,7 @@ import (
 //go:embed frontend
 var embeddedFrontend embed.FS
 
-//go:embed frontend/logo.png
+//go:embed frontend/images/logo.png
 var appIcon []byte
 
 func main() {
@@ -26,6 +26,7 @@ func main() {
 			}
 		}
 	}
+
 	frontendAssets, err := fs.Sub(embeddedFrontend, "frontend")
 	if err != nil {
 		log.Fatal("failed to initialize embedded frontend assets: ", err)

@@ -4,25 +4,24 @@ AI Gauge is a standalone Windows desktop application that displays usage informa
 
 ## Data access and use
 
-AI Gauge reads existing local Codex and Claude Code login sessions and invokes the locally installed `agy` command-line tool when Antigravity monitoring is enabled. It uses the resulting quota, reset-time, and connection-status information only to display it in the app. AI Gauge does not operate an intermediary server, use the information for advertising, or sell personal information.
+For Codex and Claude Code, AI Gauge signs in through each service's own official login flow and stores the resulting access token itself. For Google Antigravity, AI Gauge invokes the locally installed `agy` command-line tool rather than signing in or storing a token of its own. It uses the resulting quota, reset-time, and connection-status information only to display it in the app. AI Gauge does not operate an intermediary server, use the information for advertising, or sell personal information.
 
 ## Credentials
 
-AI Gauge does not request or persist passwords, payment information, or authentication credentials in its own storage. It uses access tokens maintained by existing Codex and Claude Code login sessions, and authentication handled by the locally installed `agy` command-line tool for Google Antigravity. Codex and Claude Code tokens are used only in memory for direct HTTPS requests to the corresponding service; they are not logged or uploaded to the developer. `agy` manages its own authentication and connection to Google Antigravity.
+AI Gauge does not request or persist passwords or payment information. For Codex and Claude Code, it stores the OAuth access/refresh token from your own sign-in locally on your device (see Local storage), using it only in memory for direct HTTPS requests to the corresponding service; it is not logged or uploaded to the developer. For Google Antigravity, AI Gauge holds no credential of its own: the locally installed `agy` command-line tool manages its own authentication and connection to Google Antigravity, and AI Gauge only reads the quota information `agy` reports back.
 
 ## Third-party services
 
-When Codex or Claude Code is enabled, AI Gauge may send a direct HTTPS request to OpenAI or Anthropic to retrieve usage information. OpenAI or Anthropic receives the access token and request data needed to answer its respective request. When Google Antigravity is enabled, AI Gauge invokes the locally installed `agy` command-line tool. `agy` uses the authentication information it manages to request usage information from Google Antigravity; AI Gauge does not read or pass those credentials. Each service processes the request under its own privacy policy.
+When Codex or Claude Code is enabled, AI Gauge may send a direct HTTPS request to OpenAI or Anthropic to retrieve usage information. OpenAI or Anthropic receives the access token and request data needed to answer its respective request. When Google Antigravity is enabled, AI Gauge invokes the locally installed `agy` command-line tool, which requests usage information from Google Antigravity using the authentication it manages itself; AI Gauge does not read or pass those credentials. Each service processes the request under its own privacy policy.
 
 ## Local storage
 
-AI Gauge stores only local application preferences, including provider visibility and order, refresh interval, theme, thresholds, and window preferences. It does not store credentials or usage data as application data, and does not maintain a remote account, analytics system, or remote database.
+AI Gauge stores local application preferences, including provider instances and order, refresh intervals, theme, thresholds, and window preferences. OAuth access and refresh tokens for Codex and Claude Code are stored locally under the app's configuration directory: Windows uses DPAPI-protected `credentials.dat`; other platforms use `credentials.json` with owner-only permissions. Usage results are kept in memory only while the app is running. AI Gauge does not maintain a remote account, analytics system, or remote database.
 
 ## Your controls, retention, and deletion
 
-Providers are disabled on a new installation. Enabling a provider initiates its usage request and enables future refreshes at the interval you select. Selecting **Check connection** on the setup screen initiates one request; a successful connection then enables future refreshes. You can disable a provider at any time to stop future requests from AI Gauge. The app retains the most recent usage result only in memory while it is running and does not retain usage data on a remote server.
+On a new installation, providers are configured as instances and are not queried until they have been connected. Selecting **Connect** or **Check connection** starts the relevant login or local CLI check; a successful connection enables usage refreshes. Removing a Codex or Claude Code instance deletes its locally stored OAuth tokens. Removing an Antigravity instance stops monitoring it; the `agy` CLI continues to manage its own authentication. Local preferences can be removed by uninstalling the app or clearing its local application data. AI Gauge does not retain usage data on a remote server.
 
-Local preferences can be removed by uninstalling the app or clearing its local application data. Service credentials remain managed by their respective services or tools.
 
 ## Contact
 
