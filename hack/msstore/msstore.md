@@ -38,8 +38,8 @@ These credentials are configured locally via `msstore reconfigure` or loaded fro
 
 Store submission overrides and certification test instructions are maintained in:
 - [`submission-overrides.yaml`](submission-overrides.yaml): Overrides applied to the active draft submission during the release workflow.
-- [`submission-sample.yaml`](submission-sample.yaml): Reference export snapshot demonstrating the full Partner Center submission schema.
-- [`submission-sample.md`](submission-sample.md): Human-readable specification and listing overview.
+- [`submission-snapshot.yaml`](submission-snapshot.yaml): Reference export snapshot demonstrating the full Partner Center submission schema.
+- [`submission-snapshot.md`](submission-snapshot.md): Human-readable specification and listing overview.
 
 ### Release Submission Workflow (Draft & Override Merge)
 
@@ -84,7 +84,7 @@ Use `hack/msstore/submission.mjs` or `build.ps1` tasks to inspect and validate s
 # Retrieve the current submission JSON from Partner Center (requires submission.env)
 .\build.ps1 submission-get
 
-# Convert the fetched submission JSON into submission-sample.yaml
+# Convert the fetched submission JSON into submission-snapshot.yaml
 .\build.ps1 submission-yaml
 ```
 
@@ -113,4 +113,4 @@ Before submitting a major update to certification, run these quick sanity checks
 4. **System tray behavior**:
    - Test minimize-to-tray, tray icon click to restore, and right-click context menu options.
 5. **In-app connection**:
-   - Reopen Settings and verify that a connected provider can be removed with **Disconnect**.
+   - Reopen Settings and verify that a connected provider instance can be removed with **Remove**.

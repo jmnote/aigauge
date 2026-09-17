@@ -14,7 +14,12 @@ async function getYaml() {
 }
 
 const JSON_OUTPUT_PATH = path.join(tempDir, 'submission.json');
-const YAML_OUTPUT_PATH = path.join(msstoreDir, 'submission-sample.yaml');
+const YAML_OUTPUT_PATH = path.join(msstoreDir, 'submission-snapshot.yaml');
+const SNAPSHOT_YAML_HEADER = [
+  '# Generated Partner Center export snapshot. Do not edit manually;',
+  '# update submission-overrides.yaml for release metadata changes.',
+  '',
+].join('\n');
 const APP_ID = process.env.STORE_APP_ID || '9MT65KM56P99';
 
 function loadEnv() {
@@ -162,7 +167,7 @@ async function submissionYaml() {
   }
 
   const YAML = await getYaml();
-  const yamlContent = YAML.stringify(data);
+  const yamlContent = SNAPSHOT_YAML_HEADER + YAML.stringify(data);
   fs.writeFileSync(YAML_OUTPUT_PATH, yamlContent, 'utf8');
   console.log(`Saved Store submission YAML: ${YAML_OUTPUT_PATH}`);
 }
