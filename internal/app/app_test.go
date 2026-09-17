@@ -337,6 +337,17 @@ func TestAddProviderInstanceLabelsSubsequentInstancesOfTheSameType(t *testing.T)
 	}
 }
 
+func TestAddProviderInstanceRejectsSecondAntigravity(t *testing.T) {
+	withIsolatedStores(t)
+	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
+	if _, err := app.AddProviderInstance("antigravity"); err != nil {
+		t.Fatalf("first AddProviderInstance(antigravity) error = %v", err)
+	}
+	if _, err := app.AddProviderInstance("antigravity"); err == nil {
+		t.Fatal("second AddProviderInstance(antigravity) succeeded, want an error")
+	}
+}
+
 func TestConcurrentFieldUpdatesDoNotLoseProviderChanges(t *testing.T) {
 	withIsolatedStores(t)
 	app := NewApp(nil, nil, nil, nil, nil, nil, nil)

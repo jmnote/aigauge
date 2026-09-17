@@ -152,7 +152,9 @@ func DiagnoseAntigravity(tokenKey string) Diagnosis {
 // diagnoseClaude reports Claude's readiness using stored tokens first.
 func diagnoseClaude(_ context.Context, deps providerDeps, tokenKey string, active bool) (Diagnosis, claudeCredentials, bool) {
 	if deps.getToken != nil {
-		if tok, err := deps.getToken(tokenKey); err == nil && tok != nil && tok.AccessToken != "" {
+		if tok, err := deps.getToken(tokenKey); err != nil {
+			return Diagnosis{Status: StatusTemporaryError, Message: "Could not read Claude credentials.", Details: technicalDetails(err.Error())}, claudeCredentials{}, false
+		} else if tok != nil && tok.AccessToken != "" {
 			creds := claudeCredentials{}
 			creds.ClaudeAiOauth.AccessToken = tok.AccessToken
 			creds.ClaudeAiOauth.SubscriptionType = tok.Extra.Plan
@@ -176,7 +178,9 @@ func diagnoseClaude(_ context.Context, deps providerDeps, tokenKey string, activ
 // diagnoseCodex reports Codex's readiness using stored tokens first.
 func diagnoseCodex(_ context.Context, deps providerDeps, tokenKey string, active bool) (Diagnosis, codexAuth, bool) {
 	if deps.getToken != nil {
-		if tok, err := deps.getToken(tokenKey); err == nil && tok != nil && tok.AccessToken != "" {
+		if tok, err := deps.getToken(tokenKey); err != nil {
+			return Diagnosis{Status: StatusTemporaryError, Message: "Could not read Codex credentials.", Details: technicalDetails(err.Error())}, codexAuth{}, false
+		} else if tok != nil && tok.AccessToken != "" {
 			creds := codexAuth{}
 			creds.Tokens.AccessToken = tok.AccessToken
 			if !active {

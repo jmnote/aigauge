@@ -478,6 +478,13 @@ func (a *App) AddProviderInstance(providerType string) (config.ProviderInstance,
 	if err != nil {
 		return config.ProviderInstance{}, err
 	}
+	if providerType == "antigravity" {
+		for _, p := range settings.Providers {
+			if p.Type == providerType {
+				return config.ProviderInstance{}, fmt.Errorf("only one Antigravity instance is supported")
+			}
+		}
+	}
 
 	id, err := config.NewInstanceID()
 	if err != nil {
@@ -544,6 +551,21 @@ func (a *App) CleanupPendingProviderInstances() error {
 			continue
 		}
 		auth.CancelManualAuthFlow(p.ID)
+		tok, tokenErr := auth.GetToken(p.ID)
+		if tokenErr == nil && tok != nil && tok.AccessToken != "" {
+			// Authentication may have completed while the usage check was still
+			// in flight. Preserve that completed login when the settings window
+			// closes instead of deleting it in the small commit race window.
+			p.Pending = false
+			kept = append(kept, p)
+			continue
+		}
+		if tokenErr != nil {
+			// Do not destroy a pending record when the credential store itself
+			// cannot be read; startup cleanup can retry this safely.
+			kept = append(kept, p)
+			continue
+		}
 		if err := auth.DeleteToken(p.ID); err != nil {
 			a.settingsMu.Unlock()
 			return err
