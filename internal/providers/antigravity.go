@@ -70,6 +70,9 @@ func checkAntigravityModels(ctx context.Context, runner commandRunner, agyPath, 
 		if containsAntigravityAuthMarker(details) || strings.Contains(strings.ToLower(details), "sign in") {
 			return Diagnosis{Status: StatusLoginRequired, Message: "Sign in with agy first, then try again.", Details: technicalDetails(details)}
 		}
+		if containsAnyMarker(details, unsupportedCLIMarkers) {
+			return Diagnosis{Status: StatusUnsupportedCLI, Message: unsupportedCLIMessage("Antigravity CLI", antigravityInstallGuideURL), Details: technicalDetails(details)}
+		}
 		return Diagnosis{Status: StatusTemporaryError, Message: "Could not check Antigravity models.", Details: technicalDetails(details)}
 	}
 	return Diagnosis{Status: StatusConnected, Message: successMessage}
@@ -174,7 +177,9 @@ func FetchAntigravityRawUsage(_ string) ([]byte, error) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), antigravityUsageTimeout)
 	defer cancel()
-	models := checkAntigravityModels(ctx, deps.runner, agyPath, "agy authentication confirmed.")
+	modelsCtx, cancel := context.WithTimeout(ctx, antigravityModelsTimeout)
+	defer cancel()
+	models := checkAntigravityModels(modelsCtx, deps.runner, agyPath, "agy authentication confirmed.")
 	if models.Status != StatusConnected {
 		return nil, errors.New(models.Message)
 	}
@@ -281,7 +286,9 @@ func getAntigravityUsage(ctx context.Context, deps providerDeps, _ string, activ
 	// `models` is the authoritative, lightweight authentication check. Run it
 	// before `/usage` so a signed-out session is reported without launching the
 	// heavier interactive prompt command.
-	models := checkAntigravityModels(ctx, deps.runner, agyPath, "agy authentication confirmed.")
+	modelsCtx, cancel := context.WithTimeout(ctx, antigravityModelsTimeout)
+	defer cancel()
+	models := checkAntigravityModels(modelsCtx, deps.runner, agyPath, "agy authentication confirmed.")
 	if models.Status != StatusConnected {
 		usage.applyDiagnosis(models)
 		return usage

@@ -452,7 +452,10 @@ function createDiagnosisActions(diagnosis, onCheck, onConnect, onCancel, onSubmi
     const tooltip = document.createElement('div');
     tooltip.className = 'details-tooltip';
     tooltip.setAttribute('role', 'tooltip');
-    renderFormattedMessage(tooltip, diagnosis.details);
+    // Details contain provider/API output and are not an application-owned
+    // message format. Keep them as plain text so response bodies cannot turn
+    // into clickable links or protocol-handler launches.
+    tooltip.textContent = diagnosis.details;
 
     const copyBtn = document.createElement('button');
     copyBtn.type = 'button';

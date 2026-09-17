@@ -79,7 +79,14 @@ func (s *fileStore) saveTokens(tokens map[string]*Token) error {
 		return err
 	}
 
-	return os.WriteFile(s.filePath, encrypted, 0600)
+	// Keep the encrypted blob intact if the process crashes during a write.
+	// A truncated credential file cannot be partially recovered and would
+	// force every provider instance to be authenticated again.
+	tmp := s.filePath + ".tmp"
+	if err := os.WriteFile(tmp, encrypted, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, s.filePath)
 }
 
 func (s *fileStore) GetToken(provider string) (*Token, error) {

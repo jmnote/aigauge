@@ -212,6 +212,13 @@ func usageFailureDiagnosis(label string, err error) Diagnosis {
 	if err != nil {
 		details = technicalDetails(err.Error())
 	}
+	if errors.Is(err, auth.ErrReauthenticationRequired) {
+		return Diagnosis{
+			Status:  StatusLoginRequired,
+			Message: "Your " + label + " session expired. Log in again to view quota information.",
+			Details: details,
+		}
+	}
 	switch httpStatusCode(err) {
 	case 401, 403:
 		return Diagnosis{

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,6 +12,10 @@ import (
 	"sync"
 	"time"
 )
+
+// ErrReauthenticationRequired marks a credential failure that retrying cannot
+// repair, such as a revoked refresh token.
+var ErrReauthenticationRequired = errors.New("reauthentication required")
 
 var (
 	flowMu     sync.Mutex
@@ -188,6 +193,14 @@ type tokenExchangeResponse struct {
 	ErrorDescription string `json:"error_description"`
 }
 
+type tokenEndpointError struct {
+	statusCode int
+	oauthCode  string
+	message    string
+}
+
+func (e *tokenEndpointError) Error() string { return e.message }
+
 // tokenHTTPClient is shared by exchangeCodeForToken and refreshTokenRaw so
 // repeated token-endpoint calls (e.g. several provider instances refreshing
 // at startup) can reuse keep-alive connections instead of each building its
@@ -218,7 +231,13 @@ func postTokenRequest(ctx context.Context, tokenURL string, values url.Values) (
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return tokenExchangeResponse{}, nil, fmt.Errorf("token endpoint returned status %d: %s", resp.StatusCode, string(body))
+		var raw tokenExchangeResponse
+		_ = json.Unmarshal(body, &raw)
+		return tokenExchangeResponse{}, body, &tokenEndpointError{
+			statusCode: resp.StatusCode,
+			oauthCode:  raw.Error,
+			message:    fmt.Sprintf("token endpoint returned status %d: %s", resp.StatusCode, string(body)),
+		}
 	}
 
 	var raw tokenExchangeResponse
@@ -309,7 +328,7 @@ func refreshTokenRaw(ctx context.Context, cfgType, tokenKey string) (*Token, []b
 		return nil, nil, fmt.Errorf("no stored token for %q", tokenKey)
 	}
 	if tok.RefreshToken == "" {
-		return nil, nil, fmt.Errorf("no refresh token available for %q", tokenKey)
+		return nil, nil, fmt.Errorf("%w: no refresh token available for %q", ErrReauthenticationRequired, tokenKey)
 	}
 
 	cfg, ok := GetProviderConfig(cfgType)
@@ -325,32 +344,19 @@ func refreshTokenRaw(ctx context.Context, cfgType, tokenKey string) (*Token, []b
 		values.Set("client_secret", cfg.ClientSecret)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", cfg.TokenURL, strings.NewReader(values.Encode()))
+	raw, body, err := postTokenRequest(ctx, cfg.TokenURL, values)
 	if err != nil {
-		return nil, nil, err
+		var endpointErr *tokenEndpointError
+		if errors.As(err, &endpointErr) && (endpointErr.statusCode == http.StatusUnauthorized || endpointErr.statusCode == http.StatusForbidden || endpointErr.oauthCode == "invalid_grant") {
+			return nil, body, fmt.Errorf("%w: %v", ErrReauthenticationRequired, err)
+		}
+		return nil, body, err
 	}
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("Accept", "application/json")
-
-	client := &http.Client{Timeout: 15 * time.Second}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, nil, err
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, nil, fmt.Errorf("read refresh response: %w", err)
-	}
-
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return nil, nil, fmt.Errorf("refresh failed with status %d: %s", resp.StatusCode, string(body))
-	}
-
-	var raw tokenExchangeResponse
-	if err := json.Unmarshal(body, &raw); err != nil {
-		return nil, nil, fmt.Errorf("unmarshal refresh response: %w", err)
+	if raw.Error != "" {
+		if raw.Error == "invalid_grant" {
+			return nil, body, fmt.Errorf("%w: refresh response contained oauth error: %s", ErrReauthenticationRequired, raw.Error)
+		}
+		return nil, body, fmt.Errorf("refresh response contained oauth error: %s", raw.Error)
 	}
 
 	if raw.AccessToken == "" {
@@ -394,7 +400,7 @@ func GetValidAccessToken(ctx context.Context, cfgType, tokenKey string) (string,
 			}
 			return "", fmt.Errorf("failed to refresh access token for %q: %w", tokenKey, refreshErr)
 		}
-		return "", fmt.Errorf("access token for %q is expired and has no refresh token", tokenKey)
+		return "", fmt.Errorf("%w: access token for %q is expired and has no refresh token", ErrReauthenticationRequired, tokenKey)
 	}
 
 	return tok.AccessToken, nil
@@ -411,6 +417,8 @@ type pendingManualFlow struct {
 	verifier string
 	state    string
 	inFlight bool
+	ctx      context.Context
+	cancel   context.CancelFunc
 }
 
 var (
@@ -447,8 +455,12 @@ func BeginManualAuthFlow(cfgType, tokenKey string) (authURL string, err error) {
 		return "", fmt.Errorf("failed to build auth URL: %w", err)
 	}
 
+	flowCtx, cancel := context.WithCancel(context.Background())
 	manualFlowMu.Lock()
-	manualFlows[tokenKey] = &pendingManualFlow{cfgType: cfgType, verifier: verifier, state: state}
+	if previous := manualFlows[tokenKey]; previous != nil {
+		previous.cancel()
+	}
+	manualFlows[tokenKey] = &pendingManualFlow{cfgType: cfgType, verifier: verifier, state: state, ctx: flowCtx, cancel: cancel}
 	manualFlowMu.Unlock()
 
 	return authURL, nil
@@ -459,7 +471,10 @@ func BeginManualAuthFlow(cfgType, tokenKey string) (authURL string, err error) {
 // not survive after the provider instance is removed or the dialog is closed.
 func CancelManualAuthFlow(tokenKey string) {
 	manualFlowMu.Lock()
-	delete(manualFlows, tokenKey)
+	if pending := manualFlows[tokenKey]; pending != nil {
+		pending.cancel()
+		delete(manualFlows, tokenKey)
+	}
 	manualFlowMu.Unlock()
 }
 
@@ -515,16 +530,26 @@ func CompleteManualAuthFlow(tokenKey, rawCode string) (*Token, error) {
 		return nil, fmt.Errorf("unknown provider %q", pending.cfgType)
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(pending.ctx, 30*time.Second)
 	defer cancel()
 	token, err := exchangeCodeForToken(ctx, cfg, code, pending.verifier, manualCodeRedirectURI, pending.state)
 	if err != nil {
 		return nil, fmt.Errorf("token exchange failed: %w", err)
 	}
 
+	// Serialize the final liveness check and save with cancellation. This
+	// prevents RemoveProviderInstance from deleting a token immediately before
+	// this completion stores it again.
+	manualFlowMu.Lock()
+	if manualFlows[tokenKey] != pending {
+		manualFlowMu.Unlock()
+		return nil, fmt.Errorf("authentication was cancelled for %q", tokenKey)
+	}
 	if err := SaveToken(tokenKey, token); err != nil {
+		manualFlowMu.Unlock()
 		return nil, fmt.Errorf("failed to store token: %w", err)
 	}
+	manualFlowMu.Unlock()
 	failed = false
 	return token, nil
 }

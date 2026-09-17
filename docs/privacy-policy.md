@@ -16,13 +16,12 @@ When Codex or Claude Code is enabled, AI Gauge may send a direct HTTPS request t
 
 ## Local storage
 
-AI Gauge stores only local application preferences, including provider visibility and order, refresh interval, theme, thresholds, and window preferences. It does not store credentials or usage data as application data, and does not maintain a remote account, analytics system, or remote database.
+AI Gauge stores local application preferences, including provider instances and order, refresh intervals, theme, thresholds, and window preferences. OAuth access and refresh tokens for Codex and Claude Code are stored locally under the app's configuration directory: Windows uses DPAPI-protected `credentials.dat`; other platforms use `credentials.json` with owner-only permissions. Usage results are kept in memory only while the app is running. AI Gauge does not maintain a remote account, analytics system, or remote database.
 
 ## Your controls, retention, and deletion
 
-Providers are disabled on a new installation. Enabling a provider initiates its usage request and enables future refreshes at the interval you select. Selecting **Check connection** on the setup screen initiates one request; a successful connection then enables future refreshes. You can disable a provider at any time to stop future requests from AI Gauge. The app retains the most recent usage result only in memory while it is running and does not retain usage data on a remote server.
+On a new installation, providers are configured as instances and are not queried until they have been connected. Selecting **Connect** or **Check connection** starts the relevant login or local CLI check; a successful connection enables usage refreshes. Removing a Codex or Claude Code instance deletes its locally stored OAuth tokens. Removing an Antigravity instance stops monitoring it; the `agy` CLI continues to manage its own authentication. Local preferences can be removed by uninstalling the app or clearing its local application data. AI Gauge does not retain usage data on a remote server.
 
-Local preferences can be removed by uninstalling the app or clearing its local application data. Service credentials remain managed by their respective services or tools.
 
 ## Contact
 

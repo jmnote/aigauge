@@ -444,7 +444,7 @@ function renderProviderList() {
     rightWrap.append(refreshSelect);
 
     const state = providerState.get(instance.id);
-    if (state && state.status === 'connected') {
+    if (state && (state.status === 'connected' || state.status === 'auth_check_required')) {
       const disconnectBtn = document.createElement('button');
       disconnectBtn.type = 'button';
       disconnectBtn.className = 'provider-disconnect-btn';
