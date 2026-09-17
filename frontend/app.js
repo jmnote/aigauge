@@ -1127,8 +1127,8 @@ function refreshStatusTooltips() {
 // so it never changes .shell's own box size on its own (the ResizeObserver
 // below only reacts to that), but requestWindowResize()'s own measurement
 // picks up its extent regardless, so each show/hide needs its own explicit
-// call - see toggleStatusTooltip/closeStatusTooltip near buildProviderCard,
-// where the status tooltip's own open/close is handled.
+// call after every show/hide, because the tooltip is absolutely positioned
+// and therefore does not trigger the shell's ResizeObserver by itself.
 
 document.addEventListener('click', () => {
   closeOpenDetailsTooltips();
