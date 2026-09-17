@@ -247,10 +247,6 @@ providerAddDialogLogin.addEventListener('click', async () => {
     if (!connected) {
       throw new Error(connection?.message || 'Authentication could not be completed');
     }
-    providerAddDialogStatus.textContent = `Checking ${instance.label} usage…`;
-    const usage = await rpc(PROVIDER_TYPE_RPC[provider].usageRpcMethod, instance.id);
-    if (generation !== providerFlowGeneration || pendingLogin?.instance.id !== instance.id) return;
-    if (!usage || usage.error) throw new Error(usage?.error || 'Initial usage fetch failed');
     pendingProviderId = null;
     addingProviders.delete(provider);
     pendingLogin = null;
@@ -354,7 +350,7 @@ warningEnabledInput.addEventListener('change', () => {
 
 warningThresholdInput.addEventListener('change', () => {
   let val = parseInt(warningThresholdInput.value, 10);
-  if (isNaN(val)) val = 20;
+  if (isNaN(val)) val = config.thresholds.warning.value;
   val = Math.max(1, Math.min(100, val));
   config.thresholds.warning.value = val;
   warningThresholdInput.value = val;
@@ -369,7 +365,7 @@ criticalEnabledInput.addEventListener('change', () => {
 
 criticalThresholdInput.addEventListener('change', () => {
   let val = parseInt(criticalThresholdInput.value, 10);
-  if (isNaN(val)) val = 5;
+  if (isNaN(val)) val = config.thresholds.critical.value;
   val = Math.max(0, Math.min(99, val));
   config.thresholds.critical.value = val;
   criticalThresholdInput.value = val;

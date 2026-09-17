@@ -544,13 +544,14 @@ func (a *App) CleanupPendingProviderInstances() error {
 		return err
 	}
 	kept := make([]config.ProviderInstance, 0, len(settings.Providers))
-	removed := false
+	changed := false
 	for _, p := range settings.Providers {
 		if !p.Pending {
 			kept = append(kept, p)
 			continue
 		}
 		auth.CancelManualAuthFlow(p.ID)
+		auth.CancelAuthFlowAndWait(p.ID)
 		tok, tokenErr := auth.GetToken(p.ID)
 		if tokenErr == nil && tok != nil && tok.AccessToken != "" {
 			// Authentication may have completed while the usage check was still
@@ -558,6 +559,7 @@ func (a *App) CleanupPendingProviderInstances() error {
 			// closes instead of deleting it in the small commit race window.
 			p.Pending = false
 			kept = append(kept, p)
+			changed = true
 			continue
 		}
 		if tokenErr != nil {
@@ -570,9 +572,9 @@ func (a *App) CleanupPendingProviderInstances() error {
 			a.settingsMu.Unlock()
 			return err
 		}
-		removed = true
+		changed = true
 	}
-	if removed {
+	if changed {
 		settings.Providers = kept
 		if err := config.Save(settings); err != nil {
 			a.settingsMu.Unlock()
@@ -580,7 +582,7 @@ func (a *App) CleanupPendingProviderInstances() error {
 		}
 	}
 	a.settingsMu.Unlock()
-	if removed {
+	if changed {
 		a.notifySettingsChanged(settings)
 	}
 	return nil
@@ -596,6 +598,7 @@ func (a *App) RemoveProviderInstance(instanceID string) error {
 	// instance id until the code is submitted. Removing the instance must also
 	// discard that pending authentication state.
 	auth.CancelManualAuthFlow(instanceID)
+	auth.CancelAuthFlowAndWait(instanceID)
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()
 	settings, err := a.loadSettingsLocked()

@@ -18,10 +18,10 @@ import (
 var ErrReauthenticationRequired = errors.New("reauthentication required")
 
 var (
-	flowMu     sync.Mutex
-	activeFlow *flowState
-	refreshMu  sync.Mutex
-	refreshes  = map[string]*refreshCall{}
+	flowMu      sync.Mutex
+	activeFlows = map[string]*flowState{}
+	refreshMu   sync.Mutex
+	refreshes   = map[string]*refreshCall{}
 )
 
 type refreshCall struct {
@@ -40,9 +40,9 @@ type flowState struct {
 func CancelActiveFlow() {
 	flowMu.Lock()
 	defer flowMu.Unlock()
-	if activeFlow != nil {
-		activeFlow.cancel()
-		activeFlow = nil
+	for key, flow := range activeFlows {
+		flow.cancel()
+		delete(activeFlows, key)
 	}
 }
 
@@ -51,19 +51,44 @@ func CancelActiveFlow() {
 // cleanup of a listener on a fixed provider port.
 func CancelActiveFlowAndWait() {
 	flowMu.Lock()
-	flow := activeFlow
+	flows := make([]*flowState, 0, len(activeFlows))
+	for key, flow := range activeFlows {
+		flow.cancel()
+		delete(activeFlows, key)
+		flows = append(flows, flow)
+	}
 	flowMu.Unlock()
-	cancelAndWait(flow)
+	for _, flow := range flows {
+		waitForFlow(flow)
+	}
+}
+
+// CancelAuthFlowAndWait cancels only the OAuth flow for tokenKey.
+func CancelAuthFlowAndWait(tokenKey string) {
+	flowMu.Lock()
+	flow := activeFlows[tokenKey]
+	if flow != nil {
+		flow.cancel()
+		delete(activeFlows, tokenKey)
+	}
+	flowMu.Unlock()
+	waitForFlow(flow)
 }
 
 // cancelAndWait cancels flow (a no-op if nil) and waits up to 2s for it to
 // finish unwinding, so its loopback listener is guaranteed closed before the
 // caller reuses a fixed provider port.
 func cancelAndWait(flow *flowState) {
+	if flow != nil {
+		flow.cancel()
+	}
+	waitForFlow(flow)
+}
+
+func waitForFlow(flow *flowState) {
 	if flow == nil {
 		return
 	}
-	flow.cancel()
 	select {
 	case <-flow.done:
 	case <-time.After(2 * time.Second):
@@ -92,8 +117,8 @@ func StartAuthFlow(ctx context.Context, cfgType, tokenKey string, openBrowser fu
 
 	flow := &flowState{cancel: cancel, done: make(chan struct{})}
 	flowMu.Lock()
-	prev := activeFlow
-	activeFlow = flow
+	prev := activeFlows[tokenKey]
+	activeFlows[tokenKey] = flow
 	flowMu.Unlock()
 	// Wait for a preempted flow's loopback listener to close before binding a
 	// new one - StartLoopbackServer below can otherwise race the old
@@ -105,8 +130,8 @@ func StartAuthFlow(ctx context.Context, cfgType, tokenKey string, openBrowser fu
 		flowMu.Lock()
 		// A newer flow may have replaced this one while it was unwinding.
 		// Do not clear the newer flow's cancellation handle.
-		if activeFlow == flow {
-			activeFlow = nil
+		if activeFlows[tokenKey] == flow {
+			delete(activeFlows, tokenKey)
 		}
 		flowMu.Unlock()
 	}()
