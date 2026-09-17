@@ -112,5 +112,5 @@ Before submitting a major update to certification, run these quick sanity checks
    - Open Settings (gear icon): Test light/dark/system themes, threshold sliders, window width resizing, and global hotkeys.
 4. **System tray behavior**:
    - Test minimize-to-tray, tray icon click to restore, and right-click context menu options.
-4. **In-app connection**:
+5. **In-app connection**:
    - Reopen Settings and verify that a connected provider can be removed with **Disconnect**.
