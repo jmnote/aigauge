@@ -373,6 +373,71 @@ func TestConcurrentFieldUpdatesDoNotLoseProviderChanges(t *testing.T) {
 	}
 }
 
+func TestCommitProviderInstanceClearsPendingFlag(t *testing.T) {
+	withIsolatedStores(t)
+	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
+
+	instance, err := app.AddProviderInstance("claude")
+	if err != nil {
+		t.Fatalf("AddProviderInstance() error = %v", err)
+	}
+	settings, err := app.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings() error = %v", err)
+	}
+	if !settings.Providers[0].Pending {
+		t.Fatal("newly added instance Pending = false, want true before it is committed")
+	}
+
+	if err := app.CommitProviderInstance(instance.ID); err != nil {
+		t.Fatalf("CommitProviderInstance() error = %v", err)
+	}
+	settings2, err := app.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings() after commit error = %v", err)
+	}
+	if settings2.Providers[0].Pending {
+		t.Error("Pending still true after CommitProviderInstance")
+	}
+}
+
+// TestOrphanedPendingInstanceIsDroppedOnNextStartup guards against a real bug
+// (see ProviderInstance.Pending): AddProviderInstance persists an instance
+// before it is authenticated, and cleanup of a failed add is otherwise the
+// frontend's job alone. If the app is closed or crashes between
+// AddProviderInstance and CommitProviderInstance, the instance - and any
+// token an in-progress OAuth flow already saved for it - must not survive
+// forever as an unrecoverable "Login required" card; the next process's first
+// settings load should sweep it up instead.
+func TestOrphanedPendingInstanceIsDroppedOnNextStartup(t *testing.T) {
+	authStore := withIsolatedStores(t)
+	crashed := NewApp(nil, nil, nil, nil, nil, nil, nil)
+
+	instance, err := crashed.AddProviderInstance("claude")
+	if err != nil {
+		t.Fatalf("AddProviderInstance() error = %v", err)
+	}
+	// Simulate an OAuth flow that finished saving a token just before the app
+	// was closed, so CommitProviderInstance never ran to clear Pending.
+	if err := authStore.SaveToken(instance.ID, &auth.Token{AccessToken: "orphan-token"}); err != nil {
+		t.Fatalf("SaveToken() error = %v", err)
+	}
+
+	// A fresh App value with its own zeroed checkedPendingCleanup, pointed at
+	// the same on-disk/in-memory stores, models the next process launch.
+	restarted := NewApp(nil, nil, nil, nil, nil, nil, nil)
+	settings, err := restarted.GetSettings()
+	if err != nil {
+		t.Fatalf("GetSettings() after restart error = %v", err)
+	}
+	if len(settings.Providers) != 0 {
+		t.Fatalf("GetSettings() after restart = %+v, want the orphaned pending instance dropped", settings.Providers)
+	}
+	if tok, _ := authStore.GetToken(instance.ID); tok != nil {
+		t.Error("orphaned instance's token was not deleted on startup cleanup")
+	}
+}
+
 // TestDeletingTheLastInstanceDoesNotResurrectLegacyMigration guards against a
 // real bug: loadSettings migrates leftover legacy (pre-instance) credentials
 // into a provider instance the first time it sees an empty provider list, so

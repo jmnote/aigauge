@@ -61,6 +61,13 @@ type App struct {
 	// type whose legacy token is still on disk) the moment the frontend next
 	// calls GetSettings.
 	checkedLegacyMigration bool
+
+	// checkedPendingCleanup guards the one-time-per-run sweep for orphaned
+	// pending instances (see ProviderInstance.Pending), the same way
+	// checkedLegacyMigration guards migration: it must run once at startup,
+	// not on every load, since an instance genuinely mid-add is pending too
+	// and must not be swept away while its own flow is still running.
+	checkedPendingCleanup bool
 }
 
 // SetSettingsContentHeight updates the settings window's content-driven height.
@@ -502,8 +509,10 @@ func (a *App) AddProviderInstance(providerType string) (config.ProviderInstance,
 	// The card this instance gets shows whatever DiagnoseX/GetXUsage's real
 	// status is (login_required until a first successful connect, same as
 	// any later re-auth) - there's no separate enabled flag to flip once
-	// that first connect succeeds.
-	instance := config.ProviderInstance{ID: id, Type: providerType, Label: label, RefreshInterval: config.DefaultRefreshInterval}
+	// that first connect succeeds. Pending starts true so an instance left
+	// behind by a crash or force-quit before CommitProviderInstance is swept
+	// up on the next startup instead of persisting as an unrecoverable orphan.
+	instance := config.ProviderInstance{ID: id, Type: providerType, Label: label, RefreshInterval: config.DefaultRefreshInterval, Pending: true}
 	settings.Providers = append(settings.Providers, instance)
 	if err := config.Save(settings); err != nil {
 		log.Printf("[aigauge] AddProviderInstance(%q): config.Save failed: %v", providerType, err)
@@ -514,19 +523,19 @@ func (a *App) AddProviderInstance(providerType string) (config.ProviderInstance,
 }
 
 // CommitProviderInstance publishes a successfully authenticated provider to
-// other windows after its initial usage fetch succeeds.
+// other windows after its initial usage fetch succeeds, clearing the Pending
+// flag AddProviderInstance set so the instance survives the next startup's
+// orphan cleanup (see ProviderInstance.Pending).
 func (a *App) CommitProviderInstance(instanceID string) error {
-	settings, err := a.loadSettings()
-	if err != nil {
-		return err
-	}
-	for _, instance := range settings.Providers {
-		if instance.ID == instanceID {
-			a.notifySettingsChanged(settings)
-			return nil
+	return a.updateSettings(func(settings *config.Settings) error {
+		for i := range settings.Providers {
+			if settings.Providers[i].ID == instanceID {
+				settings.Providers[i].Pending = false
+				return nil
+			}
 		}
-	}
-	return fmt.Errorf("unknown provider instance %q", instanceID)
+		return fmt.Errorf("unknown provider instance %q", instanceID)
+	})
 }
 
 // RemoveProviderInstance disconnects a provider instance's stored credentials
@@ -613,6 +622,10 @@ func (a *App) loadSettingsLocked() (config.Settings, error) {
 	if err != nil {
 		return settings, err
 	}
+	if !a.checkedPendingCleanup {
+		a.checkedPendingCleanup = true
+		settings = a.dropOrphanedPendingInstances(settings)
+	}
 	if len(settings.Providers) > 0 || a.checkedLegacyMigration {
 		return settings, nil
 	}
@@ -641,4 +654,32 @@ func (a *App) loadSettingsLocked() (config.Settings, error) {
 		}
 	}
 	return settings, nil
+}
+
+// dropOrphanedPendingInstances removes any provider instance still marked
+// Pending (see ProviderInstance.Pending) and its (possibly already-saved)
+// token, so an add flow interrupted by a crash or force-quit in a previous
+// run does not persist forever as a "Login required" card with no recovery
+// path other than manually deleting it.
+func (a *App) dropOrphanedPendingInstances(settings config.Settings) config.Settings {
+	kept := settings.Providers[:0]
+	removed := 0
+	for _, p := range settings.Providers {
+		if !p.Pending {
+			kept = append(kept, p)
+			continue
+		}
+		removed++
+		log.Printf("[aigauge] loadSettings: dropping orphaned pending instance id=%q type=%q (left over from an interrupted add)", p.ID, p.Type)
+		if err := auth.DeleteToken(p.ID); err != nil {
+			log.Printf("[aigauge] loadSettings: DeleteToken(%q) during pending cleanup failed: %v", p.ID, err)
+		}
+	}
+	settings.Providers = kept
+	if removed > 0 {
+		if err := config.Save(settings); err != nil {
+			log.Printf("[aigauge] loadSettings: failed to persist pending-instance cleanup: %v", err)
+		}
+	}
+	return settings
 }

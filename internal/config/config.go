@@ -19,6 +19,13 @@ type ProviderInstance struct {
 	Type            string `json:"type"`
 	Label           string `json:"label"`
 	RefreshInterval int    `json:"refreshInterval"`
+
+	// Pending marks an instance created by AddProviderInstance whose
+	// authentication has not yet succeeded. CommitProviderInstance clears it
+	// once the first usage fetch succeeds. An instance can otherwise be left
+	// behind with this still true if the app is closed or crashes mid-login;
+	// App.loadSettingsLocked drops any such orphan on the next startup.
+	Pending bool `json:"pending,omitempty"`
 }
 
 const DefaultRefreshInterval = 180
