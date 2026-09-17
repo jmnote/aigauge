@@ -300,17 +300,6 @@ func diagnoseConnectedInstance(instance config.ProviderInstance) providers.Diagn
 	return providers.Diagnosis{Status: providers.StatusConnected}
 }
 
-// DisconnectProvider deletes the stored credentials for a provider instance,
-// without removing the instance itself from the provider list.
-func (a *App) DisconnectProvider(instanceID string) error {
-	log.Printf("[aigauge] DisconnectProvider(%q)", instanceID)
-	err := auth.DeleteToken(instanceID)
-	if err != nil {
-		log.Printf("[aigauge] DisconnectProvider(%q): DeleteToken failed: %v", instanceID, err)
-	}
-	return err
-}
-
 // CancelAuth cancels any running OAuth authentication flow.
 func (a *App) CancelAuth() error {
 	auth.CancelActiveFlowAndWait()

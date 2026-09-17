@@ -217,11 +217,6 @@ func TestAppAuthMethods(t *testing.T) {
 		t.Errorf("CancelAuth() error = %v", err)
 	}
 
-	// Test DisconnectProvider
-	if err := app.DisconnectProvider("test-provider"); err != nil {
-		t.Errorf("DisconnectProvider() error = %v", err)
-	}
-
 	// Test SetBrowserLauncher
 	calledLauncher := false
 	app.SetBrowserLauncher(func(u string) error {

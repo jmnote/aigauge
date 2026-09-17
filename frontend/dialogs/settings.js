@@ -396,7 +396,7 @@ updateHotkeyUI();
 // Provider List & Diagnosis
 //
 // Adding a provider instance happens from this window. Existing rows manage
-// instances that already exist: disconnect, reorder, and delete. Reordering
+// instances that already exist: reorder and delete. Reordering
 // (▲▼) still moves entries directly in config.providers, since array order
 // *is* the provider order now (there is no separate providerOrder list).
 // ---------------------------------------------------------------------------
@@ -422,8 +422,7 @@ function renderProviderList() {
     // Presence in this list is now the only "is it shown" signal - a row
     // here always has a card in the main window too, and deleting it (the
     // row's trash button) is the only way to remove either. Connecting only
-    // happens from that card, which has its own Connect/paste-code UI - this
-    // row just shows Disconnect for an already-connected instance.
+    // happens from that card, which has its own Connect/paste-code UI.
     const nameLabel = document.createElement('span');
     nameLabel.className = 'provider-setting';
     nameLabel.textContent = instance.label;
@@ -443,17 +442,6 @@ function renderProviderList() {
       saveSetting('SetProviderRefreshInterval', instance.id, instance.refreshInterval);
     });
     rightWrap.append(refreshSelect);
-
-    const state = providerState.get(instance.id);
-    if (state && (state.status === 'connected' || state.status === 'auth_check_required')) {
-      const disconnectBtn = document.createElement('button');
-      disconnectBtn.type = 'button';
-      disconnectBtn.className = 'provider-disconnect-btn';
-      disconnectBtn.dataset.action = 'disconnect';
-      disconnectBtn.textContent = 'Disconnect';
-      disconnectBtn.title = `Disconnect ${instance.label}`;
-      rightWrap.append(disconnectBtn);
-    }
 
     const moveButtons = document.createElement('span');
     moveButtons.className = 'provider-move-buttons';
@@ -591,21 +579,6 @@ providerListEl.addEventListener('click', async event => {
   }
 
   if (!instance) return;
-
-  if (action === 'disconnect') {
-    button.disabled = true;
-    try {
-      await rpc('DisconnectProvider', id);
-      const diag = await rpc(PROVIDER_TYPE_RPC[instance.type].diagnoseRpcMethod, id);
-      providerState.set(id, { status: diag.status, canImport: diag.canImport });
-    } catch {
-      providerState.set(id, { status: 'login_required', canImport: false });
-    } finally {
-      button.disabled = false;
-      renderProviderList();
-    }
-    return;
-  }
 
   if (action === 'move-up' || action === 'move-down') {
     const order = config.providers;
