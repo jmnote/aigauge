@@ -168,10 +168,6 @@ switch ($Task) {
         if (Test-Path -LiteralPath $rootSyso) {
             Remove-Item -LiteralPath $rootSyso -Force
         }
-        $hackTemp = Join-Path $PSScriptRoot "hack\temp"
-        if (Test-Path -LiteralPath $hackTemp) {
-            Remove-Item -LiteralPath $hackTemp -Recurse -Force
-        }
         if (Test-Path -LiteralPath $distPath) {
             Remove-Item -LiteralPath $distPath -Recurse -Force
             Write-Output "Cleaned build artifacts: $distPath"
