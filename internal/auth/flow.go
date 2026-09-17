@@ -20,7 +20,16 @@ var ErrReauthenticationRequired = errors.New("reauthentication required")
 var (
 	flowMu     sync.Mutex
 	activeFlow *flowState
+	refreshMu  sync.Mutex
+	refreshes  = map[string]*refreshCall{}
 )
+
+type refreshCall struct {
+	done chan struct{}
+	tok  *Token
+	body []byte
+	err  error
+}
 
 type flowState struct {
 	cancel context.CancelFunc
@@ -305,7 +314,7 @@ func exchangeCodeForToken(ctx context.Context, cfg ProviderConfig, code, verifie
 // refresh token. cfgType selects the OAuth client/endpoints to refresh with;
 // tokenKey identifies the provider instance whose stored token is refreshed.
 func RefreshToken(ctx context.Context, cfgType, tokenKey string) (*Token, error) {
-	tok, _, err := refreshTokenRaw(ctx, cfgType, tokenKey)
+	tok, _, err := refreshToken(ctx, cfgType, tokenKey)
 	return tok, err
 }
 
@@ -318,8 +327,34 @@ func RefreshToken(ctx context.Context, cfgType, tokenKey string) (*Token, error)
 // whether a provider's token includes an id_token to identify the account
 // by) for fixture development.
 func FetchRawTokenRefresh(ctx context.Context, cfgType, tokenKey string) ([]byte, error) {
-	_, body, err := refreshTokenRaw(ctx, cfgType, tokenKey)
+	_, body, err := refreshToken(ctx, cfgType, tokenKey)
 	return body, err
+}
+
+// refreshToken coalesces concurrent refreshes for one provider instance. This
+// prevents refresh-token rotation from making the second request fail with
+// invalid_grant after the first request has already succeeded.
+func refreshToken(ctx context.Context, cfgType, tokenKey string) (*Token, []byte, error) {
+	refreshMu.Lock()
+	if call := refreshes[tokenKey]; call != nil {
+		refreshMu.Unlock()
+		select {
+		case <-call.done:
+			return call.tok, call.body, call.err
+		case <-ctx.Done():
+			return nil, nil, ctx.Err()
+		}
+	}
+	call := &refreshCall{done: make(chan struct{})}
+	refreshes[tokenKey] = call
+	refreshMu.Unlock()
+
+	call.tok, call.body, call.err = refreshTokenRaw(ctx, cfgType, tokenKey)
+	refreshMu.Lock()
+	delete(refreshes, tokenKey)
+	close(call.done)
+	refreshMu.Unlock()
+	return call.tok, call.body, call.err
 }
 
 func refreshTokenRaw(ctx context.Context, cfgType, tokenKey string) (*Token, []byte, error) {

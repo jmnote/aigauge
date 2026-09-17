@@ -23,6 +23,16 @@ if (globalThis.__AIGAUGE_LIVE__) {
 const rpc = (method, ...args) =>
   wails.Call.ByName(`github.com/jmnote/aigauge/internal/app.App.${method}`, ...args);
 
+// Pending instances belong to the settings window's in-progress add flow.
+// Keep them in the backend response so that flow can be committed or removed,
+// but never create a main-window card for them.
+function normalizeMainConfig(raw) {
+  const visible = raw && typeof raw === 'object' && Array.isArray(raw.providers)
+    ? { ...raw, providers: raw.providers.filter(instance => !instance?.pending) }
+    : raw;
+  return normalizeConfig(visible);
+}
+
 // The Wails-RPC method names for each provider *type*. A provider *instance*
 // (an entry in config.providers) carries only its type id and its own id;
 // this is what turns those into the calls used to diagnose, fetch and render
@@ -66,10 +76,10 @@ const cardElements = new Map();
 // backend emits whenever either one saves a change (see applyExternalConfig).
 let config;
 try {
-  config = normalizeConfig(await rpc('GetSettings'));
+  config = normalizeMainConfig(await rpc('GetSettings'));
 } catch (e) {
   console.warn('Failed to load settings:', e);
-  config = normalizeConfig({});
+    config = normalizeMainConfig({});
 }
 
 let settingsWriteQueue = Promise.resolve();
@@ -922,7 +932,7 @@ settingsBtn.addEventListener('click', event => {
 
 function applyExternalConfig(newConfig) {
   if (!newConfig) return;
-  config = normalizeConfig(newConfig);
+  config = normalizeMainConfig(newConfig);
   applyTheme(config.theme, false);
   syncProviderCards();
   config.providers.forEach(instance => scheduleProvider(instance.id));

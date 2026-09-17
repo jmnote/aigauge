@@ -6,7 +6,8 @@ import { showToast } from '/ui/toast.mjs';
 
 const wails = await import('/wails/runtime.js');
 
-document.getElementById('close-settings').addEventListener('click', () => {
+document.getElementById('close-settings').addEventListener('click', async () => {
+  try { await rpc('CleanupPendingProviderInstances'); } catch { /* best effort cleanup */ }
   wails.Window.Close();
 });
 

@@ -82,7 +82,7 @@ func FetchCodexRawUsage(tokenKey string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fetchAuthorizedJSON("https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
+	return fetchAuthorizedJSON(ctx, "https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
 		"Authorization": "Bearer " + accessToken,
 	})
 }
@@ -101,7 +101,7 @@ func getCodexUsage(ctx context.Context, deps providerDeps, tokenKey string, acti
 		usage.applyDiagnosis(usageFailureDiagnosis("Codex", err))
 		return usage
 	}
-	body, err := fetchAuthorizedJSON("https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
+	body, err := fetchAuthorizedJSON(ctx, "https://chatgpt.com/backend-api/wham/usage", "Codex", map[string]string{
 		"Authorization": "Bearer " + accessToken,
 	})
 	if err != nil {

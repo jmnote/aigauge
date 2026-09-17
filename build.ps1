@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures-usage", "fixtures-tokens", "fixutures-tokens", "submission", "submission-get", "submission-yaml", "submission-validate")]
+    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures-usage", "fixtures-tokens", "submission", "submission-get", "submission-yaml", "submission-validate")]
     [string]$Task = "build",
     [Alias("Provider", "Target")]
     [string]$Version = "",
@@ -206,12 +206,6 @@ switch ($Task) {
         } finally {
             Pop-Location
         }
-        exit $LASTEXITCODE
-    }
-    "fixutures-tokens" {
-        $forwardArgs = @{ Task = "fixtures-tokens" }
-        if ($Version) { $forwardArgs.Version = $Version }
-        & $PSCommandPath @forwardArgs
         exit $LASTEXITCODE
     }
     "submission" {

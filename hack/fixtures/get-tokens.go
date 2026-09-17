@@ -5,7 +5,7 @@
 // holds no OAuth token of its own for it, since it goes through the locally
 // installed agy CLI instead (see internal/providers/antigravity.go).
 //
-// Run via `.\build.ps1 fixtures-tokens` (or `.\build.ps1 fixutures-tokens`)
+// Run via `.\build.ps1 fixtures-tokens`
 // from the repository root.
 // Accepts an optional provider argument: all (default), codex, claude.
 package main

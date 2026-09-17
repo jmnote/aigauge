@@ -111,7 +111,7 @@ func FetchClaudeRawUsage(tokenKey string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	return fetchAuthorizedJSON("https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
+	return fetchAuthorizedJSON(ctx, "https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
 		"Authorization":  "Bearer " + accessToken,
 		"anthropic-beta": "oauth-2025-04-20",
 	})
@@ -131,7 +131,7 @@ func getClaudeUsage(ctx context.Context, deps providerDeps, tokenKey string, act
 		usage.applyDiagnosis(usageFailureDiagnosis("Claude", err))
 		return usage
 	}
-	body, err := fetchAuthorizedJSON("https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
+	body, err := fetchAuthorizedJSON(ctx, "https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
 		"Authorization":  "Bearer " + accessToken,
 		"anthropic-beta": "oauth-2025-04-20",
 	})

@@ -23,6 +23,7 @@ var singleInstanceKey = [32]byte{
 
 type runtime struct {
 	application    *application.App
+	appService     *usageapp.App
 	window         *application.WebviewWindow
 	settingsWindow *application.WebviewWindow
 	icon           []byte
@@ -40,6 +41,7 @@ const (
 func Run(frontendAssets fs.FS, icon []byte) error {
 	rt := &runtime{icon: icon}
 	appService := usageapp.NewApp(rt.setContentHeight, rt.setWindowWidth, rt.setAlwaysOnTop, rt.hideToTray, rt.showSettingsWindow, rt.emitSettingsChanged, rt.setGlobalHotkey)
+	rt.appService = appService
 	appService.SetSettingsContentHeightHandler(rt.setSettingsContentHeight)
 
 	rt.application = application.New(application.Options{
@@ -232,6 +234,9 @@ func (rt *runtime) createSettingsWindow() {
 	})
 
 	rt.settingsWindow.RegisterHook(events.Common.WindowClosing, func(event *application.WindowEvent) {
+		if rt.appService != nil {
+			_ = rt.appService.CleanupPendingProviderInstances()
+		}
 		event.Cancel()
 		rt.settingsWindow.Hide()
 	})

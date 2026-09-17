@@ -538,6 +538,43 @@ func (a *App) CommitProviderInstance(instanceID string) error {
 	})
 }
 
+// CleanupPendingProviderInstances cancels and removes provider instances that
+// were created by an add flow but never committed.
+func (a *App) CleanupPendingProviderInstances() error {
+	a.settingsMu.Lock()
+	settings, err := a.loadSettingsLocked()
+	if err != nil {
+		a.settingsMu.Unlock()
+		return err
+	}
+	kept := make([]config.ProviderInstance, 0, len(settings.Providers))
+	removed := false
+	for _, p := range settings.Providers {
+		if !p.Pending {
+			kept = append(kept, p)
+			continue
+		}
+		auth.CancelManualAuthFlow(p.ID)
+		if err := auth.DeleteToken(p.ID); err != nil {
+			a.settingsMu.Unlock()
+			return err
+		}
+		removed = true
+	}
+	if removed {
+		settings.Providers = kept
+		if err := config.Save(settings); err != nil {
+			a.settingsMu.Unlock()
+			return err
+		}
+	}
+	a.settingsMu.Unlock()
+	if removed {
+		a.notifySettingsChanged(settings)
+	}
+	return nil
+}
+
 // RemoveProviderInstance disconnects a provider instance's stored credentials
 // and removes it from the provider list. Unlike disabling an instance, this
 // cannot be undone from the settings screen - reusing the provider again
@@ -630,7 +667,7 @@ func (a *App) loadSettingsLocked() (config.Settings, error) {
 		return settings, nil
 	}
 	a.checkedLegacyMigration = true
-	log.Print("[aigauge] loadSettings: no providers yet, checking for legacy CLI credentials to migrate (once per run)")
+	log.Print("[aigauge] loadSettings: no providers yet, checking for legacy stored tokens to migrate (once per run)")
 
 	tokens, err := auth.ListTokens()
 	if err != nil || len(tokens) == 0 {
