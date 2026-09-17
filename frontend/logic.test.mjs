@@ -239,7 +239,7 @@ test('a threshold out of range or of the wrong type falls back to its default', 
   assert.deepEqual(normalizeThreshold(150, { enabled: true, value: 30 }, 1, 100), { enabled: true, value: 30 });
   assert.deepEqual(normalizeThreshold('', { enabled: true, value: 30 }, 1, 100), { enabled: true, value: 30 });
   assert.deepEqual(normalizeThreshold({ enabled: false, value: 42 }, { enabled: true, value: 30 }, 1, 100),
-    { enabled: false, value: 42 });
+    { enabled: false, value: 40 });
 });
 
 test('a corrupted config normalizes into a complete, usable one', () => {
@@ -256,11 +256,12 @@ test('the legacy "auto" theme is carried over to "system"', () => {
   assert.equal(normalizeConfig({ theme: 'auto' }, defaultConfig).theme, 'system');
 });
 
-test('critical is pushed below warning when a stored config has them crossed', () => {
+test('warning and critical thresholds remain independent when they overlap', () => {
   const config = normalizeConfig({
     thresholds: { warning: { enabled: true, value: 20 }, critical: { enabled: true, value: 50 } },
   }, defaultConfig);
-  assert.equal(config.thresholds.critical.value < config.thresholds.warning.value, true);
+  assert.equal(config.thresholds.warning.value, 20);
+  assert.equal(config.thresholds.critical.value, 50);
 });
 
 // --- presentation ----------------------------------------------------------

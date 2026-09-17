@@ -632,6 +632,26 @@ button {
   --wails-draggable: no-drag;
 }
 
+.settings-body select {
+  height: 24px;
+  box-sizing: border-box;
+  padding: 2px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: .75rem;
+  flex: 0 0 auto;
+  max-width: 100%;
+}
+
+.settings-body select:focus {
+  outline: none;
+  border-color: var(--base-accent);
+  box-shadow: 0 0 0 1px var(--base-accent);
+}
+
 .settings-body::-webkit-scrollbar {
   display: none;
 }
@@ -1029,69 +1049,27 @@ button {
   margin-top: 4px;
 }
 
-.threshold-value {
-  display: flex;
-  align-items: center;
-  gap: 2px;
-  margin-left: auto;
-}
-
 .threshold-label {
   display: flex;
   align-items: center;
   gap: 6px;
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
-}
-
-.threshold-label input[type="checkbox"] {
-  margin: 0;
-  accent-color: var(--base-accent);
-  cursor: pointer;
-}
-
-.threshold-text {
   font-weight: 500;
-  transition: color .15s ease;
+  white-space: nowrap;
 }
 
-.threshold-text.warning {
-  color: var(--base-warning);
+.threshold-marker {
+  width: 3px;
+  height: 14px;
+  flex: 0 0 3px;
+  border-radius: 2px;
 }
 
-.threshold-text.critical {
-  color: var(--base-critical);
+.threshold-marker.warning {
+  background: var(--base-warning);
 }
 
-.threshold-setting:has(input[type="checkbox"]:not(:checked)) .threshold-label {
-  opacity: .5;
-}
-
-.threshold-setting:has(input[type="checkbox"]:not(:checked)) .threshold-text {
-  color: var(--muted);
-}
-
-.threshold-setting:has(input[type="checkbox"]:not(:checked)) .threshold-value {
-  opacity: .35;
-}
-
-.threshold-value input {
-  width: 48px;
-  height: 24px;
-  box-sizing: border-box;
-  padding: 2px 4px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  font-size: .75rem;
-  text-align: center;
-}
-
-.threshold-value input:disabled {
-  cursor: not-allowed;
+.threshold-marker.critical {
+  background: var(--base-critical);
 }
 
 .refresh-setting-row {
@@ -1117,18 +1095,7 @@ button {
 }
 
 .refresh-setting-row select {
-  flex: 0 0 auto;
-  width: auto;
   min-width: 0;
-  height: 24px;
-  box-sizing: border-box;
-  padding: 2px 6px;
-  border: 1px solid var(--border);
-  border-radius: 4px;
-  background: var(--surface);
-  color: var(--text);
-  font-family: inherit;
-  font-size: .75rem;
 }
 
 .refresh-setting-row .threshold-input-wrap {
@@ -1153,16 +1120,12 @@ button {
   text-align: center;
 }
 
-.threshold-value input:focus,
-.refresh-setting-row select:focus,
 .refresh-setting-row input:focus {
   outline: none;
   border-color: var(--base-accent);
   box-shadow: 0 0 0 1px var(--base-accent);
 }
 
-.threshold-value input:user-invalid,
-.threshold-value input:invalid,
 .refresh-setting-row input:user-invalid,
 .refresh-setting-row input:invalid {
   outline: none;
@@ -1217,6 +1180,20 @@ button {
 .theme-button-group .theme-option-btn.active {
   background: var(--base-accent);
   color: #fff;
+}
+
+.boot-setting-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 20px;
+  color: var(--muted);
+  font-size: .75rem;
+}
+
+.boot-setting-row select {
+  font-size: .7rem;
 }
 
 .hotkey-setting-row {
@@ -1458,14 +1435,11 @@ button {
   }
 
   .refresh-setting-row select {
-    flex: 0 0 auto;
-    width: 100%;
     min-width: 0;
   }
 
   .hotkey-setting-row select {
-    flex: 0 0 auto;
-    width: 100%;
+    min-width: 0;
   }
 }
 

@@ -117,8 +117,9 @@ export function normalizeThreshold(raw, defaultThreshold, min, max) {
   const rawInput = isObj ? raw.value : raw;
   const num = typeof rawInput === 'string' && rawInput.trim() === '' ? NaN : Number(rawInput);
   const rounded = Number.isFinite(num) ? Math.round(num) : NaN;
-  const value = Number.isFinite(rounded) && rounded >= min && rounded <= max
-    ? rounded : defaultThreshold.value;
+  const stepped = Number.isFinite(rounded) ? Math.round(rounded / 5) * 5 : NaN;
+  const value = Number.isFinite(stepped) && stepped >= min && stepped <= max
+    ? stepped : defaultThreshold.value;
   const enabled = isObj && typeof raw.enabled === 'boolean' ? raw.enabled : true;
   return { enabled, value };
 }
@@ -145,10 +146,6 @@ export function normalizeConfig(value, defaultConfig = DEFAULT_CONFIG) {
   const effectiveDefault = defaultConfig || DEFAULT_CONFIG;
   const warning = normalizeThreshold(value?.thresholds?.warning, effectiveDefault.thresholds.warning, 1, 100);
   const critical = normalizeThreshold(value?.thresholds?.critical, effectiveDefault.thresholds.critical, 0, 99);
-  if (warning.enabled && critical.enabled && critical.value >= warning.value) {
-    critical.value = Math.max(0, warning.value - 1);
-  }
-
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
   const hotkeyShortcut = HOTKEY_OPTIONS.some(option => option.value === value?.hotkeyShortcut)
     ? value.hotkeyShortcut : '';

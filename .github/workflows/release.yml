@@ -201,17 +201,36 @@ jobs:
           if (-not $msix) {
             throw "No MSIX package was downloaded."
           }
+
+          function Register-MsStoreMasks([string]$Text) {
+            if (-not $Text) { return }
+            $pattern = '"FileUploadUrl"\s*:\s*"([^"]+)"'
+            foreach ($match in [regex]::Matches($Text, $pattern)) {
+              Write-Output "::add-mask::$($match.Groups[1].Value)"
+            }
+          }
+
           $overridesPath = Join-Path $env:GITHUB_WORKSPACE "submission-overrides.json"
           if (-not (Test-Path -LiteralPath $overridesPath -PathType Leaf)) {
-            msstore publish $msix.FullName --appId $env:STORE_APP_ID
-            exit $LASTEXITCODE
+            $publishOutput = (& msstore publish $msix.FullName --appId $env:STORE_APP_ID 2>&1 | Out-String)
+            $publishExitCode = $LASTEXITCODE
+            Register-MsStoreMasks $publishOutput | Write-Host
+            if ($publishExitCode -eq 0) { Write-Host "Microsoft Store submission published successfully." }
+            else { Write-Error "Microsoft Store publish failed with exit code $publishExitCode." }
+            exit $publishExitCode
           }
 
           # Keep the submission in draft state while adding the certification
           # notes, then commit the complete submission. The CLI's submission
           # metadata command accepts the full JSON returned by `submission get`.
-          msstore publish $msix.FullName --appId $env:STORE_APP_ID --noCommit
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $publishOutput = (& msstore publish $msix.FullName --appId $env:STORE_APP_ID --noCommit 2>&1 | Out-String)
+          $publishExitCode = $LASTEXITCODE
+          Register-MsStoreMasks $publishOutput | Write-Host
+          if ($publishExitCode -ne 0) {
+            Write-Error "Microsoft Store draft submission failed with exit code $publishExitCode."
+            exit $publishExitCode
+          }
+          Write-Host "Microsoft Store draft submission created successfully."
 
           function Invoke-MsStore([string[]]$Arguments) {
             $info = [Diagnostics.ProcessStartInfo]::new()
@@ -230,9 +249,9 @@ jobs:
             $process.WaitForExit()
             $stdout = $stdoutTask.GetAwaiter().GetResult()
             $stderr = $stderrTask.GetAwaiter().GetResult()
+            Register-MsStoreMasks ($stdout + "`n" + $stderr) | Write-Host
             if ($stdout) { Write-Output $stdout }
             if ($process.ExitCode -ne 0) {
-              if ($stderr) { Write-Error $stderr }
               throw "Microsoft Store CLI failed with exit code $($process.ExitCode)."
             }
           }
@@ -327,8 +346,10 @@ jobs:
           $metadataPath = Join-Path $env:RUNNER_TEMP "submission-metadata.json"
           Set-Content -LiteralPath $metadataPath -Value $metadata -NoNewline -Encoding utf8
           try {
-            Invoke-MsStore @("submission", "updateMetadata", $env:STORE_APP_ID, "--payload", $metadataPath) | Write-Host
+            Invoke-MsStore @("submission", "updateMetadata", $env:STORE_APP_ID, "--payload", $metadataPath) | Out-Null
+            Write-Host "Microsoft Store submission metadata updated successfully."
           } finally {
             Remove-Item -LiteralPath $metadataPath -ErrorAction SilentlyContinue
           }
-          Invoke-MsStore @("submission", "publish", $env:STORE_APP_ID) | Write-Host
+          Invoke-MsStore @("submission", "publish", $env:STORE_APP_ID) | Out-Null
+          Write-Host "Microsoft Store submission published successfully."

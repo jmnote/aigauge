@@ -209,6 +209,41 @@ func TestAppSetGlobalHotkey(t *testing.T) {
 	}
 }
 
+func TestAppStartWithWindows(t *testing.T) {
+	state := StartWithWindowsOff
+	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
+	app.SetStartWithWindowsHandlers(
+		func() (string, error) { return state, nil },
+		func(value string) error { state = value; return nil },
+	)
+
+	got, err := app.GetStartWithWindows()
+	if err != nil || got != StartWithWindowsOff {
+		t.Fatalf("GetStartWithWindows() = (%q, %v), want (%q, nil)", got, err, StartWithWindowsOff)
+	}
+	if err := app.SetStartWithWindows(StartWithWindowsShow); err != nil {
+		t.Fatalf("SetStartWithWindows(show) error = %v", err)
+	}
+	if state != StartWithWindowsShow {
+		t.Fatal("SetStartWithWindows(show) did not update the injected handler")
+	}
+	if err := app.SetStartWithWindows(StartWithWindowsInTray); err != nil {
+		t.Fatalf("SetStartWithWindows(tray) error = %v", err)
+	}
+	if state != StartWithWindowsInTray {
+		t.Fatal("SetStartWithWindows(tray) did not update the injected handler")
+	}
+	if err := app.SetStartWithWindows(StartWithWindowsOff); err != nil {
+		t.Fatalf("SetStartWithWindows(off) error = %v", err)
+	}
+	if state != StartWithWindowsOff {
+		t.Fatal("SetStartWithWindows(off) did not update the injected handler")
+	}
+	if err := app.SetStartWithWindows("invalid"); err == nil {
+		t.Fatal("SetStartWithWindows(invalid) error = nil, want validation error")
+	}
+}
+
 func TestAppAuthMethods(t *testing.T) {
 	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
 

@@ -38,22 +38,18 @@
         <h2 class="settings-section-title">Thresholds</h2>
         <div class="threshold-settings">
           <div class="threshold-setting">
-            <label class="threshold-label">
-              <input id="warning-enabled" type="checkbox" />
-              <span class="threshold-text warning">Warning</span>
+            <label class="threshold-label" for="warning-threshold">
+              <span class="threshold-marker warning" aria-hidden="true"></span>
+              <span>Warning</span>
             </label>
-            <span class="threshold-value">
-              <input id="warning-threshold" type="number" min="1" max="100" step="1" /><span>%</span>
-            </span>
+            <select id="warning-threshold" aria-label="Warning threshold"></select>
           </div>
           <div class="threshold-setting">
-            <label class="threshold-label">
-              <input id="critical-enabled" type="checkbox" />
-              <span class="threshold-text critical">Critical</span>
+            <label class="threshold-label" for="critical-threshold">
+              <span class="threshold-marker critical" aria-hidden="true"></span>
+              <span>Critical</span>
             </label>
-            <span class="threshold-value">
-              <input id="critical-threshold" type="number" min="0" max="99" step="1" /><span>%</span>
-            </span>
+            <select id="critical-threshold" aria-label="Critical threshold"></select>
           </div>
         </div>
       </section>
@@ -83,6 +79,14 @@
               <button type="button" id="hotkey-retry-btn" class="hotkey-retry-btn">Retry</button>
             </div>
           </div>
+        </div>
+        <div class="boot-setting-row">
+          <label class="boot-label" for="start-with-windows">Start with Windows</label>
+          <select id="start-with-windows" aria-label="Start with Windows">
+            <option value="off">Off</option>
+            <option value="show">Show window</option>
+            <option value="tray">Start in tray</option>
+          </select>
         </div>
       </section>
 

@@ -40,16 +40,18 @@ func providerTypeLabel(id string) (string, bool) {
 }
 
 type App struct {
-	settingsMu        sync.Mutex
-	onContentHeight   func(height int)
-	onSettingsHeight  func(height int)
-	onWindowWidth     func(width int)
-	onSetAlwaysOnTop  func(alwaysOnTop bool)
-	onHideToTray      func()
-	onOpenSettings    func()
-	onSettingsChanged func(config.Settings)
-	onSetGlobalHotkey func(enabled bool, shortcut string) error
-	browserLauncher   func(url string) error
+	settingsMu            sync.Mutex
+	onContentHeight       func(height int)
+	onSettingsHeight      func(height int)
+	onWindowWidth         func(width int)
+	onSetAlwaysOnTop      func(alwaysOnTop bool)
+	onHideToTray          func()
+	onOpenSettings        func()
+	onSettingsChanged     func(config.Settings)
+	onSetGlobalHotkey     func(enabled bool, shortcut string) error
+	onSetStartWithWindows func(state string) error
+	onGetStartWithWindows func() (string, error)
+	browserLauncher       func(url string) error
 
 	// checkedLegacyMigration guards loadSettings' one-time legacy-credential
 	// migration (see loadSettings) so it runs at most once per running
@@ -68,6 +70,16 @@ type App struct {
 	// not on every load, since an instance genuinely mid-add is pending too
 	// and must not be swept away while its own flow is still running.
 	checkedPendingCleanup bool
+}
+
+const (
+	StartWithWindowsOff    = "off"
+	StartWithWindowsShow   = "show"
+	StartWithWindowsInTray = "tray"
+)
+
+func validStartWithWindowsState(state string) bool {
+	return state == StartWithWindowsOff || state == StartWithWindowsShow || state == StartWithWindowsInTray
 }
 
 // SetSettingsContentHeight updates the settings window's content-driven height.
@@ -138,6 +150,30 @@ func (a *App) SetGlobalHotkey(enabled bool, shortcut string) error {
 		return nil
 	}
 	return a.onSetGlobalHotkey(enabled, shortcut)
+}
+
+// SetStartWithWindowsHandlers injects the platform-specific handlers used by the
+// UI. Tests can use this to avoid touching the host operating system.
+func (a *App) SetStartWithWindowsHandlers(getter func() (string, error), setter func(string) error) {
+	a.onGetStartWithWindows = getter
+	a.onSetStartWithWindows = setter
+}
+
+func (a *App) GetStartWithWindows() (string, error) {
+	if a.onGetStartWithWindows != nil {
+		return a.onGetStartWithWindows()
+	}
+	return getStartWithWindowsState()
+}
+
+func (a *App) SetStartWithWindows(state string) error {
+	if !validStartWithWindowsState(state) {
+		return fmt.Errorf("unsupported start with Windows state %q", state)
+	}
+	if a.onSetStartWithWindows != nil {
+		return a.onSetStartWithWindows(state)
+	}
+	return setStartWithWindows(state)
 }
 
 func (a *App) SetContentHeight(height int) {
@@ -399,14 +435,11 @@ func (a *App) SetSavedWindowWidth(width int) error {
 }
 
 func (a *App) SetThresholds(thresholds config.Thresholds) error {
-	if thresholds.Warning.Value < 1 || thresholds.Warning.Value > 100 ||
-		thresholds.Critical.Value < 0 || thresholds.Critical.Value > 99 {
-		return fmt.Errorf("invalid warning/critical thresholds")
+	if thresholds.Warning.Value < 5 || thresholds.Warning.Value > 100 || thresholds.Warning.Value%5 != 0 ||
+		thresholds.Critical.Value < 5 || thresholds.Critical.Value > 100 || thresholds.Critical.Value%5 != 0 {
+		return fmt.Errorf("invalid warning/critical thresholds: values must be 5%% to 100%% in 5%% steps")
 	}
 	return a.updateSettings(func(settings *config.Settings) error {
-		if thresholds.Warning.Enabled && thresholds.Critical.Enabled && thresholds.Critical.Value >= thresholds.Warning.Value {
-			thresholds.Critical.Value = thresholds.Warning.Value - 1
-		}
 		settings.Thresholds = thresholds
 		return nil
 	})

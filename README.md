@@ -31,6 +31,7 @@
 - Refresh usage automatically in the background at a configurable interval.
 - Keep the widget in the Windows system tray.
 - Show or hide the widget from anywhere with an optional global hotkey.
+- Optionally start with Windows, with the window shown or minimized to the system tray.
 - Choose Light, Dark, or System appearance.
 - Configure Warning and Critical thresholds for usage bars.
 - Persist settings locally between sessions.
@@ -40,7 +41,11 @@
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
 Click the pin button on the title bar to toggle **Always on top**. Open **Settings** to add, connect,
 import, remove, and reorder provider instances, configure Warning and Critical thresholds, change the
-refresh interval, choose Light, Dark, or System appearance, and optionally configure a global hotkey.
+refresh interval, choose Light, Dark, or System appearance, configure how AI Gauge starts with
+Windows, and optionally configure a global hotkey. The startup choices are **Off**, **Show window**,
+and **Start in tray**.
+For MSIX installations, these choices use the Windows startup task and remain manageable from
+Windows Settings or Task Manager.
 The optional global hotkey shows or hides the widget even while another application is active. To
 configure it, open **Settings** and choose a shortcut from the **Hotkey** dropdown. It supports
 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd>, and

@@ -108,15 +108,14 @@ const confirmDialogCancel = document.getElementById('confirm-dialog-cancel');
 const confirmDialogOk = document.getElementById('confirm-dialog-ok');
 const confirmDialogClose = document.getElementById('confirm-dialog-close');
 const themeButtonGroup = document.querySelector('.theme-button-group');
-const warningEnabledInput = document.getElementById('warning-enabled');
 const warningThresholdInput = document.getElementById('warning-threshold');
-const criticalEnabledInput = document.getElementById('critical-enabled');
 const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 const hotkeySelect = document.getElementById('hotkey-select');
 const hotkeyStatus = document.getElementById('hotkey-status');
 const hotkeyStatusText = document.getElementById('hotkey-status-text');
 const hotkeyRetryBtn = document.getElementById('hotkey-retry-btn');
+const startWithWindowsSelect = document.getElementById('start-with-windows');
 const versionEl = document.getElementById('version');
 
 
@@ -333,43 +332,44 @@ applyTheme(VALID_THEMES.has(activeTheme) ? activeTheme : 'system', !forcedTheme)
 // Thresholds
 // ---------------------------------------------------------------------------
 
-warningEnabledInput.checked = config.thresholds.warning.enabled;
-warningThresholdInput.value = config.thresholds.warning.value;
-warningThresholdInput.disabled = !config.thresholds.warning.enabled;
+const thresholdOptions = [
+  ...Array.from({ length: 20 }, (_, index) => `${100 - index * 5}%`),
+  'Disabled',
+];
 
-criticalEnabledInput.checked = config.thresholds.critical.enabled;
-criticalThresholdInput.value = config.thresholds.critical.value;
-criticalThresholdInput.disabled = !config.thresholds.critical.enabled;
+function populateThresholdSelect(select) {
+  select.replaceChildren(...thresholdOptions.map((label, index) =>
+    new Option(label, index < 20 ? String(100 - index * 5) : 'disabled')));
+}
 
-warningEnabledInput.addEventListener('change', () => {
-  config.thresholds.warning.enabled = warningEnabledInput.checked;
-  warningThresholdInput.disabled = !warningEnabledInput.checked;
+function thresholdValue(threshold) {
+  return threshold.enabled ? String(threshold.value) : 'disabled';
+}
+
+function renderThresholdUI() {
+  warningThresholdInput.value = thresholdValue(config.thresholds.warning);
+  criticalThresholdInput.value = thresholdValue(config.thresholds.critical);
+}
+
+function saveThresholdSettings() {
+  const warningValue = warningThresholdInput.value;
+  const criticalValue = criticalThresholdInput.value;
+  config.thresholds.warning = {
+    enabled: warningValue !== 'disabled',
+    value: warningValue === 'disabled' ? config.thresholds.warning.value : Number(warningValue),
+  };
+  config.thresholds.critical = {
+    enabled: criticalValue !== 'disabled',
+    value: criticalValue === 'disabled' ? config.thresholds.critical.value : Number(criticalValue),
+  };
   saveSetting('SetThresholds', config.thresholds);
-});
+}
 
-warningThresholdInput.addEventListener('change', () => {
-  let val = parseInt(warningThresholdInput.value, 10);
-  if (isNaN(val)) val = config.thresholds.warning.value;
-  val = Math.max(1, Math.min(100, val));
-  config.thresholds.warning.value = val;
-  warningThresholdInput.value = val;
-  saveSetting('SetThresholds', config.thresholds);
-});
-
-criticalEnabledInput.addEventListener('change', () => {
-  config.thresholds.critical.enabled = criticalEnabledInput.checked;
-  criticalThresholdInput.disabled = !criticalEnabledInput.checked;
-  saveSetting('SetThresholds', config.thresholds);
-});
-
-criticalThresholdInput.addEventListener('change', () => {
-  let val = parseInt(criticalThresholdInput.value, 10);
-  if (isNaN(val)) val = config.thresholds.critical.value;
-  val = Math.max(0, Math.min(99, val));
-  config.thresholds.critical.value = val;
-  criticalThresholdInput.value = val;
-  saveSetting('SetThresholds', config.thresholds);
-});
+populateThresholdSelect(warningThresholdInput);
+populateThresholdSelect(criticalThresholdInput);
+renderThresholdUI();
+warningThresholdInput.addEventListener('change', saveThresholdSettings);
+criticalThresholdInput.addEventListener('change', saveThresholdSettings);
 
 // ---------------------------------------------------------------------------
 // Global Hotkey
@@ -428,6 +428,37 @@ hotkeyRetryBtn.addEventListener('click', () => {
   if (hotkeyPendingSettings && !hotkeyBusy) applyHotkeySettings({ ...hotkeyPendingSettings });
 });
 updateHotkeyUI();
+
+// ---------------------------------------------------------------------------
+// Start on Boot
+// ---------------------------------------------------------------------------
+
+function updateStartWithWindowsUI(state) {
+  if (startWithWindowsSelect) startWithWindowsSelect.value = state;
+}
+
+async function syncStartWithWindowsSettings() {
+  try {
+    updateStartWithWindowsUI(await rpc('GetStartWithWindows'));
+  } catch (error) {
+    console.warn('Unable to read Start with Windows status:', error);
+    updateStartWithWindowsUI('off');
+  }
+}
+
+async function setStartWithWindows(state) {
+  const previous = startWithWindowsSelect.value;
+  try {
+    await rpc('SetStartWithWindows', state);
+  } catch (error) {
+    console.warn('Unable to update Start with Windows:', error);
+    updateStartWithWindowsUI(previous);
+    await syncStartWithWindowsSettings();
+  }
+}
+
+startWithWindowsSelect?.addEventListener('change', () => setStartWithWindows(startWithWindowsSelect.value));
+syncStartWithWindowsSettings();
 
 // ---------------------------------------------------------------------------
 // Provider List & Diagnosis
