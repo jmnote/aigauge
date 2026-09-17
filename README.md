@@ -22,8 +22,10 @@
 - View remaining Codex quotas and reset times for the 5-hour and 7-day windows.
 - View remaining Claude Code quotas and reset times for the 5-hour and 7-day (weekly) windows.
 - View Google Antigravity (`agy`) model-group quotas and reset times.
-- Enable or disable Codex, Claude, and Antigravity monitoring independently.
-- Reorder the provider cards to match your preference.
+- Add multiple independent Codex or Claude account instances and reorder their cards.
+- Add an Antigravity instance backed by the installed `agy` CLI.
+- Connect through the official browser login flow or import an existing local CLI session.
+- Remove provider instances and their locally stored AI Gauge credentials.
 - Automatically adjusts window size to fit active content.
 - Keep the widget always on top with the title bar pin button.
 - Refresh usage automatically in the background at a configurable interval.
@@ -36,8 +38,8 @@
 ## Usage
 
 Open AI Gauge from the Start menu or system tray. Left-click the tray icon to show the widget.
-Click the pin button on the title bar to toggle **Always on top**. Open **Settings** to enable or
-disable providers and reorder their cards, configure Warning and Critical thresholds, change the
+Click the pin button on the title bar to toggle **Always on top**. Open **Settings** to add, connect,
+import, remove, and reorder provider instances, configure Warning and Critical thresholds, change the
 refresh interval, choose Light, Dark, or System appearance, and optionally configure a global hotkey.
 The optional global hotkey shows or hides the widget even while another application is active. To
 configure it, open **Settings** and choose a shortcut from the **Hotkey** dropdown. It supports
@@ -50,36 +52,36 @@ choosing **Exit** from the tray menu quits the application.
 ## Requirements
 
 - Windows 10 or Windows 11 (64-bit)
-- A local OpenAI Codex login session
-- A local Claude Code login session, if Claude usage is needed
+- An OpenAI Codex account, if Codex usage is needed
+- An Anthropic Claude Code account, if Claude usage is needed
 - The Google Antigravity `agy` command-line tool, if Antigravity usage is needed
 
 ## How it works
 
-AI Gauge is a standalone Windows application. It reads the local Codex and Claude Code login
-sessions and invokes the locally installed `agy` command-line tool when Antigravity usage is
-enabled. It then displays the retrieved usage information in the widget.
+AI Gauge is a standalone Windows application. It authenticates Codex and Claude Code through their
+official browser flows or imports their local CLI sessions, then stores the resulting credentials in
+its own protected local token store. For Antigravity it invokes the locally installed `agy` command-line
+tool. It then displays the retrieved usage information in the widget.
 
 ## Privacy
 
 AI Gauge is a standalone local application. Usage data is processed and displayed on your
 Windows device and is not stored by AI Gauge. AI Gauge does not request or store passwords,
-payment information, or unrelated personal data. It uses the existing local Codex and Claude Code
-login sessions and the authentication managed by `agy` without storing a separate copy of their
-credentials.
+payment information, or unrelated personal data. OAuth tokens used for Codex and Claude Code are
+stored locally in AI Gauge's protected credential store; Antigravity authentication remains managed
+by `agy` and is not copied into AI Gauge.
 
 Any network communication and data handling by connected services are governed by their own
 authentication and privacy policies.
 
+See the full [Privacy Policy](docs/privacy-policy.md).
+
 ## Troubleshooting
 
-- If Codex data is unavailable, verify that the local Codex login session is active.
-- AI Gauge uses the access token maintained by Codex and does not refresh it itself. If the token
-  has expired, log in again with Codex so that `~/.codex/auth.json` is updated.
-- If Claude data is unavailable, verify that the local Claude Code login session is active.
-  AI Gauge uses the access token maintained by Claude Code and does not refresh it itself. If the
-  token has expired, log in again with Claude Code so that `~/.claude/.credentials.json` is
-  updated.
+- If Codex data is unavailable, use **Connect** in AI Gauge to complete the official browser login
+  flow again, or import the updated `~/.codex/auth.json` session from Settings.
+- If Claude data is unavailable, use **Connect** in AI Gauge to complete the official browser login
+  flow again, or import the updated `~/.claude/.credentials.json` session from Settings.
 - If Antigravity data is unavailable, verify that `agy` is installed and available to the app.
 - If the selected global hotkey is already used by another application, choose a different shortcut
   or free the shortcut, then select **Retry** in Settings.

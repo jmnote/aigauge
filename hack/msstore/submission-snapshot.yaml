@@ -1,3 +1,5 @@
+# Generated Partner Center export snapshot. Do not edit manually;
+# update submission-overrides.yaml for release metadata changes.
 Id: "1152921505701877923"
 ApplicationCategory: UtilitiesAndTools
 Pricing:
@@ -23,7 +25,9 @@ Listings:
         usage across OpenAI Codex, Anthropic Claude Code, and Google
         Antigravity. Live monitoring requires an existing signed-in Codex or
         Claude Code session, or the locally installed and signed-in agy
-        command-line tool for Antigravity. AI Gauge shows remaining quota percentages, reset times,
+        command-line tool for Antigravity. A built-in sample preview is
+        available without installing third-party tools or signing in to a
+        provider. AI Gauge shows remaining quota percentages, reset times,
         connection status, and the last successful update in a compact desktop
         window. You can show, hide, and reorder providers; configure refresh
         intervals and warning and critical thresholds; keep the widget above
@@ -36,6 +40,8 @@ Listings:
         - Multiple AI usage providers with visibility and ordering controls
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
+        - Built-in sample preview - explore the app before setting up any
+          provider
       ReleaseNotes: ""
       Images:
         - FileName: aigauge-native-dark.png

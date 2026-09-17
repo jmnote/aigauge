@@ -1,4 +1,7 @@
-# AI Gauge — Microsoft Partner Center submission
+<!-- Reference documentation for submission-snapshot.yaml. Do not edit the export snapshot manually;
+     update submission-overrides.yaml for release metadata changes. -->
+
+# AI Gauge — Microsoft Partner Center submission snapshot
 
 ## Product
 
@@ -52,15 +55,15 @@
 ### English (United States)
 
 - **Product name**: AI Gauge
-- **Description**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.Description`).
-- **What's new in this version**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.ReleaseNotes`).
-- **Product features**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.Features`).
+- **Description**: See [`submission-overrides.yaml`](submission-overrides.yaml) (`Listings.en-us.BaseListing.Description`) for the active listing copy; `submission-snapshot.yaml` is the full export snapshot.
+- **What's new in this version**: See [`submission-overrides.yaml`](submission-overrides.yaml) (`Listings.en-us.BaseListing.ReleaseNotes`).
+- **Product features**: See [`submission-overrides.yaml`](submission-overrides.yaml) (`Listings.en-us.BaseListing.Features`).
 - **Screenshots**: 2 Desktop images
   1. AI Gauge usage dashboard in dark mode.
   2. AI Gauge usage dashboard in light mode.
 - **Supplemental fields**:
-  - **Short description**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.ShortDescription`).
-  - **Keywords**: See [`submission-sample.yaml`](submission-sample.yaml) (`Listings.en-us.BaseListing.Keywords`).
+  - **Short description**: See [`submission-snapshot.yaml`](submission-snapshot.yaml) (`Listings.en-us.BaseListing.ShortDescription`).
+  - **Keywords**: See [`submission-snapshot.yaml`](submission-snapshot.yaml) (`Listings.en-us.BaseListing.Keywords`).
   - **Copyright and trademark info**: © 2026 jmnote. Licensed under the Apache License 2.0.
   - **Developed by**: jmnote
 
@@ -76,7 +79,7 @@
 
 #### Notes for Certification
 
-See [`submission-sample.yaml`](submission-sample.yaml) (`NotesForCertification`).
+See [`submission-overrides.yaml`](submission-overrides.yaml) (`NotesForCertification`) for the active certification instructions; `submission-snapshot.yaml` is the full export snapshot.
 
 #### Credentials
 
