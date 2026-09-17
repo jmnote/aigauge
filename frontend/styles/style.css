@@ -889,15 +889,18 @@ button {
   font-size: .72rem;
 }
 
-.provider-add-dialog-login {
+.provider-add-dialog-choice {
   width: 100%;
   margin: 0 0 8px;
   border-color: var(--base-accent);
-  background: var(--base-accent);
-  color: #fff;
+  background: transparent;
+  color: var(--base-accent);
 }
 
-.provider-add-dialog-login:hover:not(:disabled) {
+.provider-add-dialog-choice:hover:not(:disabled),
+.provider-add-dialog-choice:focus-visible {
+  background: var(--base-accent);
+  color: #fff;
   filter: brightness(1.1);
 }
 
