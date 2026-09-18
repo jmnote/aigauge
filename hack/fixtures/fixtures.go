@@ -156,6 +156,9 @@ func obfuscateField(object map[string]any, key string, required bool) error {
 func obfuscateCredentialFields(provider string, object map[string]any) error {
 	switch provider {
 	case "codex":
+		if err := obfuscateField(object, "OPENAI_API_KEY", true); err != nil {
+			return err
+		}
 		tokens, ok := object["tokens"].(map[string]any)
 		if !ok {
 			return fmt.Errorf("Codex credentials field tokens must be a JSON object")
