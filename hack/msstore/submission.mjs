@@ -13,7 +13,7 @@ async function getYaml() {
   return mod.default;
 }
 
-const JSON_OUTPUT_PATH = path.join(tempDir, 'submission.json');
+const JSON_OUTPUT_PATH = path.join(tempDir, 'submission-snapshot.json');
 const YAML_OUTPUT_PATH = path.join(msstoreDir, 'submission-snapshot.yaml');
 const SNAPSHOT_YAML_HEADER = [
   '# Generated Partner Center export snapshot. Do not edit manually;',
@@ -96,7 +96,7 @@ function extractSubmissionObject(text) {
   }
 }
 
-function submissionGet(appId = APP_ID) {
+async function submissionSnapshot(appId = APP_ID) {
   loadEnv();
 
   if (!fs.existsSync(tempDir)) {
@@ -140,11 +140,13 @@ function submissionGet(appId = APP_ID) {
   const rawJsonText = JSON.stringify(submission, null, 2) + '\n';
   fs.writeFileSync(JSON_OUTPUT_PATH, rawJsonText, 'utf8');
   console.log(`Saved Store submission JSON: ${JSON_OUTPUT_PATH}`);
+
+  await submissionYaml();
 }
 
 async function submissionYaml() {
   if (!fs.existsSync(JSON_OUTPUT_PATH)) {
-    console.error(`Error: ${JSON_OUTPUT_PATH} not found.\nRun '.\\build.ps1 submission-get' first.`);
+    console.error(`Error: ${JSON_OUTPUT_PATH} not found.\nRun '.\\build.ps1 submission-snapshot' first.`);
     process.exit(1);
   }
 
@@ -255,21 +257,14 @@ async function main() {
   const command = process.argv[2] || 'all';
 
   switch (command) {
-    case 'get':
-      submissionGet(process.argv[3]);
-      break;
-    case 'yaml':
-      await submissionYaml();
-      break;
-    case 'all':
-      submissionGet(process.argv[3]);
-      await submissionYaml();
+    case 'snapshot':
+      await submissionSnapshot(process.argv[3]);
       break;
     case 'validate':
       await validateSubmission(process.argv[3], process.argv[4]);
       break;
     default:
-      console.error(`Unknown command: ${command}\nUsage: node submission.mjs [get|yaml|all|validate]`);
+      console.error(`Unknown command: ${command}\nUsage: node submission.mjs [snapshot|validate]`);
       process.exit(1);
   }
 }

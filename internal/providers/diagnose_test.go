@@ -142,7 +142,7 @@ func TestDiagnoseClaudeWithoutToken(t *testing.T) {
 		t.Errorf("Status = %q, want %q", diag.Status, StatusLoginRequired)
 	}
 	if !diag.CanImport {
-		t.Error("CanImport = false, want true when legacy credentials exist")
+		t.Error("CanImport = false, want true when credentials file exists")
 	}
 
 	// Without token and not importable
@@ -152,7 +152,7 @@ func TestDiagnoseClaudeWithoutToken(t *testing.T) {
 		t.Errorf("Status = %q, want %q", diag2.Status, StatusLoginRequired)
 	}
 	if diag2.CanImport {
-		t.Error("CanImport = true, want false when legacy credentials do not exist")
+		t.Error("CanImport = true, want false when credentials file does not exist")
 	}
 }
 
@@ -194,7 +194,7 @@ func TestDiagnoseCodexWithoutToken(t *testing.T) {
 		t.Errorf("Status = %q, want %q", diag.Status, StatusLoginRequired)
 	}
 	if !diag.CanImport {
-		t.Error("CanImport = false, want true when legacy credentials exist")
+		t.Error("CanImport = false, want true when credentials file exists")
 	}
 
 	// Without token and not importable
@@ -204,7 +204,7 @@ func TestDiagnoseCodexWithoutToken(t *testing.T) {
 		t.Errorf("Status = %q, want %q", diag2.Status, StatusLoginRequired)
 	}
 	if diag2.CanImport {
-		t.Error("CanImport = true, want false when legacy credentials do not exist")
+		t.Error("CanImport = true, want false when credentials file does not exist")
 	}
 }
 

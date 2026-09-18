@@ -16,12 +16,17 @@ When a connected Codex or Claude Code instance is refreshed, AI Gauge may send a
 
 ## Local storage
 
-AI Gauge stores local application preferences, including provider instances and order, per-instance refresh intervals, theme, thresholds, window size, and the optional global hotkey. OAuth access and refresh tokens for Codex and Claude Code are stored locally under the app's configuration directory: Windows uses DPAPI-protected `credentials.dat`; other platforms use `credentials.json` with owner-only permissions. Usage results are kept in memory only while the app is running. AI Gauge does not maintain a remote account, analytics system, or remote database.
+AI Gauge stores local application preferences, including provider instances and order, per-instance refresh intervals, theme, thresholds, window size, the optional global hotkey, and the preferred Windows startup mode. OAuth access and refresh tokens for Codex and Claude Code are stored locally under the app's configuration directory: Windows uses DPAPI-protected `credentials.dat`; other platforms use `credentials.json` with owner-only permissions. Usage results are kept in memory only while the app is running. AI Gauge does not maintain a remote account, analytics system, or remote database.
 
 ## Your controls, retention, and deletion
 
 On a new installation, providers are configured as instances and are not queried until they have been connected. Selecting **Connect**, **Import**, or **Check connection** starts the relevant provider login, local credential import, or local CLI check; a successful connection enables usage refreshes. Removing a Codex or Claude Code instance deletes its locally stored OAuth tokens. Removing an Antigravity instance stops monitoring it; the `agy` CLI continues to manage its own authentication. Local preferences can be removed by uninstalling the app or clearing its local application data. AI Gauge does not retain usage data on a remote server.
 
+Starting with Windows is off by default. You can choose **Off**, **Show window**, or **Start in tray**
+in Settings. For Microsoft Store installations, the startup task can also be managed in Windows
+Settings or Task Manager. If automatic startup is enabled, connected providers may refresh usage after
+sign-in using the same local credentials and provider communication described above. Turning startup
+off stops automatic launches; it does not disconnect providers or delete their credentials.
 
 ## Contact
 

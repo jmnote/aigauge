@@ -31,17 +31,36 @@ const PROVIDER_TYPE_RPC = {
 // RPCs and are kept in sync by the "aigauge:config-updated" event the backend
 // emits whenever either one saves a change.
 let config = normalizeConfig(await rpc('GetSettings'));
+let confirmedConfig = structuredClone(config);
 
 let settingsWriteQueue = Promise.resolve();
-function saveSetting(method, ...args) {
+function enqueueSettingSave(method, ...args) {
   // Snapshot object arguments now: config can be replaced by an update event
   // before this queued write reaches the backend.
   const savedArgs = args.map(value => value && typeof value === 'object'
     ? JSON.parse(JSON.stringify(value)) : value);
-  settingsWriteQueue = settingsWriteQueue
-    .then(() => rpc(method, ...savedArgs))
-    .catch(e => console.warn('Failed to save settings:', e));
-  return settingsWriteQueue;
+  const request = settingsWriteQueue.then(() => rpc(method, ...savedArgs));
+  settingsWriteQueue = request.catch(() => {});
+  return request;
+}
+
+async function restoreSettingsAfterSaveFailure(error) {
+  console.warn('Failed to save settings:', error);
+  config = structuredClone(confirmedConfig);
+  try {
+    config = normalizeConfig(await rpc('GetSettings'));
+    confirmedConfig = structuredClone(config);
+  } catch (readError) {
+    console.warn('Unable to reload settings:', readError);
+  }
+  applyTheme(config.theme, false);
+  renderThresholdUI();
+  renderProviderList();
+  showToast('Settings could not be saved. Restored the last saved values.');
+}
+
+function saveSetting(method, ...args) {
+  return enqueueSettingSave(method, ...args).catch(restoreSettingsAfterSaveFailure);
 }
 
 let settingsResizeFrame = 0;
@@ -108,15 +127,14 @@ const confirmDialogCancel = document.getElementById('confirm-dialog-cancel');
 const confirmDialogOk = document.getElementById('confirm-dialog-ok');
 const confirmDialogClose = document.getElementById('confirm-dialog-close');
 const themeButtonGroup = document.querySelector('.theme-button-group');
-const warningEnabledInput = document.getElementById('warning-enabled');
 const warningThresholdInput = document.getElementById('warning-threshold');
-const criticalEnabledInput = document.getElementById('critical-enabled');
 const criticalThresholdInput = document.getElementById('critical-threshold');
 const systemTheme = matchMedia('(prefers-color-scheme: dark)');
 const hotkeySelect = document.getElementById('hotkey-select');
 const hotkeyStatus = document.getElementById('hotkey-status');
 const hotkeyStatusText = document.getElementById('hotkey-status-text');
 const hotkeyRetryBtn = document.getElementById('hotkey-retry-btn');
+const startWithWindowsSelect = document.getElementById('start-with-windows');
 const versionEl = document.getElementById('version');
 
 
@@ -333,43 +351,53 @@ applyTheme(VALID_THEMES.has(activeTheme) ? activeTheme : 'system', !forcedTheme)
 // Thresholds
 // ---------------------------------------------------------------------------
 
-warningEnabledInput.checked = config.thresholds.warning.enabled;
-warningThresholdInput.value = config.thresholds.warning.value;
-warningThresholdInput.disabled = !config.thresholds.warning.enabled;
+const thresholdOptions = [
+  ...Array.from({ length: 20 }, (_, index) => `${100 - index * 5}%`),
+  'Disabled',
+];
 
-criticalEnabledInput.checked = config.thresholds.critical.enabled;
-criticalThresholdInput.value = config.thresholds.critical.value;
-criticalThresholdInput.disabled = !config.thresholds.critical.enabled;
+function populateThresholdSelect(select) {
+  select.replaceChildren(...thresholdOptions.map((label, index) =>
+    new Option(label, index < 20 ? String(100 - index * 5) : 'disabled')));
+}
 
-warningEnabledInput.addEventListener('change', () => {
-  config.thresholds.warning.enabled = warningEnabledInput.checked;
-  warningThresholdInput.disabled = !warningEnabledInput.checked;
-  saveSetting('SetThresholds', config.thresholds);
-});
+function thresholdValue(threshold) {
+  return threshold.enabled ? String(threshold.value) : 'disabled';
+}
 
-warningThresholdInput.addEventListener('change', () => {
-  let val = parseInt(warningThresholdInput.value, 10);
-  if (isNaN(val)) val = config.thresholds.warning.value;
-  val = Math.max(1, Math.min(100, val));
-  config.thresholds.warning.value = val;
-  warningThresholdInput.value = val;
-  saveSetting('SetThresholds', config.thresholds);
-});
+function renderThresholdUI() {
+  warningThresholdInput.value = thresholdValue(config.thresholds.warning);
+  criticalThresholdInput.value = thresholdValue(config.thresholds.critical);
+}
 
-criticalEnabledInput.addEventListener('change', () => {
-  config.thresholds.critical.enabled = criticalEnabledInput.checked;
-  criticalThresholdInput.disabled = !criticalEnabledInput.checked;
-  saveSetting('SetThresholds', config.thresholds);
-});
+function saveThresholdSettings() {
+  const warningValue = warningThresholdInput.value;
+  const criticalValue = criticalThresholdInput.value;
+  const nextThresholds = {
+    warning: {
+      enabled: warningValue !== 'disabled',
+      value: warningValue === 'disabled' ? config.thresholds.warning.value : Number(warningValue),
+    },
+    critical: {
+      enabled: criticalValue !== 'disabled',
+      value: criticalValue === 'disabled' ? config.thresholds.critical.value : Number(criticalValue),
+    },
+  };
+  if (nextThresholds.warning.enabled && nextThresholds.critical.enabled &&
+      nextThresholds.warning.value < nextThresholds.critical.value) {
+    showToast('Warning threshold must be at or above Critical threshold.');
+    renderThresholdUI();
+    return;
+  }
+  config.thresholds = nextThresholds;
+  saveSetting('SetThresholds', nextThresholds);
+}
 
-criticalThresholdInput.addEventListener('change', () => {
-  let val = parseInt(criticalThresholdInput.value, 10);
-  if (isNaN(val)) val = config.thresholds.critical.value;
-  val = Math.max(0, Math.min(99, val));
-  config.thresholds.critical.value = val;
-  criticalThresholdInput.value = val;
-  saveSetting('SetThresholds', config.thresholds);
-});
+populateThresholdSelect(warningThresholdInput);
+populateThresholdSelect(criticalThresholdInput);
+renderThresholdUI();
+warningThresholdInput.addEventListener('change', saveThresholdSettings);
+criticalThresholdInput.addEventListener('change', saveThresholdSettings);
 
 // ---------------------------------------------------------------------------
 // Global Hotkey
@@ -428,6 +456,62 @@ hotkeyRetryBtn.addEventListener('click', () => {
   if (hotkeyPendingSettings && !hotkeyBusy) applyHotkeySettings({ ...hotkeyPendingSettings });
 });
 updateHotkeyUI();
+
+// ---------------------------------------------------------------------------
+// Start on Boot
+// ---------------------------------------------------------------------------
+
+let confirmedStartupState = 'off';
+let startupBusy = false;
+let startupReadGeneration = 0;
+function updateStartWithWindowsUI(state) {
+  confirmedStartupState = state;
+  if (startWithWindowsSelect) startWithWindowsSelect.value = state;
+}
+
+async function syncStartWithWindowsSettings() {
+  if (!startWithWindowsSelect) return;
+  const generation = ++startupReadGeneration;
+  try {
+    const state = await rpc('GetStartWithWindows');
+    if (generation === startupReadGeneration) updateStartWithWindowsUI(state);
+  } catch (error) {
+    if (generation !== startupReadGeneration) return;
+    console.warn('Unable to read Start with Windows status:', error);
+    startWithWindowsSelect.value = confirmedStartupState;
+    showToast('Unable to read Start with Windows status.');
+  }
+}
+
+async function setStartWithWindows(state) {
+  if (startupBusy || !startWithWindowsSelect) return;
+  startupBusy = true;
+  ++startupReadGeneration;
+  startWithWindowsSelect.disabled = true;
+  let saved = false;
+  try {
+    await enqueueSettingSave('SetStartWithWindows', state);
+    updateStartWithWindowsUI(state);
+    saved = true;
+  } catch (error) {
+    console.warn('Unable to update Start with Windows:', error);
+    startWithWindowsSelect.value = confirmedStartupState;
+    showToast(error?.message || String(error));
+  } finally {
+    if (!saved) await syncStartWithWindowsSettings();
+    startupBusy = false;
+    startWithWindowsSelect.disabled = false;
+  }
+}
+
+if (startWithWindowsSelect) {
+  startWithWindowsSelect.addEventListener('change', () => setStartWithWindows(startWithWindowsSelect.value));
+  startWithWindowsSelect.disabled = true;
+  syncStartWithWindowsSettings().finally(() => { startWithWindowsSelect.disabled = false; });
+}
+window.addEventListener('focus', () => {
+  if (!startupBusy) syncStartWithWindowsSettings();
+});
 
 // ---------------------------------------------------------------------------
 // Provider List & Diagnosis
@@ -666,6 +750,8 @@ wails.Events.On('aigauge:config-updated', event => {
   const data = event?.data || event;
   if (!data) return;
   config = normalizeConfig(data);
+  confirmedConfig = structuredClone(config);
   applyTheme(config.theme, false);
+  renderThresholdUI();
   renderProviderList();
 });

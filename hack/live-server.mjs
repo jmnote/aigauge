@@ -28,7 +28,7 @@ const theme = params.get('theme');
 // returns (DisplayUsage - see hack/fixtures/fixtures.go), so it doubles as
 // the live-server fixture with no conversion step between the two. The
 // server resolves "latest/<provider>.json" to whichever
-// hack/fixtures/display/display_<provider>_*.json snapshot is newest, so a fresh
+// hack/fixtures/usage/display_<provider>.json snapshot is used, so a fresh
 // \`.\\build.ps1 fixtures-usage\` capture needs no server restart.
 const providers = {
   Codex: 'latest/codex.json',
@@ -66,6 +66,7 @@ let mockSettings = {
   refreshInterval: 120,
   thresholds: { warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 20 } },
   hotkeyShortcut: '',
+  startupMode: 'off',
 };
 
 const stateFor = key => params.get(key.toLowerCase()) || params.get('state') || '';
@@ -98,12 +99,17 @@ const usageFor = async key => {
 };
 
 export const Call = {
-  ByName: async name => {
+  ByName: async (name, ...args) => {
     for (const key of Object.keys(providers)) {
       if (name.endsWith(\`Diagnose\${key}\`)) return diagnosisFor(key);
       if (name.endsWith(\`Get\${key}Usage\`)) return usageFor(key);
     }
     if (name.endsWith('GetSettings')) return mockSettings;
+    if (name.endsWith('GetStartWithWindows')) return mockSettings.startupMode;
+    if (name.endsWith('SetStartWithWindows')) {
+      mockSettings.startupMode = args[0] || 'off';
+      return null;
+    }
     if (name.endsWith('SetTheme') || name.endsWith('SetSavedWindowWidth') ||
         name.endsWith('SetThresholds') || name.endsWith('SetHotkeyShortcut') ||
         name.endsWith('SetProviderRefreshInterval') || name.endsWith('SetProviderOrder')) return null;
@@ -188,9 +194,9 @@ const server = http.createServer((req, res) => {
 
   if (pathname.startsWith("/fixtures/latest/")) {
     const match = /^([a-z]+)\.json$/.exec(pathname.substring("/fixtures/latest/".length));
-    const displayDir = path.join(fixturesRoot, "display");
+    const displayDir = path.join(fixturesRoot, "usage");
     const candidates = match && fs.existsSync(displayDir)
-      ? fs.readdirSync(displayDir).filter(f => f.startsWith(`display_${match[1]}_`) && f.endsWith(".json"))
+      ? fs.readdirSync(displayDir).filter(f => f === `display_${match[1]}.json`)
       : [];
     if (candidates.length === 0) {
       res.writeHead(404);

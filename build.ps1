@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures-usage", "fixtures-tokens", "submission", "submission-get", "submission-yaml", "submission-validate")]
+    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures-usage", "fixtures-tokens", "submission-snapshot", "submission-validate")]
     [string]$Task = "build",
     [Alias("Provider", "Target")]
     [string]$Version = "",
@@ -85,6 +85,7 @@ switch ($Task) {
         $outputExe = Join-Path $binDir "aigauge.exe"
         $ldflags = "-H=windowsgui -X github.com/jmnote/aigauge/internal/app.AppVersion=$Version"
         go build -ldflags $ldflags -o $outputExe .
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "package" {
         Ensure-HackNpm "@resvg/resvg-js"
@@ -181,9 +182,9 @@ switch ($Task) {
     }
     "fixtures-usage" {
         # Captures a usage snapshot using AI Gauge's own stored credentials
-        # (one API call per provider) into both hack/fixtures/usage/ (the
-        # API's raw response) and hack/fixtures/display/ (that same
-        # response converted to DisplayUsage). Needs a connected provider
+        # (one API call per provider) into hack/fixtures/usage/ as both the
+        # API's raw response and the converted DisplayUsage response.
+        # Needs a connected provider
         # instance of the requested type. Accepts an optional provider
         # argument via -Version: all (default), codex, claude, antigravity.
         $target = if ($Version) { $Version } else { "all" }
@@ -202,26 +203,15 @@ switch ($Task) {
         $target = if ($Version) { $Version } else { "all" }
         Push-Location $PSScriptRoot
         try {
-            go run hack/fixtures/get-tokens.go $target
+            go run hack/fixtures/fixtures.go tokens $target
         } finally {
             Pop-Location
         }
         exit $LASTEXITCODE
     }
-    "submission" {
-        foreach ($submissionTask in @("submission-get", "submission-yaml")) {
-            & $PSCommandPath -Task $submissionTask
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        }
-    }
-    "submission-get" {
-        Ensure-HackNpm
-        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") get
-        exit $LASTEXITCODE
-    }
-    "submission-yaml" {
+    "submission-snapshot" {
         Ensure-HackNpm "yaml"
-        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") yaml
+        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") snapshot
         exit $LASTEXITCODE
     }
     "submission-validate" {

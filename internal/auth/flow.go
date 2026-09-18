@@ -348,7 +348,7 @@ func RefreshToken(ctx context.Context, cfgType, tokenKey string) (*Token, error)
 // stays in sync with whatever the provider issued - some providers rotate
 // the refresh token itself, invalidating the old one server-side), but also
 // returns the unconverted token endpoint response body. Used by
-// hack/fixtures/get-tokens.go to capture the real response shape (e.g.
+// hack/fixtures/fixtures.go tokens to capture the real response shape (e.g.
 // whether a provider's token includes an id_token to identify the account
 // by) for fixture development.
 func FetchRawTokenRefresh(ctx context.Context, cfgType, tokenKey string) ([]byte, error) {

@@ -1,0 +1,44 @@
+[
+  {
+    "name": "manual launch with tray preference",
+    "startup": false,
+    "mode": "tray",
+    "hidden": false
+  },
+  {
+    "name": "manual launch with show preference",
+    "startup": false,
+    "mode": "show",
+    "hidden": false
+  },
+  {
+    "name": "startup in tray",
+    "startup": true,
+    "mode": "tray",
+    "hidden": true
+  },
+  {
+    "name": "startup with window",
+    "startup": true,
+    "mode": "show",
+    "hidden": false
+  },
+  {
+    "name": "startup enabled externally after off",
+    "startup": true,
+    "mode": "off",
+    "hidden": false
+  },
+  {
+    "name": "startup without a saved preference",
+    "startup": true,
+    "mode": "",
+    "hidden": false
+  },
+  {
+    "name": "startup with an invalid preference",
+    "startup": true,
+    "mode": "invalid",
+    "hidden": false
+  }
+]

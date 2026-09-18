@@ -1,13 +1,9 @@
 package util
 
-import (
-	"fmt"
-	"strings"
-)
+import "strings"
 
 type seq struct {
-	v, start, size int
-	n              int
+	v, start, size, n int
 }
 
 func (s *seq) next(v int) int {
@@ -37,8 +33,7 @@ func isHex(s string) bool {
 	return s != ""
 }
 
-func Obfuscate(x any) string {
-	s := fmt.Sprintf("%v", x)
+func Obfuscate(s string) string {
 
 	digit := seq{size: 10}
 	lower := seq{size: 26}

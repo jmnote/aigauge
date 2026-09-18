@@ -235,11 +235,11 @@ test('a provider list keeps order, drops bad entries, and de-duplicates by id', 
   assert.deepEqual(normalizeProviders(undefined), []);
 });
 
-test('a threshold out of range or of the wrong type falls back to its default', () => {
-  assert.deepEqual(normalizeThreshold(150, { enabled: true, value: 30 }, 1, 100), { enabled: true, value: 30 });
+test('thresholds clamp numeric values and default unreadable values', () => {
+  assert.deepEqual(normalizeThreshold(150, { enabled: true, value: 30 }), { enabled: true, value: 100 });
   assert.deepEqual(normalizeThreshold('', { enabled: true, value: 30 }, 1, 100), { enabled: true, value: 30 });
   assert.deepEqual(normalizeThreshold({ enabled: false, value: 42 }, { enabled: true, value: 30 }, 1, 100),
-    { enabled: false, value: 42 });
+    { enabled: false, value: 40 });
 });
 
 test('a corrupted config normalizes into a complete, usable one', () => {
@@ -256,11 +256,12 @@ test('the legacy "auto" theme is carried over to "system"', () => {
   assert.equal(normalizeConfig({ theme: 'auto' }, defaultConfig).theme, 'system');
 });
 
-test('critical is pushed below warning when a stored config has them crossed', () => {
+test('critical threshold is normalized below warning threshold', () => {
   const config = normalizeConfig({
     thresholds: { warning: { enabled: true, value: 20 }, critical: { enabled: true, value: 50 } },
   }, defaultConfig);
-  assert.equal(config.thresholds.critical.value < config.thresholds.warning.value, true);
+  assert.equal(config.thresholds.warning.value, 20);
+  assert.equal(config.thresholds.critical.value, 20);
 });
 
 // --- presentation ----------------------------------------------------------
@@ -284,3 +285,55 @@ test('waiting-for-setup states are not styled as errors', () => {
   assert.equal(badgeClass('login_required'), '');
   assert.equal(badgeClass('temporary_error'), 'is-blocked');
 });
+
+const thresholdFixtures = [
+  {
+    name: 'legacy endpoints',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 1 }, critical: { enabled: true, value: 99 },
+    } },
+    expected: { warning: { enabled: true, value: 5 }, critical: { enabled: true, value: 5 } },
+  },
+  {
+    name: 'rounded upper bound',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 42 }, critical: { enabled: true, value: 98 },
+    } },
+    expected: { warning: { enabled: true, value: 40 }, critical: { enabled: true, value: 40 } },
+  },
+  {
+    name: 'legacy disabled zero',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 50 }, critical: { enabled: false, value: 0 },
+    } },
+    expected: { warning: { enabled: true, value: 50 }, critical: { enabled: false, value: 5 } },
+  },
+  {
+    name: 'legacy enabled zero',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 0 },
+    } },
+    expected: { warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 5 } },
+  },
+  {
+    name: 'current maximum',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 100 }, critical: { enabled: true, value: 100 },
+    } },
+    expected: { warning: { enabled: true, value: 100 }, critical: { enabled: true, value: 100 } },
+  },
+  {
+    name: 'outside range',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: false, value: -10 }, critical: { enabled: true, value: 150 },
+    } },
+    expected: { warning: { enabled: false, value: 5 }, critical: { enabled: true, value: 100 } },
+  },
+];
+for (const fixture of thresholdFixtures) {
+  test('threshold migration: ' + fixture.name, () => {
+    const config = normalizeConfig(fixture.settings);
+    assert.deepEqual(config.thresholds, fixture.expected);
+    assert.deepEqual(normalizeConfig(config).thresholds, fixture.expected);
+  });
+}

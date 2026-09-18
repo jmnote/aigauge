@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -40,34 +41,47 @@ func providerTypeLabel(id string) (string, bool) {
 }
 
 type App struct {
-	settingsMu        sync.Mutex
-	onContentHeight   func(height int)
-	onSettingsHeight  func(height int)
-	onWindowWidth     func(width int)
-	onSetAlwaysOnTop  func(alwaysOnTop bool)
-	onHideToTray      func()
-	onOpenSettings    func()
-	onSettingsChanged func(config.Settings)
-	onSetGlobalHotkey func(enabled bool, shortcut string) error
-	browserLauncher   func(url string) error
+	settingsMu            sync.Mutex
+	startupMu             sync.Mutex
+	onContentHeight       func(height int)
+	onSettingsHeight      func(height int)
+	onWindowWidth         func(width int)
+	onSetAlwaysOnTop      func(alwaysOnTop bool)
+	onHideToTray          func()
+	onOpenSettings        func()
+	onSettingsChanged     func(config.Settings)
+	onSetGlobalHotkey     func(enabled bool, shortcut string) error
+	onSetStartWithWindows func(state string) error
+	onGetStartWithWindows func() (string, error)
+	browserLauncher       func(url string) error
 
-	// checkedLegacyMigration guards loadSettings' one-time legacy-credential
+	// checkedStoredTokenMigration guards loadSettings' one-time stored-token
 	// migration (see loadSettings) so it runs at most once per running
 	// process rather than once per empty provider list. Settings.Providers
 	// legitimately becomes empty again whenever a user deletes their last
 	// instance, and that deletion is not distinguishable, by the providers
-	// list alone, from a install that has never migrated - without this
+	// list alone, from an install that has never migrated - without this
 	// guard, deleting the last instance would resurrect it (or any other
-	// type whose legacy token is still on disk) the moment the frontend next
+	// type whose stored token is still on disk) the moment the frontend next
 	// calls GetSettings.
-	checkedLegacyMigration bool
+	checkedStoredTokenMigration bool
 
 	// checkedPendingCleanup guards the one-time-per-run sweep for orphaned
 	// pending instances (see ProviderInstance.Pending), the same way
-	// checkedLegacyMigration guards migration: it must run once at startup,
+	// checkedStoredTokenMigration guards migration: it must run once at startup,
 	// not on every load, since an instance genuinely mid-add is pending too
 	// and must not be swept away while its own flow is still running.
 	checkedPendingCleanup bool
+}
+
+const (
+	StartWithWindowsOff    = "off"
+	StartWithWindowsShow   = "show"
+	StartWithWindowsInTray = "tray"
+)
+
+func validStartWithWindowsState(state string) bool {
+	return state == StartWithWindowsOff || state == StartWithWindowsShow || state == StartWithWindowsInTray
 }
 
 // SetSettingsContentHeight updates the settings window's content-driven height.
@@ -138,6 +152,63 @@ func (a *App) SetGlobalHotkey(enabled bool, shortcut string) error {
 		return nil
 	}
 	return a.onSetGlobalHotkey(enabled, shortcut)
+}
+
+// SetStartWithWindowsHandlers injects the platform-specific handlers used by the
+// UI. Tests can use this to avoid touching the host operating system.
+func (a *App) SetStartWithWindowsHandlers(getter func() (string, error), setter func(string) error) {
+	a.onGetStartWithWindows = getter
+	a.onSetStartWithWindows = setter
+}
+
+func (a *App) GetStartWithWindows() (string, error) {
+	return a.getStartWithWindows()
+}
+
+func (a *App) getStartWithWindows() (string, error) {
+	if a.onGetStartWithWindows != nil {
+		return a.onGetStartWithWindows()
+	}
+	return getStartWithWindowsState()
+}
+
+func (a *App) SetStartWithWindows(state string) error {
+	if !validStartWithWindowsState(state) {
+		return fmt.Errorf("unsupported start with Windows state %q", state)
+	}
+	a.startupMu.Lock()
+	defer a.startupMu.Unlock()
+	return a.saveStartWithWindows(state)
+}
+
+func (a *App) saveStartWithWindows(state string) error {
+	previous, err := a.getStartWithWindows()
+	if err != nil {
+		return err
+	}
+	setter := a.onSetStartWithWindows
+	if setter == nil {
+		setter = setStartWithWindows
+	}
+	if err := setter(state); err != nil {
+		return err
+	}
+	a.settingsMu.Lock()
+	var settings config.Settings
+	settings, err = config.Load()
+	if err == nil {
+		settings.StartupMode = state
+		err = config.Save(settings)
+	}
+	a.settingsMu.Unlock()
+	if err != nil {
+		if rollbackErr := setter(previous); rollbackErr != nil {
+			return errors.Join(err, fmt.Errorf("restore previous startup state: %w", rollbackErr))
+		}
+		return err
+	}
+	a.notifySettingsChanged(settings)
+	return nil
 }
 
 func (a *App) SetContentHeight(height int) {
@@ -274,8 +345,8 @@ func (a *App) ImportProvider(instanceID string) (providers.Diagnosis, error) {
 		}, err
 	}
 
-	if _, err := auth.ImportLegacy(instance.Type, instance.ID); err != nil {
-		log.Printf("[aigauge] ImportProvider(%q): ImportLegacy failed: %v", instanceID, err)
+	if _, err := auth.ImportCredentialsFile(instance.Type, instance.ID); err != nil {
+		log.Printf("[aigauge] ImportProvider(%q): ImportCredentialsFile failed: %v", instanceID, err)
 		return providers.Diagnosis{
 			Status:  providers.StatusLoginRequired,
 			Message: fmt.Sprintf("Import failed: %v", err),
@@ -399,14 +470,11 @@ func (a *App) SetSavedWindowWidth(width int) error {
 }
 
 func (a *App) SetThresholds(thresholds config.Thresholds) error {
-	if thresholds.Warning.Value < 1 || thresholds.Warning.Value > 100 ||
-		thresholds.Critical.Value < 0 || thresholds.Critical.Value > 99 {
-		return fmt.Errorf("invalid warning/critical thresholds")
+	if err := config.ValidateThresholds(thresholds); err != nil {
+		return err
 	}
+	thresholds = config.NormalizeThresholds(thresholds)
 	return a.updateSettings(func(settings *config.Settings) error {
-		if thresholds.Warning.Enabled && thresholds.Critical.Enabled && thresholds.Critical.Value >= thresholds.Warning.Value {
-			thresholds.Critical.Value = thresholds.Warning.Value - 1
-		}
 		settings.Thresholds = thresholds
 		return nil
 	})
@@ -678,15 +746,15 @@ func (a *App) loadSettingsLocked() (config.Settings, error) {
 		a.checkedPendingCleanup = true
 		settings = a.dropOrphanedPendingInstances(settings)
 	}
-	if len(settings.Providers) > 0 || a.checkedLegacyMigration {
+	if len(settings.Providers) > 0 || a.checkedStoredTokenMigration {
 		return settings, nil
 	}
-	a.checkedLegacyMigration = true
-	log.Print("[aigauge] loadSettings: no providers yet, checking for legacy stored tokens to migrate (once per run)")
+	a.checkedStoredTokenMigration = true
+	log.Print("[aigauge] loadSettings: no providers yet, checking stored tokens to import (once per run)")
 
 	tokens, err := auth.ListTokens()
 	if err != nil || len(tokens) == 0 {
-		log.Printf("[aigauge] loadSettings: no legacy tokens found (err=%v)", err)
+		log.Printf("[aigauge] loadSettings: no stored tokens found (err=%v)", err)
 		return settings, nil
 	}
 
@@ -700,7 +768,7 @@ func (a *App) loadSettingsLocked() (config.Settings, error) {
 		})
 	}
 	if len(settings.Providers) > 0 {
-		log.Printf("[aigauge] loadSettings: migrated legacy credentials into %d instance(s): %+v", len(settings.Providers), settings.Providers)
+		log.Printf("[aigauge] loadSettings: imported stored tokens into %d instance(s): %+v", len(settings.Providers), settings.Providers)
 		if err := config.Save(settings); err != nil {
 			return settings, err
 		}

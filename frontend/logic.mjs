@@ -112,13 +112,14 @@ export function normalizeProviders(rawList) {
   return result;
 }
 
-export function normalizeThreshold(raw, defaultThreshold, min, max) {
+export function normalizeThreshold(raw, defaultThreshold, min = 5, max = 100) {
   const isObj = typeof raw === 'object' && raw !== null;
   const rawInput = isObj ? raw.value : raw;
   const num = typeof rawInput === 'string' && rawInput.trim() === '' ? NaN : Number(rawInput);
   const rounded = Number.isFinite(num) ? Math.round(num) : NaN;
-  const value = Number.isFinite(rounded) && rounded >= min && rounded <= max
-    ? rounded : defaultThreshold.value;
+  const stepped = Number.isFinite(rounded) ? Math.round(rounded / 5) * 5 : NaN;
+  const value = Number.isFinite(stepped)
+    ? Math.max(min, Math.min(max, stepped)) : defaultThreshold.value;
   const enabled = isObj && typeof raw.enabled === 'boolean' ? raw.enabled : true;
   return { enabled, value };
 }
@@ -143,15 +144,14 @@ export const DEFAULT_CONFIG = {
 // into defaults rather than take the window down with it.
 export function normalizeConfig(value, defaultConfig = DEFAULT_CONFIG) {
   const effectiveDefault = defaultConfig || DEFAULT_CONFIG;
-  const warning = normalizeThreshold(value?.thresholds?.warning, effectiveDefault.thresholds.warning, 1, 100);
-  const critical = normalizeThreshold(value?.thresholds?.critical, effectiveDefault.thresholds.critical, 0, 99);
-  if (warning.enabled && critical.enabled && critical.value >= warning.value) {
-    critical.value = Math.max(0, warning.value - 1);
-  }
-
+  const warning = normalizeThreshold(value?.thresholds?.warning, effectiveDefault.thresholds.warning);
+  const critical = normalizeThreshold(value?.thresholds?.critical, effectiveDefault.thresholds.critical);
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
   const hotkeyShortcut = HOTKEY_OPTIONS.some(option => option.value === value?.hotkeyShortcut)
     ? value.hotkeyShortcut : '';
+  if (warning.enabled && critical.enabled && critical.value > warning.value) {
+    critical.value = warning.value;
+  }
   return {
     providers: normalizeProviders(value?.providers),
     windowWidth: normalizeWindowWidth(value?.windowWidth),
