@@ -1,6 +1,6 @@
 # Generated Partner Center export snapshot. Do not edit manually;
 # update submission-overrides.yaml for release metadata changes.
-Id: "1152921505701877923"
+Id: "1152921505701921622"
 ApplicationCategory: UtilitiesAndTools
 Pricing:
   TrialPeriod: NoFreeTrial
@@ -8,7 +8,7 @@ Pricing:
     LB: NotAvailable
     EH: NotAvailable
   PriceId: Free
-  IsAdvancedPricingModel: false
+  IsAdvancedPricingModel: true
 Visibility: Public
 TargetPublishMode: Immediate
 TargetPublishDate: 1601-01-01T00:00:00Z
@@ -23,26 +23,27 @@ Listings:
         - background usage refresher
       Description: AI Gauge is a lightweight Windows system tray widget for monitoring
         usage across OpenAI Codex, Anthropic Claude Code, and Google
-        Antigravity. Live monitoring requires an existing signed-in Codex or
-        Claude Code session, or the locally installed and signed-in agy
-        command-line tool for Antigravity. A built-in sample preview is
-        available without installing third-party tools or signing in to a
-        provider. AI Gauge shows remaining quota percentages, reset times,
-        connection status, and the last successful update in a compact desktop
-        window. You can show, hide, and reorder providers; configure refresh
-        intervals and warning and critical thresholds; keep the widget above
-        other windows; and choose a light, dark, or system theme. The sample
-        preview shows bundled example data, not usage from any account. AI Gauge
-        runs locally, does not store a separate copy of your credentials, and
-        does not retain usage data on a remote server.
+        Antigravity. Connect Codex and Claude Code through their official
+        browser login flows or import an existing local CLI session; Antigravity
+        uses the locally installed and signed-in agy command-line tool. AI Gauge
+        shows remaining quota percentages, reset times, connection status, and
+        the last successful update in a compact desktop window. You can add
+        multiple provider accounts, connect or import credentials, remove and
+        reorder provider instances, configure refresh intervals and warning and
+        critical thresholds, keep the widget above other windows, and choose a
+        light, dark, or system theme. AI Gauge runs locally, stores Codex and
+        Claude OAuth tokens in its protected local credential store, and does
+        not retain usage data on a remote server.
       Features:
         - Automatic quota and reset-time monitoring
-        - Multiple AI usage providers with visibility and ordering controls
+        - Multiple provider accounts with ordering controls
+        - Official browser sign-in and local credential import
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
-        - Built-in sample preview - explore the app before setting up any
-          provider
-      ReleaseNotes: ""
+        - Global hotkey toggle to show and hide the window
+      ReleaseNotes: Configure multiple provider accounts, connect through official
+        browser sign-in or import an existing local session, and manage them
+        from Settings.
       Images:
         - FileName: aigauge-native-dark.png
           FileStatus: Uploaded
@@ -78,8 +79,46 @@ GamingOptions:
     KinectDataForExternal: Disabled
 HasExternalInAppProducts: false
 MeetAccessibilityGuidelines: false
-NotesForCertification: ""
-Status: PendingCommit
+NotesForCertification: >-
+  AI Gauge is a lightweight Windows system tray utility that monitors quota
+  usage and reset times for OpenAI Codex, Anthropic Claude Code, and Google
+  Antigravity.
+
+
+  No test accounts are supplied. Codex or Claude Code credentials are required
+  only to exercise provider connection and live usage monitoring; the app
+  remains functional on a clean device and shows setup guidance until a provider
+  is connected. Antigravity testing requires the supported `agy` CLI and an
+  account signed in through that CLI.
+
+  Steps to verify the app:
+
+  1. Launch AI Gauge on a clean system: The initial setup guidance appears
+  without errors or crash dialogs.
+
+  2. Open Settings (gear icon): Test light/dark/system themes, warning/critical
+  thresholds, window width adjustment, and the optional global hotkey (disabled
+  by default).
+
+  3. Test system tray integration: Confirm minimize to tray, restore from tray
+  icon, and "Always on top" pinning.
+
+  4. Add a Codex or Claude Code provider instance and click "Connect" to verify
+  the official browser authentication flow. Claude's manual flow may require
+  pasting the `CODE#STATE` value shown by the browser. If a local CLI session
+  exists, verify that "Import" also works. For Antigravity, use a supported,
+  pre-installed `agy` CLI.
+
+  5. Reopen Settings and remove the connected provider instance to verify that
+  its AI Gauge credential and card are removed.
+
+
+  Network behavior:
+
+  No provider network traffic is initiated until the user explicitly connects or
+  checks a configured provider. Antigravity checks use the locally installed
+  `agy` CLI.
+Status: Published
 StatusDetails:
   Errors: []
   Warnings:
@@ -87,12 +126,12 @@ StatusDetails:
       Details: The sales resource is no longer supported. To view or edit the sales
         data for this submission, use the Dev Center dashboard.
   CertificationReports: []
-FileUploadUrl: __REDACTED__
+FileUploadUrl: null
 ApplicationPackages:
-  - FileName: aigauge_0.6.1.0_x64.msix
-    FileStatus: PendingDelete
-    Id: "2000000000097991620"
-    Version: 0.6.1.0
+  - FileName: aigauge_0.8.0.0_x64.msix
+    FileStatus: Uploaded
+    Id: "2000000000098232882"
+    Version: 0.8.0.0
     Architecture: x64
     Languages:
       - en-US
@@ -100,15 +139,6 @@ ApplicationPackages:
       - internetClient
       - Microsoft.storeFilter.core.notSupported_8wekyb3d8bbwe
       - runFullTrust
-    MinimumDirectXVersion: None
-    MinimumSystemRam: None
-  - FileName: aigauge_0.7.2.0_x64.msix
-    FileStatus: PendingUpload
-    Id: null
-    Version: null
-    Architecture: null
-    Languages: []
-    Capabilities: []
     MinimumDirectXVersion: None
     MinimumSystemRam: None
 PackageDeliveryOptions:
@@ -122,11 +152,10 @@ PackageDeliveryOptions:
 EnterpriseLicensing: None
 AllowMicrosoftDecideAppAvailabilityToFutureDeviceFamilies: true
 AllowTargetFutureDeviceFamilies:
-  "7": false
   Desktop: true
   Mobile: false
   Xbox: false
   Team: false
   Holographic: false
-FriendlyName: null
+FriendlyName: Submission 3
 Trailers: []

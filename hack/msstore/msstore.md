@@ -81,11 +81,8 @@ Use `hack/msstore/submission.mjs` or `build.ps1` tasks to inspect and validate s
 # Validate submission overrides syntax and schema constraints
 .\build.ps1 submission-validate
 
-# Retrieve the current submission JSON from Partner Center (requires submission.env)
-.\build.ps1 submission-get
-
-# Convert the fetched submission JSON into submission-snapshot.yaml
-.\build.ps1 submission-yaml
+# Retrieve the current submission JSON and YAML snapshot from Partner Center (requires submission.env)
+.\build.ps1 submission-snapshot
 ```
 
 ---

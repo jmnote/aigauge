@@ -1,5 +1,5 @@
 param(
-    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures-usage", "fixtures-tokens", "submission", "submission-get", "submission-yaml", "submission-validate")]
+    [ValidateSet("run", "kill", "test", "logo", "build", "package", "checks", "clean", "live-server", "screenshot", "screenshot-light", "screenshot-dark", "fixtures-usage", "fixtures-tokens", "submission-snapshot", "submission-validate")]
     [string]$Task = "build",
     [Alias("Provider", "Target")]
     [string]$Version = "",
@@ -209,20 +209,9 @@ switch ($Task) {
         }
         exit $LASTEXITCODE
     }
-    "submission" {
-        foreach ($submissionTask in @("submission-get", "submission-yaml")) {
-            & $PSCommandPath -Task $submissionTask
-            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        }
-    }
-    "submission-get" {
-        Ensure-HackNpm
-        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") get
-        exit $LASTEXITCODE
-    }
-    "submission-yaml" {
+    "submission-snapshot" {
         Ensure-HackNpm "yaml"
-        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") yaml
+        & node (Join-Path $PSScriptRoot "hack\msstore\submission.mjs") snapshot
         exit $LASTEXITCODE
     }
     "submission-validate" {
