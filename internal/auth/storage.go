@@ -219,20 +219,20 @@ func IsInitialized() bool {
 	return s.IsInitialized()
 }
 
-// CanImportLegacy reports whether on-disk local session credentials exist for
+// CanImportCredentialsFile reports whether on-disk provider credentials exist for
 // the given provider type (e.g. "claude", "codex", "antigravity").
-func CanImportLegacy(providerType string) bool {
-	return tryMigrateLegacyCredentials(providerType) != nil
+func CanImportCredentialsFile(providerType string) bool {
+	return readCredentialsFileToken(providerType) != nil
 }
 
-// ImportLegacy imports on-disk local session credentials for providerType
+// ImportCredentialsFile imports on-disk provider credentials for providerType
 // (what CLI/file format to read) and stores the resulting token under
 // tokenKey (the provider *instance* the credentials are being attached to).
 // The two differ once a type can have several instances: reading is always
 // type-specific, but storage must not collide with another instance of the
 // same type.
-func ImportLegacy(providerType, tokenKey string) (*Token, error) {
-	tok := tryMigrateLegacyCredentials(providerType)
+func ImportCredentialsFile(providerType, tokenKey string) (*Token, error) {
+	tok := readCredentialsFileToken(providerType)
 	if tok == nil {
 		return nil, fmt.Errorf("no local credentials found for %s", providerType)
 	}
@@ -245,24 +245,38 @@ func ImportLegacy(providerType, tokenKey string) (*Token, error) {
 	return tok, nil
 }
 
-func tryMigrateLegacyCredentials(provider string) *Token {
+// ReadCredentialsFile reads the provider's native local credential file.
+// Callers that persist or display the data are responsible for protecting
+// sensitive values before doing so.
+func ReadCredentialsFile(provider string) ([]byte, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
-		return nil
+		return nil, err
 	}
 
+	var path string
 	switch provider {
 	case "claude":
-		path := filepath.Join(home, ".claude", ".credentials.json")
-		data, err := os.ReadFile(path)
+		path = filepath.Join(home, ".claude", ".credentials.json")
+	case "codex":
+		path = filepath.Join(home, ".codex", "auth.json")
+	default:
+		return nil, fmt.Errorf("unsupported credentials file provider %q", provider)
+	}
+	return os.ReadFile(path)
+}
+
+func readCredentialsFileToken(provider string) *Token {
+	switch provider {
+	case "claude":
+		data, err := ReadCredentialsFile(provider)
 		if err != nil {
 			return nil
 		}
 		return parseClaudeCredentials(data)
 
 	case "codex":
-		path := filepath.Join(home, ".codex", "auth.json")
-		data, err := os.ReadFile(path)
+		data, err := ReadCredentialsFile(provider)
 		if err != nil {
 			return nil
 		}

@@ -203,7 +203,7 @@ switch ($Task) {
         $target = if ($Version) { $Version } else { "all" }
         Push-Location $PSScriptRoot
         try {
-            go run hack/fixtures/get-tokens.go $target
+            go run hack/fixtures/fixtures.go tokens $target
         } finally {
             Pop-Location
         }

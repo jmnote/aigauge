@@ -480,18 +480,18 @@ func TestOrphanedPendingInstanceIsDroppedOnNextStartup(t *testing.T) {
 	}
 }
 
-// TestDeletingTheLastInstanceDoesNotResurrectLegacyMigration guards against a
-// real bug: loadSettings migrates leftover legacy (pre-instance) credentials
+// TestDeletingTheLastInstanceDoesNotResurrectStoredTokenMigration guards against a
+// real bug: loadSettings migrates leftover pre-instance stored tokens
 // into a provider instance the first time it sees an empty provider list, so
 // that upgrading users keep their connection. Using "the list is empty" as
 // that one-time trigger breaks the moment a user deletes their last
 // instance - the list is empty again, but for a completely different,
 // legitimate reason - so without a separate one-time guard, GetSettings
-// would resurrect it (or any other type whose legacy token is still on
+// would resurrect it (or any other type whose stored token is still on
 // disk) on its very next call, making Delete look like it silently failed.
-func TestDeletingTheLastInstanceDoesNotResurrectLegacyMigration(t *testing.T) {
+func TestDeletingTheLastInstanceDoesNotResurrectStoredTokenMigration(t *testing.T) {
 	authStore := withIsolatedStores(t)
-	_ = authStore.SaveToken("codex", &auth.Token{AccessToken: "legacy-codex-token"})
+	_ = authStore.SaveToken("codex", &auth.Token{AccessToken: "stored-codex-token"})
 	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
 
 	settings, err := app.GetSettings()
@@ -499,7 +499,7 @@ func TestDeletingTheLastInstanceDoesNotResurrectLegacyMigration(t *testing.T) {
 		t.Fatalf("GetSettings() error = %v", err)
 	}
 	if len(settings.Providers) != 1 || settings.Providers[0].ID != "codex" {
-		t.Fatalf("GetSettings() = %+v, want the legacy codex token migrated into one instance", settings.Providers)
+		t.Fatalf("GetSettings() = %+v, want the stored codex token imported into one instance", settings.Providers)
 	}
 
 	if err := app.RemoveProviderInstance("codex"); err != nil {
@@ -509,7 +509,7 @@ func TestDeletingTheLastInstanceDoesNotResurrectLegacyMigration(t *testing.T) {
 	// A leftover CLI session sitting on disk is exactly the state a real
 	// machine can be in - migration must not key off "the list is empty"
 	// and resurrect it just because the user deleted their last instance.
-	_ = authStore.SaveToken("codex", &auth.Token{AccessToken: "leftover-legacy-token"})
+	_ = authStore.SaveToken("codex", &auth.Token{AccessToken: "leftover-stored-token"})
 
 	settings2, err := app.GetSettings()
 	if err != nil {

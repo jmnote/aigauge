@@ -13,9 +13,6 @@ import (
 // task. Portable startup continues to use the explicit --hidden command line.
 func StartHiddenOnLaunch() (bool, error) {
 	return startHiddenOnLaunch(isStartupTaskActivation, func() (config.Settings, error) {
-		if err := config.MigrateLegacyStartupMode(); err != nil {
-			return config.Settings{}, err
-		}
 		return config.Load()
 	})
 }

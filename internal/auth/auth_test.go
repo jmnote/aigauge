@@ -576,7 +576,7 @@ func TestParseCodexCredentials(t *testing.T) {
 	}
 }
 
-func TestParseLegacyCredentialsInvalid(t *testing.T) {
+func TestParseCredentialsFileInvalid(t *testing.T) {
 	if tok := parseClaudeCredentials([]byte(`{}`)); tok != nil {
 		t.Errorf("parseClaudeCredentials({}) = %+v, want nil", tok)
 	}

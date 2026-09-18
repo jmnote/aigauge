@@ -5,6 +5,18 @@ import (
 	"strings"
 )
 
+var obfuscatedKeys = map[string]struct{}{
+	"accessToken":      {},
+	"refreshToken":     {},
+	"id_token":         {},
+	"access_token":     {},
+	"refresh_token":    {},
+	"account_id":       {},
+	"user_id":          {},
+	"email":            {},
+	"organizationUuid": {},
+}
+
 type seq struct {
 	v, start, size int
 	n              int
@@ -66,4 +78,24 @@ func Obfuscate(x any) string {
 		return string(runes[:len(runes)-7]) + "EXAMPLE"
 	}
 	return res
+}
+
+// ObfuscateFields recursively obfuscates sensitive values in JSON-like maps
+// and arrays. It mutates maps and slices in place and returns the same value.
+func ObfuscateFields(v any) any {
+	switch value := v.(type) {
+	case map[string]any:
+		for key, child := range value {
+			if _, ok := obfuscatedKeys[key]; ok && child != nil {
+				value[key] = Obfuscate(child)
+				continue
+			}
+			value[key] = ObfuscateFields(child)
+		}
+	case []any:
+		for index, child := range value {
+			value[index] = ObfuscateFields(child)
+		}
+	}
+	return v
 }

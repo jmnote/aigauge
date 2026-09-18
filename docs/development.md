@@ -179,7 +179,6 @@ startup executable or Windows App SDK runtime dependency. See the
 Portable builds register the full executable path under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
 as `AIGauge`, adding `--hidden` for tray startup. The explicit `--hidden`, `--tray`, and `--minimized`
 flags also hide the initial window during manual testing. **Off** removes the portable Run entry.
-The old `AIGaugeStartupMode` Run value is migrated to the settings file and deleted after persistence succeeds.
 
 WinRT calls and COM object releases stay on one locked OS thread. Successful initialization, including
 `S_FALSE`, is balanced by `RoUninitialize`. Enabling a startup task checks its returned state; a user or
@@ -198,7 +197,6 @@ registering a real startup task. Before release, also test an installed MSIX:
 5. Disable AI Gauge in Task Manager or Windows Settings, return to the app, and try to enable it.
    Verify that the app reports the block and displays **Off** until it is re-enabled in Windows.
 6. Select **Off** and verify no automatic launch at the next sign-in. When testing an upgrade with the
-   legacy mode value, confirm that `AIGaugeStartupMode` no longer exists under Run.
 
 ## Threshold preferences
 

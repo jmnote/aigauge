@@ -186,10 +186,8 @@ export async function packageMsix(options = {}) {
   const releaseArtifact = Boolean(options.release);
 
   const binExe = path.join(repoRoot, "dist", "bin", "aigauge.exe");
-  const legacyExe = path.join(repoRoot, "aigauge.exe");
-  const sourceExe = fs.existsSync(binExe) ? binExe : (fs.existsSync(legacyExe) ? legacyExe : null);
 
-  if (!sourceExe) {
+  if (!fs.existsSync(binExe)) {
     throw new Error(`Build output not found: ${binExe}`);
   }
 
@@ -205,7 +203,7 @@ export async function packageMsix(options = {}) {
   fs.mkdirSync(dist, { recursive: true });
 
   // Copy binary and license
-  fs.copyFileSync(sourceExe, path.join(staging, "aigauge.exe"));
+  fs.copyFileSync(binExe, path.join(staging, "aigauge.exe"));
   fs.copyFileSync(path.join(repoRoot, "LICENSE"), path.join(staging, "LICENSE"));
 
   // Process manifest. Check each attribute is actually present via a

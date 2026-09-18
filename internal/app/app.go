@@ -54,20 +54,20 @@ type App struct {
 	onGetStartWithWindows func() (string, error)
 	browserLauncher       func(url string) error
 
-	// checkedLegacyMigration guards loadSettings' one-time legacy-credential
+	// checkedStoredTokenMigration guards loadSettings' one-time stored-token
 	// migration (see loadSettings) so it runs at most once per running
 	// process rather than once per empty provider list. Settings.Providers
 	// legitimately becomes empty again whenever a user deletes their last
 	// instance, and that deletion is not distinguishable, by the providers
-	// list alone, from a install that has never migrated - without this
+	// list alone, from an install that has never migrated - without this
 	// guard, deleting the last instance would resurrect it (or any other
-	// type whose legacy token is still on disk) the moment the frontend next
+	// type whose stored token is still on disk) the moment the frontend next
 	// calls GetSettings.
-	checkedLegacyMigration bool
+	checkedStoredTokenMigration bool
 
 	// checkedPendingCleanup guards the one-time-per-run sweep for orphaned
 	// pending instances (see ProviderInstance.Pending), the same way
-	// checkedLegacyMigration guards migration: it must run once at startup,
+	// checkedStoredTokenMigration guards migration: it must run once at startup,
 	// not on every load, since an instance genuinely mid-add is pending too
 	// and must not be swept away while its own flow is still running.
 	checkedPendingCleanup bool
@@ -344,8 +344,8 @@ func (a *App) ImportProvider(instanceID string) (providers.Diagnosis, error) {
 		}, err
 	}
 
-	if _, err := auth.ImportLegacy(instance.Type, instance.ID); err != nil {
-		log.Printf("[aigauge] ImportProvider(%q): ImportLegacy failed: %v", instanceID, err)
+	if _, err := auth.ImportCredentialsFile(instance.Type, instance.ID); err != nil {
+		log.Printf("[aigauge] ImportProvider(%q): ImportCredentialsFile failed: %v", instanceID, err)
 		return providers.Diagnosis{
 			Status:  providers.StatusLoginRequired,
 			Message: fmt.Sprintf("Import failed: %v", err),
@@ -745,15 +745,15 @@ func (a *App) loadSettingsLocked() (config.Settings, error) {
 		a.checkedPendingCleanup = true
 		settings = a.dropOrphanedPendingInstances(settings)
 	}
-	if len(settings.Providers) > 0 || a.checkedLegacyMigration {
+	if len(settings.Providers) > 0 || a.checkedStoredTokenMigration {
 		return settings, nil
 	}
-	a.checkedLegacyMigration = true
-	log.Print("[aigauge] loadSettings: no providers yet, checking for legacy stored tokens to migrate (once per run)")
+	a.checkedStoredTokenMigration = true
+	log.Print("[aigauge] loadSettings: no providers yet, checking stored tokens to import (once per run)")
 
 	tokens, err := auth.ListTokens()
 	if err != nil || len(tokens) == 0 {
-		log.Printf("[aigauge] loadSettings: no legacy tokens found (err=%v)", err)
+		log.Printf("[aigauge] loadSettings: no stored tokens found (err=%v)", err)
 		return settings, nil
 	}
 
@@ -767,7 +767,7 @@ func (a *App) loadSettingsLocked() (config.Settings, error) {
 		})
 	}
 	if len(settings.Providers) > 0 {
-		log.Printf("[aigauge] loadSettings: migrated legacy credentials into %d instance(s): %+v", len(settings.Providers), settings.Providers)
+		log.Printf("[aigauge] loadSettings: imported stored tokens into %d instance(s): %+v", len(settings.Providers), settings.Providers)
 		if err := config.Save(settings); err != nil {
 			return settings, err
 		}

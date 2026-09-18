@@ -43,7 +43,7 @@ func containsAnyMarker(text string, markers []string) bool {
 }
 
 // providerDeps holds the seams a diagnosis or usage fetch touches: retrieving
-// stored tokens, checking if legacy CLI credentials exist for import,
+// stored tokens, checking if credentials files exist for import,
 // obtaining an access token that has been refreshed if it was expired, and -
 // for the one remaining CLI-backed provider (Antigravity, via agy) - running
 // and resolving that CLI.
@@ -68,7 +68,7 @@ type providerDeps struct {
 func defaultDeps() providerDeps {
 	return providerDeps{
 		getToken:            auth.GetToken,
-		canImport:           auth.CanImportLegacy,
+		canImport:           auth.CanImportCredentialsFile,
 		getValidAccessToken: auth.GetValidAccessToken,
 		runner:              execRunner{},
 		lookPath:            exec.LookPath,

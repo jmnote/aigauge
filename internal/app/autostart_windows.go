@@ -8,7 +8,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/jmnote/aigauge/internal/config"
 	"golang.org/x/sys/windows/registry"
 )
 
@@ -19,9 +18,6 @@ const (
 )
 
 func getStartWithWindowsState() (string, error) {
-	if err := config.MigrateLegacyStartupMode(); err != nil {
-		return "", err
-	}
 	if isPackagedWindowsApp() {
 		return getPackagedStartWithWindowsState()
 	}
