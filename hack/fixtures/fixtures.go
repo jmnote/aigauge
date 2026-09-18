@@ -190,10 +190,17 @@ func writeJSON(dir, filename string, data []byte, pretty bool) error {
 		data = buf.Bytes()
 	}
 	path := filepath.Join(dir, filename)
+	if err := writeJSONFile(path, data); err != nil {
+		return err
+	}
+	fmt.Println("Wrote", path)
+	return nil
+}
+
+func writeJSONFile(path string, data []byte) error {
 	if err := os.WriteFile(path, append(data, '\n'), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", path, err)
 	}
-	fmt.Println("Wrote", path)
 	return nil
 }
 
@@ -296,7 +303,7 @@ func writeJSONValue(path string, v any) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, append(data, '\n'), 0o644)
+	return writeJSONFile(path, data)
 }
 
 func captureTokens(tokensDir, target string) int {
@@ -364,7 +371,7 @@ func captureTokens(tokensDir, target string) int {
 			continue
 		}
 		if err := obfuscateCredentialFields(cfg.id, parsedRaw); err != nil {
-			fmt.Fprintf(os.Stderr, "warning: redact %s: %v\n", cfg.name, err)
+			fmt.Fprintf(os.Stderr, "warning: obfuscate %s: %v\n", cfg.name, err)
 			failures = append(failures, cfg.name)
 			continue
 		}
@@ -382,7 +389,7 @@ func captureTokens(tokensDir, target string) int {
 				failures = append(failures, cfg.name)
 				continue
 			}
-			fmt.Printf("  Wrote redacted credentials to %s\n", credentialsFilePath)
+			fmt.Printf("  Wrote obfuscated credentials to %s\n", credentialsFilePath)
 		}
 	}
 

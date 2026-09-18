@@ -101,12 +101,7 @@ func (f *fileStore) Load() (Settings, error) {
 	if err := json.Unmarshal(data, &settings); err != nil {
 		return Default(), err
 	}
-	if normalized := NormalizeThresholds(settings.Thresholds); normalized != settings.Thresholds {
-		settings.Thresholds = normalized
-		if err := f.saveLocked(settings); err != nil {
-			return settings, err
-		}
-	}
+	settings.Thresholds = NormalizeThresholds(settings.Thresholds)
 	return settings, nil
 }
 

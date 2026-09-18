@@ -204,7 +204,8 @@ registering a real startup task. Before release, also test an installed MSIX:
 ## Threshold preferences
 
 Warning and Critical are independent dropdowns with **Disabled** or 5% through 100% in 5% steps.
-Critical takes precedence when both match; Critical at 100% marks every remaining-usage level as critical.
+Critical takes precedence when both match, so an enabled Critical threshold must be at or below Warning;
+Critical at 100% marks every remaining-usage level as critical.
 Loading an older settings file rounds and clamps numeric values to this range and persists the migration,
 keeping each threshold's enabled flag. For example, 98/99 becomes 100 and 0/1 becomes 5.
 

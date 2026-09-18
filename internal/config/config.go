@@ -2,6 +2,8 @@
 // window width and hotkey as a single JSON document owned by the Go backend.
 package config
 
+import "fmt"
+
 // ProviderInstance is one user-added provider connection. ID identifies the
 // instance and is also the key used by the auth token store.
 // Presence in Settings.Providers is the only "is it shown" signal - there is
@@ -53,7 +55,35 @@ func NormalizeThresholds(thresholds Thresholds) Thresholds {
 		value := max(5, min(100, threshold.Value))
 		threshold.Value = ((value + 2) / 5) * 5
 	}
+	if thresholds.Warning.Enabled && thresholds.Critical.Enabled &&
+		thresholds.Critical.Value > thresholds.Warning.Value {
+		thresholds.Critical.Value = thresholds.Warning.Value
+	}
 	return thresholds
+}
+
+// ValidateThresholds rejects values that the status renderer cannot represent
+// coherently. Critical must be at or below Warning because critical takes
+// precedence when both thresholds match.
+func ValidateThresholds(thresholds Thresholds) error {
+	if err := validateThreshold("warning", thresholds.Warning); err != nil {
+		return err
+	}
+	if err := validateThreshold("critical", thresholds.Critical); err != nil {
+		return err
+	}
+	if thresholds.Warning.Enabled && thresholds.Critical.Enabled &&
+		thresholds.Warning.Value < thresholds.Critical.Value {
+		return fmt.Errorf("invalid thresholds: warning must be at or above critical")
+	}
+	return nil
+}
+
+func validateThreshold(name string, threshold Threshold) error {
+	if threshold.Value < 5 || threshold.Value > 100 || threshold.Value%5 != 0 {
+		return fmt.Errorf("invalid %s threshold: value must be 5%% to 100%% in 5%% steps", name)
+	}
+	return nil
 }
 
 // Default returns the settings a fresh install starts from: no provider

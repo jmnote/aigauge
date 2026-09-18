@@ -256,12 +256,12 @@ test('the legacy "auto" theme is carried over to "system"', () => {
   assert.equal(normalizeConfig({ theme: 'auto' }, defaultConfig).theme, 'system');
 });
 
-test('warning and critical thresholds remain independent when they overlap', () => {
+test('critical threshold is normalized below warning threshold', () => {
   const config = normalizeConfig({
     thresholds: { warning: { enabled: true, value: 20 }, critical: { enabled: true, value: 50 } },
   }, defaultConfig);
   assert.equal(config.thresholds.warning.value, 20);
-  assert.equal(config.thresholds.critical.value, 50);
+  assert.equal(config.thresholds.critical.value, 20);
 });
 
 // --- presentation ----------------------------------------------------------
@@ -292,14 +292,14 @@ const thresholdFixtures = [
     settings: { theme: 'dark', startupMode: 'tray', thresholds: {
       warning: { enabled: true, value: 1 }, critical: { enabled: true, value: 99 },
     } },
-    expected: { warning: { enabled: true, value: 5 }, critical: { enabled: true, value: 100 } },
+    expected: { warning: { enabled: true, value: 5 }, critical: { enabled: true, value: 5 } },
   },
   {
     name: 'rounded upper bound',
     settings: { theme: 'dark', startupMode: 'tray', thresholds: {
       warning: { enabled: true, value: 42 }, critical: { enabled: true, value: 98 },
     } },
-    expected: { warning: { enabled: true, value: 40 }, critical: { enabled: true, value: 100 } },
+    expected: { warning: { enabled: true, value: 40 }, critical: { enabled: true, value: 40 } },
   },
   {
     name: 'legacy disabled zero',

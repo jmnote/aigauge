@@ -15,8 +15,15 @@ import (
 )
 
 const (
-	appModelErrorNoPackage = 15700
-	asyncStatusCompleted   = 1
+	appModelErrorNoPackage           = 15700
+	asyncStatusCompleted             = 1
+	asyncStatusCanceled              = 2
+	asyncStatusError                 = 3
+	startupTaskStateDisabled         = 1
+	startupTaskStateEnabled          = 2
+	startupTaskStateDisabledByPolicy = 3
+	startupTaskStateEnabledByPolicy  = 4
+	startupAsyncTimeout              = 30 * time.Second
 )
 
 var (
@@ -81,7 +88,7 @@ func getPackagedStartWithWindowsState() (string, error) {
 	if err != nil {
 		return StartWithWindowsOff, err
 	}
-	if state != 2 && state != 4 { // Enabled / EnabledByPolicy
+	if !isStartupTaskEnabled(state) {
 		return StartWithWindowsOff, nil
 	}
 
@@ -115,7 +122,7 @@ func setPackagedStartWithWindows(state string) error {
 		if err != nil {
 			return err
 		}
-		if actual == 2 || actual == 4 {
+		if isStartupTaskEnabled(actual) {
 			return fmt.Errorf("Windows policy keeps this startup task enabled")
 		}
 		return nil
@@ -187,15 +194,19 @@ func startupTaskEnable(task *ole.IInspectable) (int32, error) {
 
 func checkStartupEnabled(state int32) error {
 	switch state {
-	case 2, 4: // Enabled / EnabledByPolicy
+	case startupTaskStateEnabled, startupTaskStateEnabledByPolicy:
 		return nil
-	case 1:
+	case startupTaskStateDisabled:
 		return fmt.Errorf("startup is disabled by the user; enable AI Gauge in Windows Settings or Task Manager")
-	case 3:
+	case startupTaskStateDisabledByPolicy:
 		return fmt.Errorf("startup is disabled by Windows policy")
 	default:
 		return fmt.Errorf("Windows did not enable the startup task (state %d)", state)
 	}
+}
+
+func isStartupTaskEnabled(state int32) bool {
+	return state == startupTaskStateEnabled || state == startupTaskStateEnabledByPolicy
 }
 
 func startupTaskDisable(task *ole.IInspectable) error {
@@ -214,7 +225,8 @@ func waitAsync(operation *ole.IInspectable) error {
 		return hresultError("IAsyncInfo.QueryInterface", hr)
 	}
 	defer release(info)
-	for range 100 {
+	deadline := time.Now().Add(startupAsyncTimeout)
+	for {
 		var status int32
 		hr = call(vtable(info)[7], uintptr(unsafe.Pointer(info)), uintptr(unsafe.Pointer(&status)))
 		if hr != 0 {
@@ -223,17 +235,19 @@ func waitAsync(operation *ole.IInspectable) error {
 		if status == asyncStatusCompleted {
 			return nil
 		}
-		if status == 2 {
+		if status == asyncStatusCanceled {
 			return fmt.Errorf("startup task operation was canceled")
 		}
-		if status == 3 { // Error
+		if status == asyncStatusError {
 			var code int32
 			_ = call(vtable(info)[8], uintptr(unsafe.Pointer(info)), uintptr(unsafe.Pointer(&code)))
 			return hresultError("StartupTask async operation", uintptr(code))
 		}
+		if time.Now().After(deadline) {
+			return fmt.Errorf("startup task operation timed out after %s", startupAsyncTimeout)
+		}
 		time.Sleep(10 * time.Millisecond)
 	}
-	return fmt.Errorf("startup task operation timed out")
 }
 
 func vtable(value *ole.IInspectable) []uintptr {

@@ -149,6 +149,9 @@ export function normalizeConfig(value, defaultConfig = DEFAULT_CONFIG) {
   const theme = value?.theme === 'auto' ? 'system' : value?.theme;
   const hotkeyShortcut = HOTKEY_OPTIONS.some(option => option.value === value?.hotkeyShortcut)
     ? value.hotkeyShortcut : '';
+  if (warning.enabled && critical.enabled && critical.value > warning.value) {
+    critical.value = warning.value;
+  }
   return {
     providers: normalizeProviders(value?.providers),
     windowWidth: normalizeWindowWidth(value?.windowWidth),

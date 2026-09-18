@@ -25,7 +25,7 @@ func TestThresholdMigration(t *testing.T) {
 			},
 			want: Thresholds{
 				Warning:  Threshold{Enabled: true, Value: 5},
-				Critical: Threshold{Enabled: true, Value: 100},
+				Critical: Threshold{Enabled: true, Value: 5},
 			},
 		},
 		{
@@ -40,7 +40,7 @@ func TestThresholdMigration(t *testing.T) {
 			},
 			want: Thresholds{
 				Warning:  Threshold{Enabled: true, Value: 40},
-				Critical: Threshold{Enabled: true, Value: 100},
+				Critical: Threshold{Enabled: true, Value: 40},
 			},
 		},
 		{
@@ -134,8 +134,21 @@ func TestThresholdMigration(t *testing.T) {
 			if err := json.Unmarshal(saved, &persisted); err != nil {
 				t.Fatal(err)
 			}
+			if persisted.Thresholds != fixture.settings.Thresholds {
+				t.Fatalf("Load rewrote settings: %+v", persisted.Thresholds)
+			}
+			if err := store.Save(got); err != nil {
+				t.Fatal(err)
+			}
+			saved, err = os.ReadFile(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := json.Unmarshal(saved, &persisted); err != nil {
+				t.Fatal(err)
+			}
 			if persisted.Thresholds != fixture.want {
-				t.Fatalf("migration not persisted: %+v", persisted.Thresholds)
+				t.Fatalf("normalized settings not persisted: %+v", persisted.Thresholds)
 			}
 			if _, err := store.Load(); err != nil {
 				t.Fatal(err)

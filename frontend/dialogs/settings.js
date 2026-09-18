@@ -34,28 +34,33 @@ let config = normalizeConfig(await rpc('GetSettings'));
 let confirmedConfig = structuredClone(config);
 
 let settingsWriteQueue = Promise.resolve();
-function saveSetting(method, ...args) {
+function enqueueSettingSave(method, ...args) {
   // Snapshot object arguments now: config can be replaced by an update event
   // before this queued write reaches the backend.
   const savedArgs = args.map(value => value && typeof value === 'object'
     ? JSON.parse(JSON.stringify(value)) : value);
-  settingsWriteQueue = settingsWriteQueue
-    .then(() => rpc(method, ...savedArgs))
-    .catch(async error => {
-      console.warn('Failed to save settings:', error);
-      config = structuredClone(confirmedConfig);
-      try {
-        config = normalizeConfig(await rpc('GetSettings'));
-        confirmedConfig = structuredClone(config);
-      } catch (readError) {
-        console.warn('Unable to reload settings:', readError);
-      }
-      applyTheme(config.theme, false);
-      renderThresholdUI();
-      renderProviderList();
-      showToast('Settings could not be saved. Restored the last saved values.');
-    });
-  return settingsWriteQueue;
+  const request = settingsWriteQueue.then(() => rpc(method, ...savedArgs));
+  settingsWriteQueue = request.catch(() => {});
+  return request;
+}
+
+async function restoreSettingsAfterSaveFailure(error) {
+  console.warn('Failed to save settings:', error);
+  config = structuredClone(confirmedConfig);
+  try {
+    config = normalizeConfig(await rpc('GetSettings'));
+    confirmedConfig = structuredClone(config);
+  } catch (readError) {
+    console.warn('Unable to reload settings:', readError);
+  }
+  applyTheme(config.theme, false);
+  renderThresholdUI();
+  renderProviderList();
+  showToast('Settings could not be saved. Restored the last saved values.');
+}
+
+function saveSetting(method, ...args) {
+  return enqueueSettingSave(method, ...args).catch(restoreSettingsAfterSaveFailure);
 }
 
 let settingsResizeFrame = 0;
@@ -368,15 +373,24 @@ function renderThresholdUI() {
 function saveThresholdSettings() {
   const warningValue = warningThresholdInput.value;
   const criticalValue = criticalThresholdInput.value;
-  config.thresholds.warning = {
-    enabled: warningValue !== 'disabled',
-    value: warningValue === 'disabled' ? config.thresholds.warning.value : Number(warningValue),
+  const nextThresholds = {
+    warning: {
+      enabled: warningValue !== 'disabled',
+      value: warningValue === 'disabled' ? config.thresholds.warning.value : Number(warningValue),
+    },
+    critical: {
+      enabled: criticalValue !== 'disabled',
+      value: criticalValue === 'disabled' ? config.thresholds.critical.value : Number(criticalValue),
+    },
   };
-  config.thresholds.critical = {
-    enabled: criticalValue !== 'disabled',
-    value: criticalValue === 'disabled' ? config.thresholds.critical.value : Number(criticalValue),
-  };
-  saveSetting('SetThresholds', config.thresholds);
+  if (nextThresholds.warning.enabled && nextThresholds.critical.enabled &&
+      nextThresholds.warning.value < nextThresholds.critical.value) {
+    showToast('Warning threshold must be at or above Critical threshold.');
+    renderThresholdUI();
+    return;
+  }
+  config.thresholds = nextThresholds;
+  saveSetting('SetThresholds', nextThresholds);
 }
 
 populateThresholdSelect(warningThresholdInput);
@@ -475,7 +489,7 @@ async function setStartWithWindows(state) {
   ++startupReadGeneration;
   startWithWindowsSelect.disabled = true;
   try {
-    await rpc('SetStartWithWindows', state);
+    await enqueueSettingSave('SetStartWithWindows', state);
     updateStartWithWindowsUI(state);
   } catch (error) {
     console.warn('Unable to update Start with Windows:', error);

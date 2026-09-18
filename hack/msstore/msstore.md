@@ -113,7 +113,7 @@ Before submitting a major update to certification, run these quick sanity checks
    - If testing Antigravity, install the supported `agy` CLI and sign in to it first; AI Gauge does not provide that CLI or its account.
 3. **Settings & customization**:
    - Open Settings (gear icon): Test light/dark/system themes, Warning/Critical dropdowns, window width resizing, and the optional global hotkey (disabled by default).
-   - Each threshold supports **Disabled** or 5% through 100% in 5% steps. Verify that 100% survives reopening Settings; Critical takes precedence when both thresholds match.
+   - Each threshold supports **Disabled** or 5% through 100% in 5% steps. Warning must be at or above Critical. Verify that 100% survives reopening Settings; Critical takes precedence when both thresholds match.
 4. **System tray behavior**:
    - Test minimize-to-tray, tray icon click to restore, and right-click context menu options.
 5. **Windows startup (no provider account required)**:

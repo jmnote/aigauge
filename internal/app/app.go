@@ -470,9 +470,8 @@ func (a *App) SetSavedWindowWidth(width int) error {
 }
 
 func (a *App) SetThresholds(thresholds config.Thresholds) error {
-	if thresholds.Warning.Value < 5 || thresholds.Warning.Value > 100 || thresholds.Warning.Value%5 != 0 ||
-		thresholds.Critical.Value < 5 || thresholds.Critical.Value > 100 || thresholds.Critical.Value%5 != 0 {
-		return fmt.Errorf("invalid warning/critical thresholds: values must be 5%% to 100%% in 5%% steps")
+	if err := config.ValidateThresholds(thresholds); err != nil {
+		return err
 	}
 	return a.updateSettings(func(settings *config.Settings) error {
 		settings.Thresholds = thresholds

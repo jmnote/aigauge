@@ -41,10 +41,14 @@ func getRegistryStartWithWindowsState() (string, error) {
 		}
 		return "", err
 	}
-	if strings.Contains(value, "--hidden") {
+	if registryCommandStartsInTray(value) {
 		return StartWithWindowsInTray, nil
 	}
 	return StartWithWindowsShow, nil
+}
+
+func registryCommandStartsInTray(command string) bool {
+	return strings.HasSuffix(strings.TrimSpace(command), " --hidden")
 }
 
 func setStartWithWindows(state string) error {

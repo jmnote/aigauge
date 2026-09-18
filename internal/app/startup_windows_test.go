@@ -27,3 +27,19 @@ func TestStartupEnableRejectsDisabledResults(t *testing.T) {
 		}
 	}
 }
+
+func TestRegistryCommandStartsInTrayOnlyForFinalArgument(t *testing.T) {
+	for _, tc := range []struct {
+		command string
+		want    bool
+	}{
+		{`"C:\\Program Files\\AI Gauge\\aigauge.exe"`, false},
+		{`"C:\\Program Files\\AI Gauge --hidden\\aigauge.exe"`, false},
+		{`"C:\\Program Files\\AI Gauge\\aigauge.exe" --hidden`, true},
+		{`"C:\\Program Files\\AI Gauge\\aigauge.exe" --hidden   `, true},
+	} {
+		if got := registryCommandStartsInTray(tc.command); got != tc.want {
+			t.Errorf("registryCommandStartsInTray(%q) = %v, want %v", tc.command, got, tc.want)
+		}
+	}
+}

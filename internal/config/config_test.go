@@ -18,6 +18,29 @@ func TestDefaultHasNoProvidersAndSaneDefaults(t *testing.T) {
 	}
 }
 
+func TestValidateThresholdsRequiresCriticalAtOrBelowWarning(t *testing.T) {
+	valid := Thresholds{
+		Warning:  Threshold{Enabled: true, Value: 50},
+		Critical: Threshold{Enabled: true, Value: 20},
+	}
+	if err := ValidateThresholds(valid); err != nil {
+		t.Fatalf("ValidateThresholds(valid) error = %v", err)
+	}
+
+	invalid := valid
+	invalid.Warning.Value = 20
+	invalid.Critical.Value = 90
+	if err := ValidateThresholds(invalid); err == nil {
+		t.Fatal("ValidateThresholds(invalid) error = nil, want ordering error")
+	}
+
+	disabled := invalid
+	disabled.Critical.Enabled = false
+	if err := ValidateThresholds(disabled); err != nil {
+		t.Fatalf("ValidateThresholds(disabled critical) error = %v", err)
+	}
+}
+
 func TestLoadAndSaveWithoutADefaultStoreAreNoops(t *testing.T) {
 	SetDefaultStore(nil)
 
