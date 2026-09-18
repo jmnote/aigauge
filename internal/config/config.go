@@ -66,11 +66,15 @@ func NormalizeThresholds(thresholds Thresholds) Thresholds {
 // coherently. Critical must be at or below Warning because critical takes
 // precedence when both thresholds match.
 func ValidateThresholds(thresholds Thresholds) error {
-	if err := validateThreshold("warning", thresholds.Warning); err != nil {
-		return err
+	if thresholds.Warning.Enabled {
+		if err := validateThreshold("warning", thresholds.Warning); err != nil {
+			return err
+		}
 	}
-	if err := validateThreshold("critical", thresholds.Critical); err != nil {
-		return err
+	if thresholds.Critical.Enabled {
+		if err := validateThreshold("critical", thresholds.Critical); err != nil {
+			return err
+		}
 	}
 	if thresholds.Warning.Enabled && thresholds.Critical.Enabled &&
 		thresholds.Warning.Value < thresholds.Critical.Value {
