@@ -473,6 +473,7 @@ func (a *App) SetThresholds(thresholds config.Thresholds) error {
 	if err := config.ValidateThresholds(thresholds); err != nil {
 		return err
 	}
+	thresholds = config.NormalizeThresholds(thresholds)
 	return a.updateSettings(func(settings *config.Settings) error {
 		settings.Thresholds = thresholds
 		return nil

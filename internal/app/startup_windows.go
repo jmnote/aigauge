@@ -193,9 +193,10 @@ func startupTaskEnable(task *ole.IInspectable) (int32, error) {
 }
 
 func checkStartupEnabled(state int32) error {
-	switch state {
-	case startupTaskStateEnabled, startupTaskStateEnabledByPolicy:
+	if isStartupTaskEnabled(state) {
 		return nil
+	}
+	switch state {
 	case startupTaskStateDisabled:
 		return fmt.Errorf("startup is disabled by the user; enable AI Gauge in Windows Settings or Task Manager")
 	case startupTaskStateDisabledByPolicy:

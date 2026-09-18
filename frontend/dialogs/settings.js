@@ -488,15 +488,17 @@ async function setStartWithWindows(state) {
   startupBusy = true;
   ++startupReadGeneration;
   startWithWindowsSelect.disabled = true;
+  let saved = false;
   try {
     await enqueueSettingSave('SetStartWithWindows', state);
     updateStartWithWindowsUI(state);
+    saved = true;
   } catch (error) {
     console.warn('Unable to update Start with Windows:', error);
     startWithWindowsSelect.value = confirmedStartupState;
     showToast(error?.message || String(error));
   } finally {
-    await syncStartWithWindowsSettings();
+    if (!saved) await syncStartWithWindowsSettings();
     startupBusy = false;
     startWithWindowsSelect.disabled = false;
   }

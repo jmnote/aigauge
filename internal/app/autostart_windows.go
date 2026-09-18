@@ -48,7 +48,13 @@ func getRegistryStartWithWindowsState() (string, error) {
 }
 
 func registryCommandStartsInTray(command string) bool {
-	return strings.HasSuffix(strings.TrimSpace(command), " --hidden")
+	command = strings.TrimSpace(command)
+	for _, flag := range []string{"--hidden", "--tray", "--minimized"} {
+		if strings.HasSuffix(command, " "+flag) {
+			return true
+		}
+	}
+	return false
 }
 
 func setStartWithWindows(state string) error {

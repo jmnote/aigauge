@@ -66,6 +66,7 @@ let mockSettings = {
   refreshInterval: 120,
   thresholds: { warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 20 } },
   hotkeyShortcut: '',
+  startupMode: 'off',
 };
 
 const stateFor = key => params.get(key.toLowerCase()) || params.get('state') || '';
@@ -98,12 +99,17 @@ const usageFor = async key => {
 };
 
 export const Call = {
-  ByName: async name => {
+  ByName: async (name, ...args) => {
     for (const key of Object.keys(providers)) {
       if (name.endsWith(\`Diagnose\${key}\`)) return diagnosisFor(key);
       if (name.endsWith(\`Get\${key}Usage\`)) return usageFor(key);
     }
     if (name.endsWith('GetSettings')) return mockSettings;
+    if (name.endsWith('GetStartWithWindows')) return mockSettings.startupMode;
+    if (name.endsWith('SetStartWithWindows')) {
+      mockSettings.startupMode = args[0] || 'off';
+      return null;
+    }
     if (name.endsWith('SetTheme') || name.endsWith('SetSavedWindowWidth') ||
         name.endsWith('SetThresholds') || name.endsWith('SetHotkeyShortcut') ||
         name.endsWith('SetProviderRefreshInterval') || name.endsWith('SetProviderOrder')) return null;

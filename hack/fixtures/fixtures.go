@@ -142,6 +142,9 @@ func obfuscateField(object map[string]any, key string, required bool) error {
 		}
 		return nil
 	}
+	if value == nil {
+		return nil
+	}
 	text, ok := value.(string)
 	if !ok {
 		return fmt.Errorf("JSON field %q must be a string, got %T", key, value)
@@ -306,6 +309,17 @@ func writeJSONValue(path string, v any) error {
 	return writeJSONFile(path, data)
 }
 
+func fixtureFileExists(path string) (bool, error) {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true, nil
+	}
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	return false, err
+}
+
 func captureTokens(tokensDir, target string) int {
 	configs := []providerTokenConfig{
 		{id: "codex", name: "Codex", credentialsFileName: "credentials-codex.json"},
@@ -332,23 +346,23 @@ func captureTokens(tokensDir, target string) int {
 	for _, cfg := range selected {
 		outPath := filepath.Join(tokensDir, "token_"+cfg.id+".json")
 		credentialsFilePath := filepath.Join(tokensDir, cfg.credentialsFileName)
-		tokenExists := false
-		credentialsFileExists := false
-		if _, err := os.Stat(outPath); err == nil {
-			tokenExists = true
-			fmt.Printf("Skipping %s: token fixture already exists at %s\n", cfg.name, outPath)
-		} else if !os.IsNotExist(err) {
+		tokenExists, err := fixtureFileExists(outPath)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: check %s: %v\n", outPath, err)
 			failures = append(failures, cfg.name)
 			continue
 		}
-		if _, err := os.Stat(credentialsFilePath); err == nil {
-			credentialsFileExists = true
-			fmt.Printf("Skipping %s: credentials fixture already exists at %s\n", cfg.name, credentialsFilePath)
-		} else if !os.IsNotExist(err) {
+		if tokenExists {
+			fmt.Printf("Skipping %s: token fixture already exists at %s\n", cfg.name, outPath)
+		}
+		credentialsFileExists, err := fixtureFileExists(credentialsFilePath)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: check %s: %v\n", credentialsFilePath, err)
 			failures = append(failures, cfg.name)
 			continue
+		}
+		if credentialsFileExists {
+			fmt.Printf("Skipping %s: credentials fixture already exists at %s\n", cfg.name, credentialsFilePath)
 		}
 		if tokenExists && credentialsFileExists {
 			continue
