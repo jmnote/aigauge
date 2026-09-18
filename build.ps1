@@ -182,9 +182,9 @@ switch ($Task) {
     }
     "fixtures-usage" {
         # Captures a usage snapshot using AI Gauge's own stored credentials
-        # (one API call per provider) into both hack/fixtures/usage/ (the
-        # API's raw response) and hack/fixtures/display/ (that same
-        # response converted to DisplayUsage). Needs a connected provider
+        # (one API call per provider) into hack/fixtures/usage/ as both the
+        # API's raw response and the converted DisplayUsage response.
+        # Needs a connected provider
         # instance of the requested type. Accepts an optional provider
         # argument via -Version: all (default), codex, claude, antigravity.
         $target = if ($Version) { $Version } else { "all" }

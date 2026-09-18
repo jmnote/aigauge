@@ -2,13 +2,13 @@
 
 // Command fixtures captures a usage snapshot using AI Gauge's own stored
 // credentials and provider logic (internal/providers), writing both:
-//   - hack/fixtures/usage/usage_<provider>_*.json - the API's raw response, byte
+//   - hack/fixtures/usage/usage_<provider>.json - the API's raw response, byte
 //     for byte (Codex's user_id/email redacted)
-//   - hack/fixtures/display/display_<provider>_*.json - that same response parsed
+//   - hack/fixtures/usage/display_<provider>.json - that same response parsed
 //     and converted (ParseXUsage + ToDisplay), the shape the app renders
 //
 // from a single API call per provider. hack/fixtures/gen-embed.go then
-// embeds the latest display/ snapshot per provider into internal/app/fixtures
+// embeds the usage/display_ snapshot per provider into internal/app/fixtures
 // for the sample-data preview.
 //
 // Run via `.\build.ps1 fixtures-usage <codex|claude|antigravity|all>` from
@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"regexp"
 	"time"
 
 	"github.com/jmnote/aigauge/hack/fixtures/util"
@@ -29,19 +28,9 @@ import (
 	"github.com/jmnote/aigauge/internal/providers"
 )
 
-var unsafeFilenameChar = regexp.MustCompile(`[^A-Za-z0-9.-]+`)
-
 func fatalf(format string, args ...any) {
 	fmt.Fprintf(os.Stderr, "fixtures: "+format+"\n", args...)
 	os.Exit(1)
-}
-
-func sanitize(s string) string {
-	s = unsafeFilenameChar.ReplaceAllString(s, "-")
-	if s == "" {
-		return "unknown"
-	}
-	return s
 }
 
 // redactCodex clears the two fields Codex's raw usage response identifies
@@ -79,7 +68,29 @@ func writeJSON(dir, filename string, data []byte, pretty bool) error {
 	return nil
 }
 
-func capture(settings config.Settings, providerType, usageDir, displayDir string) error {
+func snapshotExists(usageDir, providerType string) (bool, error) {
+	for _, name := range []string{"usage_" + providerType + ".json", "display_" + providerType + ".json"} {
+		if _, err := os.Stat(filepath.Join(usageDir, name)); err == nil {
+			return true, nil
+		} else if !os.IsNotExist(err) {
+			return false, err
+		}
+	}
+	return false, nil
+}
+
+func capture(settings config.Settings, providerType, usageDir string) error {
+	var exists bool
+	var err error
+	exists, err = snapshotExists(usageDir, providerType)
+	if err != nil {
+		return fmt.Errorf("check %s fixture: %w", providerType, err)
+	}
+	if exists {
+		fmt.Printf("Skipping %s: fixture already exists in %s\n", providerType, usageDir)
+		return nil
+	}
+
 	id, ok := settings.FirstInstance(providerType)
 	if !ok {
 		return fmt.Errorf("no %s provider instance found - add and connect one in AI Gauge first", providerType)
@@ -89,7 +100,6 @@ func capture(settings config.Settings, providerType, usageDir, displayDir string
 
 	var raw []byte
 	var display providers.DisplayUsage
-	var err error
 	switch providerType {
 	case "codex":
 		raw, err = providers.FetchCodexRawUsage(id)
@@ -129,14 +139,8 @@ func capture(settings config.Settings, providerType, usageDir, displayDir string
 		return fmt.Errorf("%s: %s", providerType, display.Error)
 	}
 
-	date := time.Now().Format("2006-01-02")
-	filename := fmt.Sprintf("%s_%s.json", providerType, date)
+	filename := providerType + ".json"
 	if providerType == "codex" {
-		var plan struct {
-			PlanType string `json:"plan_type"`
-		}
-		_ = json.Unmarshal(raw, &plan)
-		filename = fmt.Sprintf("codex_%s_%s.json", sanitize(plan.PlanType), date)
 		if raw, err = redactCodex(raw); err != nil {
 			return fmt.Errorf("codex: %w", err)
 		}
@@ -149,7 +153,7 @@ func capture(settings config.Settings, providerType, usageDir, displayDir string
 	if err != nil {
 		return fmt.Errorf("%s: marshal display form: %w", providerType, err)
 	}
-	return writeJSON(displayDir, "display_"+filename, displayJSON, false)
+	return writeJSON(usageDir, "display_"+filename, displayJSON, false)
 }
 
 func main() {
@@ -172,8 +176,7 @@ func main() {
 	}
 
 	usageDir := filepath.Join("hack", "fixtures", "usage")
-	displayDir := filepath.Join("hack", "fixtures", "display")
-	for _, dir := range []string{usageDir, displayDir} {
+	for _, dir := range []string{usageDir} {
 		if err := os.MkdirAll(dir, 0o755); err != nil {
 			fatalf("create %s: %v", dir, err)
 		}
@@ -186,7 +189,7 @@ func main() {
 
 	failed := false
 	for _, providerType := range targets {
-		if err := capture(settings, providerType, usageDir, displayDir); err != nil {
+		if err := capture(settings, providerType, usageDir); err != nil {
 			fmt.Fprintln(os.Stderr, "fixtures:", err)
 			failed = true
 		}

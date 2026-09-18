@@ -28,7 +28,7 @@ const theme = params.get('theme');
 // returns (DisplayUsage - see hack/fixtures/fixtures.go), so it doubles as
 // the live-server fixture with no conversion step between the two. The
 // server resolves "latest/<provider>.json" to whichever
-// hack/fixtures/display/display_<provider>_*.json snapshot is newest, so a fresh
+// hack/fixtures/usage/display_<provider>.json snapshot is used, so a fresh
 // \`.\\build.ps1 fixtures-usage\` capture needs no server restart.
 const providers = {
   Codex: 'latest/codex.json',
@@ -188,9 +188,9 @@ const server = http.createServer((req, res) => {
 
   if (pathname.startsWith("/fixtures/latest/")) {
     const match = /^([a-z]+)\.json$/.exec(pathname.substring("/fixtures/latest/".length));
-    const displayDir = path.join(fixturesRoot, "display");
+    const displayDir = path.join(fixturesRoot, "usage");
     const candidates = match && fs.existsSync(displayDir)
-      ? fs.readdirSync(displayDir).filter(f => f.startsWith(`display_${match[1]}_`) && f.endsWith(".json"))
+      ? fs.readdirSync(displayDir).filter(f => f === `display_${match[1]}.json`)
       : [];
     if (candidates.length === 0) {
       res.writeHead(404);

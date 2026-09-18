@@ -84,7 +84,7 @@ Start the fixture-backed browser preview:
 ```
 
 Open `http://localhost:8080/?theme=light` or `http://localhost:8080/?theme=dark`.
-The preview serves whichever `hack/fixtures/display/display_<provider>_*.json` snapshot is newest per
+The preview serves `hack/fixtures/usage/display_<provider>.json` per
 provider - each holding exactly what that provider's Wails RPC method returns (`DisplayUsage`) -
 does not call Codex, Claude or Antigravity, and watches both the `frontend/` and `hack/fixtures/`
 directories. Saving any frontend file or fixture causes the browser preview to reload.
@@ -96,9 +96,9 @@ provider instance), run:
 .\build.ps1 fixtures-usage
 ```
 
-One API call per provider writes two files: `hack/fixtures/usage/usage_<provider>_*.json`, the API's raw
+One API call per provider writes two files: `hack/fixtures/usage/usage_<provider>.json`, the API's raw
 response byte for byte (Codex's `user_id`/`email` redacted) - useful on its own as a reference for
-what that (often undocumented) endpoint actually returns - and `hack/fixtures/display/display_<provider>_*.json`,
+what that (often undocumented) endpoint actually returns - and `hack/fixtures/usage/display_<provider>.json`,
 that same response parsed and converted (`ParseXUsage` + `ToDisplay` - `internal/providers`) into the
 `DisplayUsage` shape the app renders. Because the output reflects your own account (plan tier, usage
 percentages, reset times), review it before committing either directory.
