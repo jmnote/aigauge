@@ -35,17 +35,13 @@ Listings:
 NotesForCertification: |
   AI Gauge is a Windows tray widget for Codex, Claude Code and Antigravity usage.
 
-  No test accounts are supplied. Accounts are needed only for provider connection and live usage. Startup, themes, hotkeys and tray behavior can be tested without an account. Antigravity requires a pre-installed, signed-in agy CLI.
+  No test accounts are supplied. Provider accounts are required only for connection and live-usage checks. Startup, themes, hotkeys, tray behavior, and the clean-install experience can be tested without an account. Antigravity testing requires the supported agy CLI to be pre-installed and signed in.
 
   Steps to verify:
-  1. Launch on a clean system: setup guidance appears without errors.
-  2. In Settings, test light/dark/system themes, window resizing, and the optional global hotkey (off by default). Warning/Critical dropdowns offer Disabled or 5%-100% in 5% steps. Confirm 100% survives reopening Settings; Critical takes precedence when both match.
-  3. Test hide to tray, restore by tray icon, and Always on top.
-  4. Add Codex or Claude Code and use Connect for browser sign-in. Claude's manual flow may require CODE#STATE. Test Import with an existing local CLI session. For Antigravity, use the installed agy CLI.
-  5. Remove the connected provider and confirm its AI Gauge credential and card are removed.
-  6. Confirm Start with Windows defaults to Off. Select Show window, sign out/in, and confirm the window appears.
-  7. Select Start in tray, sign out/in, and confirm only the tray icon appears. Exit and launch from the Start menu: the window must appear even with Start in tray selected.
-  8. Disable AI Gauge in Windows Settings or Task Manager, then try enabling it in the app. Confirm a block message and Off status. Re-enable it in Windows to continue testing.
-  9. Select Off, sign out/in, and confirm no automatic launch.
+  1. Launch on a clean system and confirm setup guidance appears without errors.
+  2. In Settings, test light/dark/system themes, the optional global hotkey (off by default), tray restore, and Always on top. Confirm thresholds offer Disabled or 5%-100% in 5% steps.
+  3. Add Codex or Claude Code and use Connect for browser sign-in. Claude's manual flow may require CODE#STATE. If a local CLI session exists, verify Import. For Antigravity, use the installed agy CLI.
+  4. Reopen Settings, remove the connected provider, and confirm its AI Gauge credential and card are removed.
+  5. Confirm Start with Windows defaults to Off. Test Show window and Start in tray across sign-in, and confirm a manual Start-menu launch still shows the window. Disable the app in Windows Settings or Task Manager and verify enabling it reports the block and remains Off.
 
-  On a clean install, providers are not queried before connection/check. Connected providers refresh automatically while running, including after sign-in when startup is enabled. Antigravity checks use agy.
+  On a clean install, no provider network or CLI checks run until a provider is connected or explicitly checked. Connected providers refresh automatically while the app is running, including after sign-in when startup is enabled. Antigravity checks use the locally installed agy CLI.
