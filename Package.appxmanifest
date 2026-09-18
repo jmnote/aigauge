@@ -39,7 +39,7 @@
                            BackgroundColor="#202124" />
       <Extensions>
         <desktop:Extension Category="windows.startupTask"
-                           Executable="aigauge-startup.exe"
+                           Executable="aigauge.exe"
                            EntryPoint="Windows.FullTrustApplication">
           <desktop:StartupTask TaskId="AIGaugeStartup"
                                Enabled="false"

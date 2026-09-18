@@ -2,6 +2,7 @@ package app
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"sync"
@@ -160,6 +161,12 @@ func (a *App) SetStartWithWindowsHandlers(getter func() (string, error), setter 
 }
 
 func (a *App) GetStartWithWindows() (string, error) {
+	a.settingsMu.Lock()
+	defer a.settingsMu.Unlock()
+	return a.getStartWithWindows()
+}
+
+func (a *App) getStartWithWindows() (string, error) {
 	if a.onGetStartWithWindows != nil {
 		return a.onGetStartWithWindows()
 	}
@@ -170,10 +177,37 @@ func (a *App) SetStartWithWindows(state string) error {
 	if !validStartWithWindowsState(state) {
 		return fmt.Errorf("unsupported start with Windows state %q", state)
 	}
-	if a.onSetStartWithWindows != nil {
-		return a.onSetStartWithWindows(state)
+	a.settingsMu.Lock()
+	err := a.saveStartWithWindows(state)
+	a.settingsMu.Unlock()
+	return err
+}
+
+func (a *App) saveStartWithWindows(state string) error {
+	// The getter also migrates the old Run preference before loading settings.
+	previous, err := a.getStartWithWindows()
+	if err != nil {
+		return err
 	}
-	return setStartWithWindows(state)
+	settings, err := config.Load()
+	if err != nil {
+		return err
+	}
+	setter := a.onSetStartWithWindows
+	if setter == nil {
+		setter = setStartWithWindows
+	}
+	if err := setter(state); err != nil {
+		return err
+	}
+	settings.StartupMode = state
+	if err := config.Save(settings); err != nil {
+		if rollbackErr := setter(previous); rollbackErr != nil {
+			return errors.Join(err, fmt.Errorf("restore previous startup state: %w", rollbackErr))
+		}
+		return err
+	}
+	return nil
 }
 
 func (a *App) SetContentHeight(height int) {

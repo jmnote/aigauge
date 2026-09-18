@@ -18,7 +18,10 @@ var embeddedFrontend embed.FS
 var appIcon []byte
 
 func main() {
-	startHidden := false
+	startHidden, err := usageapp.StartHiddenOnLaunch()
+	if err != nil {
+		log.Printf("failed to read startup activation: %v", err)
+	}
 	for _, arg := range os.Args[1:] {
 		if strings.HasPrefix(arg, "--theme=") {
 			theme := strings.TrimPrefix(arg, "--theme=")

@@ -8,6 +8,7 @@ aigauge/
 ├── docs/               # Documentation and listing screenshots
 ├── hack/               # Packaging, capture, and local preview scripts
 ├── internal/app/       # Wails application bindings and services
+├── internal/config/    # Local preferences and settings migrations
 ├── internal/providers/ # Codex, Claude, and Antigravity usage providers
 ├── internal/ui/        # Window, tray, and runtime wiring
 ├── build.ps1           # Build task entrypoint
@@ -110,8 +111,8 @@ Capture the native Wails window in both themes:
 .\build.ps1 screenshot
 ```
 
-`screenshot-light`/`screenshot-dark` launch the app in its current configured state. The
-This runs the Light and Dark captures sequentially and writes:
+`screenshot-light`/`screenshot-dark` launch the app with its configured provider instances.
+The combined task runs the Light and Dark captures sequentially and writes:
 
 - `docs/screenshots/aigauge-native-light.png`
 - `docs/screenshots/aigauge-native-dark.png`
@@ -160,6 +161,54 @@ before; that is a separate, much smaller prompt than installing a certificate.
 
 > For Microsoft Store publishing, Partner Center credentials, and submission details, see
 > [`hack/msstore/msstore.md`](../hack/msstore/msstore.md).
+
+## Windows startup behavior
+
+Settings offers **Off** (the default), **Show window**, and **Start in tray**. The mode is saved as
+`startupMode` in the existing `aigauge/settings.json` under `os.UserConfigDir()`. For MSIX installations,
+Windows owns the startup task's enabled/disabled state; the settings screen reads it again after every
+change and when focused.
+
+The MSIX `desktop:StartupTask` named `AIGaugeStartup` launches `aigauge.exe` directly. Before creating
+any windows, the app reads `Windows.ApplicationModel.AppInstance.GetActivatedEventArgs()` and applies
+the tray preference only for `ActivationKind.StartupTask`. A normal Start menu launch shows the window.
+This uses the OS WinRT API on the package's minimum Windows version (10.0.17763.0); there is no separate
+startup executable or Windows App SDK runtime dependency. See the
+[Windows activation documentation](https://learn.microsoft.com/en-us/windows/apps/desktop/modernize/get-activation-info-for-packaged-apps).
+
+Portable builds register the full executable path under `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+as `AIGauge`, adding `--hidden` for tray startup. The explicit `--hidden`, `--tray`, and `--minimized`
+flags also hide the initial window during manual testing. **Off** removes the portable Run entry.
+The old `AIGaugeStartupMode` Run value is migrated to the settings file and deleted after persistence succeeds.
+
+WinRT calls and COM object releases stay on one locked OS thread. Successful initialization, including
+`S_FALSE`, is balanced by `RoUninitialize`. Enabling a startup task checks its returned state; a user or
+policy block is reported instead of being treated as success. The app saves the new mode only after
+Windows accepts it and attempts to restore the previous OS state if saving fails, reporting rollback
+errors if necessary.
+
+Automated tests use `internal/app/testdata/startup-activation.json` and injected handlers without
+registering a real startup task. Before release, also test an installed MSIX:
+
+1. On a clean installation, verify that **Start with Windows** is **Off**.
+2. Select **Show window**, sign out and back in, and verify that the window appears.
+3. Select **Start in tray**, sign out and back in, and verify that only the tray icon appears.
+4. Exit the app, then launch it from the Start menu with **Start in tray** still selected; verify that
+   the window appears. Repeat opening Settings to check subsequent state queries.
+5. Disable AI Gauge in Task Manager or Windows Settings, return to the app, and try to enable it.
+   Verify that the app reports the block and displays **Off** until it is re-enabled in Windows.
+6. Select **Off** and verify no automatic launch at the next sign-in. When testing an upgrade with the
+   legacy mode value, confirm that `AIGaugeStartupMode` no longer exists under Run.
+
+## Threshold preferences
+
+Warning and Critical are independent dropdowns with **Disabled** or 5% through 100% in 5% steps.
+Critical takes precedence when both match; Critical at 100% marks every remaining-usage level as critical.
+Loading an older settings file rounds and clamps numeric values to this range and persists the migration,
+keeping each threshold's enabled flag. For example, 98/99 becomes 100 and 0/1 becomes 5.
+
+Go and JavaScript share `internal/config/testdata/threshold-migration.json` to verify these conversions.
+If a settings write fails, the UI reloads the saved values and displays a notification.
 
 ## Theme behavior
 

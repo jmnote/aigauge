@@ -43,9 +43,11 @@ Click the pin button on the title bar to toggle **Always on top**. Open **Settin
 import, remove, and reorder provider instances, configure Warning and Critical thresholds, change the
 refresh interval, choose Light, Dark, or System appearance, configure how AI Gauge starts with
 Windows, and optionally configure a global hotkey. The startup choices are **Off**, **Show window**,
-and **Start in tray**.
+and **Start in tray**. Opening the app manually shows the window; **Start in tray** applies at Windows sign-in.
 For MSIX installations, these choices use the Windows startup task and remain manageable from
 Windows Settings or Task Manager.
+Warning and Critical thresholds are independent and use 5% steps from 5% to 100%, or Disabled.
+Critical takes priority when both thresholds match; setting Critical to 100% marks all remaining-usage levels as critical.
 The optional global hotkey shows or hides the widget even while another application is active. To
 configure it, open **Settings** and choose a shortcut from the **Hotkey** dropdown. It supports
 <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>G</kbd>, <kbd>Ctrl</kbd>+<kbd>Shift</kbd>+<kbd>Q</kbd>, and

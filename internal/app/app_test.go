@@ -210,6 +210,7 @@ func TestAppSetGlobalHotkey(t *testing.T) {
 }
 
 func TestAppStartWithWindows(t *testing.T) {
+	withIsolatedStores(t)
 	state := StartWithWindowsOff
 	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
 	app.SetStartWithWindowsHandlers(

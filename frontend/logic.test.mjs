@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 
 import {
   DEFAULT_REFRESH_SECONDS,
@@ -235,8 +236,8 @@ test('a provider list keeps order, drops bad entries, and de-duplicates by id', 
   assert.deepEqual(normalizeProviders(undefined), []);
 });
 
-test('a threshold out of range or of the wrong type falls back to its default', () => {
-  assert.deepEqual(normalizeThreshold(150, { enabled: true, value: 30 }, 1, 100), { enabled: true, value: 30 });
+test('thresholds clamp numeric values and default unreadable values', () => {
+  assert.deepEqual(normalizeThreshold(150, { enabled: true, value: 30 }), { enabled: true, value: 100 });
   assert.deepEqual(normalizeThreshold('', { enabled: true, value: 30 }, 1, 100), { enabled: true, value: 30 });
   assert.deepEqual(normalizeThreshold({ enabled: false, value: 42 }, { enabled: true, value: 30 }, 1, 100),
     { enabled: false, value: 40 });
@@ -285,3 +286,12 @@ test('waiting-for-setup states are not styled as errors', () => {
   assert.equal(badgeClass('login_required'), '');
   assert.equal(badgeClass('temporary_error'), 'is-blocked');
 });
+
+const thresholdFixtures = JSON.parse(readFileSync(new URL('../internal/config/testdata/threshold-migration.json', import.meta.url), 'utf8'));
+for (const fixture of thresholdFixtures) {
+  test('threshold migration: ' + fixture.name, () => {
+    const config = normalizeConfig(fixture.settings);
+    assert.deepEqual(config.thresholds, fixture.expected);
+    assert.deepEqual(normalizeConfig(config).thresholds, fixture.expected);
+  });
+}

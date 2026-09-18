@@ -216,7 +216,10 @@ jobs:
             $publishExitCode = $LASTEXITCODE
             Register-MsStoreMasks $publishOutput | Write-Host
             if ($publishExitCode -eq 0) { Write-Host "Microsoft Store submission published successfully." }
-            else { Write-Error "Microsoft Store publish failed with exit code $publishExitCode." }
+            else {
+              Write-Host $publishOutput
+              Write-Error "Microsoft Store publish failed with exit code $publishExitCode."
+            }
             exit $publishExitCode
           }
 
@@ -227,6 +230,7 @@ jobs:
           $publishExitCode = $LASTEXITCODE
           Register-MsStoreMasks $publishOutput | Write-Host
           if ($publishExitCode -ne 0) {
+            Write-Host $publishOutput
             Write-Error "Microsoft Store draft submission failed with exit code $publishExitCode."
             exit $publishExitCode
           }
@@ -252,6 +256,8 @@ jobs:
             Register-MsStoreMasks ($stdout + "`n" + $stderr) | Write-Host
             if ($stdout) { Write-Output $stdout }
             if ($process.ExitCode -ne 0) {
+              if ($stdout) { Write-Host $stdout }
+              if ($stderr) { Write-Host $stderr }
               throw "Microsoft Store CLI failed with exit code $($process.ExitCode)."
             }
           }

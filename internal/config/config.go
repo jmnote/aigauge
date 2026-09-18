@@ -43,6 +43,17 @@ type Settings struct {
 	Theme          string             `json:"theme"`
 	Thresholds     Thresholds         `json:"thresholds"`
 	HotkeyShortcut string             `json:"hotkeyShortcut"`
+	StartupMode    string             `json:"startupMode,omitempty"`
+}
+
+// NormalizeThresholds migrates legacy percentages to the selectable 5% steps.
+// Keep Enabled unchanged, including for legacy disabled thresholds at 0%.
+func NormalizeThresholds(thresholds Thresholds) Thresholds {
+	for _, threshold := range []*Threshold{&thresholds.Warning, &thresholds.Critical} {
+		value := max(5, min(100, threshold.Value))
+		threshold.Value = ((value + 2) / 5) * 5
+	}
+	return thresholds
 }
 
 // Default returns the settings a fresh install starts from: no provider

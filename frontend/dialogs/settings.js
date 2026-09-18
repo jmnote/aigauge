@@ -31,6 +31,7 @@ const PROVIDER_TYPE_RPC = {
 // RPCs and are kept in sync by the "aigauge:config-updated" event the backend
 // emits whenever either one saves a change.
 let config = normalizeConfig(await rpc('GetSettings'));
+let confirmedConfig = structuredClone(config);
 
 let settingsWriteQueue = Promise.resolve();
 function saveSetting(method, ...args) {
@@ -40,7 +41,20 @@ function saveSetting(method, ...args) {
     ? JSON.parse(JSON.stringify(value)) : value);
   settingsWriteQueue = settingsWriteQueue
     .then(() => rpc(method, ...savedArgs))
-    .catch(e => console.warn('Failed to save settings:', e));
+    .catch(async error => {
+      console.warn('Failed to save settings:', error);
+      config = structuredClone(confirmedConfig);
+      try {
+        config = normalizeConfig(await rpc('GetSettings'));
+        confirmedConfig = structuredClone(config);
+      } catch (readError) {
+        console.warn('Unable to reload settings:', readError);
+      }
+      applyTheme(config.theme, false);
+      renderThresholdUI();
+      renderProviderList();
+      showToast('Settings could not be saved. Restored the last saved values.');
+    });
   return settingsWriteQueue;
 }
 
@@ -433,32 +447,52 @@ updateHotkeyUI();
 // Start on Boot
 // ---------------------------------------------------------------------------
 
+let confirmedStartupState = 'off';
+let startupBusy = false;
+let startupReadGeneration = 0;
 function updateStartWithWindowsUI(state) {
-  if (startWithWindowsSelect) startWithWindowsSelect.value = state;
+  confirmedStartupState = state;
+  startWithWindowsSelect.value = state;
 }
 
 async function syncStartWithWindowsSettings() {
+  const generation = ++startupReadGeneration;
   try {
-    updateStartWithWindowsUI(await rpc('GetStartWithWindows'));
+    const state = await rpc('GetStartWithWindows');
+    if (generation === startupReadGeneration) updateStartWithWindowsUI(state);
   } catch (error) {
+    if (generation !== startupReadGeneration) return;
     console.warn('Unable to read Start with Windows status:', error);
-    updateStartWithWindowsUI('off');
+    startWithWindowsSelect.value = confirmedStartupState;
+    showToast('Unable to read Start with Windows status.');
   }
 }
 
 async function setStartWithWindows(state) {
-  const previous = startWithWindowsSelect.value;
+  if (startupBusy) return;
+  startupBusy = true;
+  ++startupReadGeneration;
+  startWithWindowsSelect.disabled = true;
   try {
     await rpc('SetStartWithWindows', state);
+    updateStartWithWindowsUI(state);
   } catch (error) {
     console.warn('Unable to update Start with Windows:', error);
-    updateStartWithWindowsUI(previous);
+    startWithWindowsSelect.value = confirmedStartupState;
+    showToast(error?.message || String(error));
+  } finally {
     await syncStartWithWindowsSettings();
+    startupBusy = false;
+    startWithWindowsSelect.disabled = false;
   }
 }
 
 startWithWindowsSelect?.addEventListener('change', () => setStartWithWindows(startWithWindowsSelect.value));
-syncStartWithWindowsSettings();
+startWithWindowsSelect.disabled = true;
+syncStartWithWindowsSettings().finally(() => { startWithWindowsSelect.disabled = false; });
+window.addEventListener('focus', () => {
+  if (!startupBusy) syncStartWithWindowsSettings();
+});
 
 // ---------------------------------------------------------------------------
 // Provider List & Diagnosis
@@ -697,6 +731,8 @@ wails.Events.On('aigauge:config-updated', event => {
   const data = event?.data || event;
   if (!data) return;
   config = normalizeConfig(data);
+  confirmedConfig = structuredClone(config);
   applyTheme(config.theme, false);
+  renderThresholdUI();
   renderProviderList();
 });

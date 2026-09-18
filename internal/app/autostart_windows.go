@@ -8,17 +8,20 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jmnote/aigauge/internal/config"
 	"golang.org/x/sys/windows/registry"
 )
 
 const (
 	runRegistryKey  = `Software\Microsoft\Windows\CurrentVersion\Run`
 	runRegistryName = "AIGauge"
-	startupModeName = "AIGaugeStartupMode"
 	startupTaskID   = "AIGaugeStartup"
 )
 
 func getStartWithWindowsState() (string, error) {
+	if err := config.MigrateLegacyStartupMode(); err != nil {
+		return "", err
+	}
 	if isPackagedWindowsApp() {
 		return getPackagedStartWithWindowsState()
 	}
@@ -68,9 +71,6 @@ func setRegistryStartWithWindows(state string) error {
 			return err
 		}
 		return nil
-	}
-	if err := key.SetStringValue(startupModeName, state); err != nil {
-		return err
 	}
 
 	executable, err := os.Executable()

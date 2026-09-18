@@ -186,15 +186,11 @@ export async function packageMsix(options = {}) {
   const releaseArtifact = Boolean(options.release);
 
   const binExe = path.join(repoRoot, "dist", "bin", "aigauge.exe");
-  const startupExe = path.join(repoRoot, "dist", "bin", "aigauge-startup.exe");
   const legacyExe = path.join(repoRoot, "aigauge.exe");
   const sourceExe = fs.existsSync(binExe) ? binExe : (fs.existsSync(legacyExe) ? legacyExe : null);
 
   if (!sourceExe) {
     throw new Error(`Build output not found: ${binExe}`);
-  }
-  if (!fs.existsSync(startupExe)) {
-    throw new Error(`MSIX startup helper not found: ${startupExe}`);
   }
 
   const dist = path.join(repoRoot, "dist");
@@ -210,7 +206,6 @@ export async function packageMsix(options = {}) {
 
   // Copy binary and license
   fs.copyFileSync(sourceExe, path.join(staging, "aigauge.exe"));
-  fs.copyFileSync(startupExe, path.join(staging, "aigauge-startup.exe"));
   fs.copyFileSync(path.join(repoRoot, "LICENSE"), path.join(staging, "LICENSE"));
 
   // Process manifest. Check each attribute is actually present via a

@@ -85,8 +85,7 @@ switch ($Task) {
         $outputExe = Join-Path $binDir "aigauge.exe"
         $ldflags = "-H=windowsgui -X github.com/jmnote/aigauge/internal/app.AppVersion=$Version"
         go build -ldflags $ldflags -o $outputExe .
-        $startupExe = Join-Path $binDir "aigauge-startup.exe"
-        go build -ldflags "-H=windowsgui" -o $startupExe ./cmd/aigauge-startup
+        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
     }
     "package" {
         Ensure-HackNpm "@resvg/resvg-js"

@@ -96,6 +96,12 @@ Use `hack/msstore/submission.mjs` or `build.ps1` tasks to inspect and validate s
   The package uses the reserved Partner Center identity in `Package.appxmanifest`. Do not replace the `Identity Name` or `Publisher` with an arbitrary certificate or publisher string. Microsoft Store handles package signing automatically during ingestion.
 - **Restricted Capability (`runFullTrust`)**:
   AI Gauge requires `runFullTrust` because it runs as a native Win32/Wails desktop application, provides a system tray UI, and invokes local CLI tools (`agy`) to retrieve quota data.
+- **Optional Windows startup**:
+  The `desktop:StartupTask` extension `AIGaugeStartup` launches `aigauge.exe` and is disabled by default.
+  It uses the same executable as normal launches. The app distinguishes startup activation before
+  applying **Show window** or **Start in tray**; a manual Start menu launch shows the window.
+  Windows Settings or Task Manager can disable the task. The app reports a user or policy block
+  instead of claiming that startup was enabled.
 
 ---
 
@@ -109,8 +115,15 @@ Before submitting a major update to certification, run these quick sanity checks
    - Add a Codex or Claude Code provider, click **Connect**, and verify that the official browser login flow completes.
    - If testing Antigravity, install the supported `agy` CLI and sign in to it first; AI Gauge does not provide that CLI or its account.
 3. **Settings & customization**:
-   - Open Settings (gear icon): Test light/dark/system themes, threshold sliders, window width resizing, and global hotkeys.
+   - Open Settings (gear icon): Test light/dark/system themes, Warning/Critical dropdowns, window width resizing, and the optional global hotkey (disabled by default).
+   - Each threshold supports **Disabled** or 5% through 100% in 5% steps. Verify that 100% survives reopening Settings; Critical takes precedence when both thresholds match.
 4. **System tray behavior**:
    - Test minimize-to-tray, tray icon click to restore, and right-click context menu options.
-5. **In-app connection**:
+5. **Windows startup (no provider account required)**:
+   - Verify **Off** on a clean installation. Select **Show window**, sign out and back in, and confirm the window appears.
+   - Select **Start in tray**, sign out and back in, and confirm the tray icon appears without the window. Click the icon to restore it.
+   - Exit and launch from the Start menu with **Start in tray** still selected; the window should appear.
+   - Disable AI Gauge in Windows Settings or Task Manager, return to the app, and attempt to enable startup. Confirm the block is reported and **Off** remains displayed. Re-enable the task in Windows to continue testing.
+   - Select **Off**, sign out and back in, and confirm the app does not launch automatically.
+6. **In-app connection**:
    - Reopen Settings and verify that a connected provider instance can be removed with **Remove**.
