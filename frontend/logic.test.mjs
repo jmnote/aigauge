@@ -5,7 +5,6 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
 
 import {
   DEFAULT_REFRESH_SECONDS,
@@ -287,7 +286,50 @@ test('waiting-for-setup states are not styled as errors', () => {
   assert.equal(badgeClass('temporary_error'), 'is-blocked');
 });
 
-const thresholdFixtures = JSON.parse(readFileSync(new URL('../internal/config/testdata/threshold-migration.json', import.meta.url), 'utf8'));
+const thresholdFixtures = [
+  {
+    name: 'legacy endpoints',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 1 }, critical: { enabled: true, value: 99 },
+    } },
+    expected: { warning: { enabled: true, value: 5 }, critical: { enabled: true, value: 100 } },
+  },
+  {
+    name: 'rounded upper bound',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 42 }, critical: { enabled: true, value: 98 },
+    } },
+    expected: { warning: { enabled: true, value: 40 }, critical: { enabled: true, value: 100 } },
+  },
+  {
+    name: 'legacy disabled zero',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 50 }, critical: { enabled: false, value: 0 },
+    } },
+    expected: { warning: { enabled: true, value: 50 }, critical: { enabled: false, value: 5 } },
+  },
+  {
+    name: 'legacy enabled zero',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 0 },
+    } },
+    expected: { warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 5 } },
+  },
+  {
+    name: 'current maximum',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: true, value: 100 }, critical: { enabled: true, value: 100 },
+    } },
+    expected: { warning: { enabled: true, value: 100 }, critical: { enabled: true, value: 100 } },
+  },
+  {
+    name: 'outside range',
+    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
+      warning: { enabled: false, value: -10 }, critical: { enabled: true, value: 150 },
+    } },
+    expected: { warning: { enabled: false, value: 5 }, critical: { enabled: true, value: 100 } },
+  },
+];
 for (const fixture of thresholdFixtures) {
   test('threshold migration: ' + fixture.name, () => {
     const config = normalizeConfig(fixture.settings);

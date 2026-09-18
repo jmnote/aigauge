@@ -3,7 +3,7 @@
 // Command fixtures captures a usage snapshot using AI Gauge's own stored
 // credentials and provider logic (internal/providers), writing both:
 //   - hack/fixtures/usage/usage_<provider>.json - the API's raw response, byte
-//     for byte (Codex's user_id/email redacted)
+//     for byte (Codex's user_id/email obfuscated)
 //   - hack/fixtures/usage/display_<provider>.json - that same response parsed
 //     and converted (ParseXUsage + ToDisplay), the shape the app renders
 //
@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -35,16 +36,149 @@ func fatalf(format string, args ...any) {
 	os.Exit(1)
 }
 
-// redactCodex clears the two fields Codex's raw usage response identifies
-// the account by. The other providers' raw responses carry no comparable
-// per-account identifier.
-func redactCodex(raw []byte) ([]byte, error) {
+// These shapes define the credential files captured by this fixture command.
+// Keep them in sync with the provider credential schemas: strict decoding is
+// intentional so schema changes fail fixture generation instead of being
+// silently omitted from the sample.
+type codexCredentialsShape struct {
+	OpenAIAPIKey json.RawMessage `json:"OPENAI_API_KEY"`
+	AuthMode     *string         `json:"auth_mode"`
+	LastRefresh  *string         `json:"last_refresh"`
+	Tokens       *struct {
+		AccessToken  *string `json:"access_token"`
+		AccountID    *string `json:"account_id"`
+		IDToken      *string `json:"id_token"`
+		RefreshToken *string `json:"refresh_token"`
+	} `json:"tokens"`
+}
+
+type claudeCredentialsShape struct {
+	ClaudeAIOAuth *struct {
+		AccessToken           *string  `json:"accessToken"`
+		ExpiresAt             *int64   `json:"expiresAt"`
+		RateLimitTier         *string  `json:"rateLimitTier"`
+		RefreshToken          *string  `json:"refreshToken"`
+		RefreshTokenExpiresAt *int64   `json:"refreshTokenExpiresAt"`
+		Scopes                []string `json:"scopes"`
+		SubscriptionType      *string  `json:"subscriptionType"`
+	} `json:"claudeAiOauth"`
+	OrganizationUUID *string `json:"organizationUuid"`
+}
+
+func validateCredentialShape(provider string, raw []byte) error {
+	switch provider {
+	case "codex":
+		var shape codexCredentialsShape
+		if err := decodeStrictJSON(raw, &shape); err != nil {
+			return fmt.Errorf("invalid Codex credentials: %w", err)
+		}
+		if len(shape.OpenAIAPIKey) == 0 || shape.AuthMode == nil || shape.LastRefresh == nil || shape.Tokens == nil ||
+			shape.Tokens.AccessToken == nil || shape.Tokens.AccountID == nil ||
+			shape.Tokens.IDToken == nil || shape.Tokens.RefreshToken == nil {
+			return fmt.Errorf("Codex credentials are missing a required field")
+		}
+	case "claude":
+		var shape claudeCredentialsShape
+		if err := decodeStrictJSON(raw, &shape); err != nil {
+			return fmt.Errorf("invalid Claude credentials: %w", err)
+		}
+		if shape.ClaudeAIOAuth == nil || shape.ClaudeAIOAuth.AccessToken == nil ||
+			shape.ClaudeAIOAuth.ExpiresAt == nil || shape.ClaudeAIOAuth.RateLimitTier == nil ||
+			shape.ClaudeAIOAuth.RefreshToken == nil || shape.ClaudeAIOAuth.RefreshTokenExpiresAt == nil ||
+			shape.ClaudeAIOAuth.Scopes == nil || shape.ClaudeAIOAuth.SubscriptionType == nil {
+			return fmt.Errorf("Claude credentials are missing a required field")
+		}
+	default:
+		return fmt.Errorf("unsupported credentials provider %q", provider)
+	}
+	return nil
+}
+
+func decodeStrictJSON(raw []byte, target any) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(target); err != nil {
+		return err
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			return fmt.Errorf("multiple JSON values are not allowed")
+		}
+		return err
+	}
+	return nil
+}
+
+func obfuscateCodexUsageResponse(raw []byte) ([]byte, error) {
 	var obj map[string]any
 	if err := json.Unmarshal(raw, &obj); err != nil {
 		return nil, fmt.Errorf("response is not a JSON object: %w", err)
 	}
-	obj = util.ObfuscateFields(obj).(map[string]any)
+	for _, field := range []string{"user_id", "email"} {
+		if err := obfuscateField(obj, field, true); err != nil {
+			return nil, err
+		}
+	}
+	if tokens, ok := obj["tokens"]; ok {
+		tokensObject, ok := tokens.(map[string]any)
+		if !ok {
+			return nil, fmt.Errorf("Codex usage response field tokens must be a JSON object")
+		}
+		for _, field := range []string{"access_token", "account_id", "id_token", "refresh_token"} {
+			if err := obfuscateField(tokensObject, field, false); err != nil {
+				return nil, err
+			}
+		}
+	}
 	return json.Marshal(obj)
+}
+
+func obfuscateField(object map[string]any, key string, required bool) error {
+	value, ok := object[key]
+	if !ok {
+		if required {
+			return fmt.Errorf("JSON field %q is missing", key)
+		}
+		return nil
+	}
+	text, ok := value.(string)
+	if !ok {
+		return fmt.Errorf("JSON field %q must be a string, got %T", key, value)
+	}
+	object[key] = util.Obfuscate(text)
+	return nil
+}
+
+func obfuscateCredentialFields(provider string, object map[string]any) error {
+	switch provider {
+	case "codex":
+		tokens, ok := object["tokens"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("Codex credentials field tokens must be a JSON object")
+		}
+		for _, field := range []string{"access_token", "account_id", "id_token", "refresh_token"} {
+			if err := obfuscateField(tokens, field, true); err != nil {
+				return err
+			}
+		}
+	case "claude":
+		if err := obfuscateField(object, "organizationUuid", false); err != nil {
+			return err
+		}
+		oauth, ok := object["claudeAiOauth"].(map[string]any)
+		if !ok {
+			return fmt.Errorf("Claude credentials field claudeAiOauth must be a JSON object")
+		}
+		for _, field := range []string{"accessToken", "refreshToken"} {
+			if err := obfuscateField(oauth, field, true); err != nil {
+				return err
+			}
+		}
+	default:
+		return fmt.Errorf("unsupported credentials provider %q", provider)
+	}
+	return nil
 }
 
 func writeJSON(dir, filename string, data []byte, pretty bool) error {
@@ -136,7 +270,7 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 
 	filename := providerType + ".json"
 	if providerType == "codex" {
-		if raw, err = redactCodex(raw); err != nil {
+		if raw, err = obfuscateCodexUsageResponse(raw); err != nil {
 			return fmt.Errorf("codex: %w", err)
 		}
 	}
@@ -219,13 +353,23 @@ func captureTokens(tokensDir, target string) int {
 			failures = append(failures, cfg.name)
 			continue
 		}
-		var parsedRaw any
+		var parsedRaw map[string]any
 		if err := json.Unmarshal(rawData, &parsedRaw); err != nil {
 			failures = append(failures, cfg.name)
 			continue
 		}
+		if err := validateCredentialShape(cfg.id, rawData); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: validate %s: %v\n", cfg.name, err)
+			failures = append(failures, cfg.name)
+			continue
+		}
+		if err := obfuscateCredentialFields(cfg.id, parsedRaw); err != nil {
+			fmt.Fprintf(os.Stderr, "warning: redact %s: %v\n", cfg.name, err)
+			failures = append(failures, cfg.name)
+			continue
+		}
 		if !tokenExists {
-			if err := writeJSONValue(outPath, util.ObfuscateFields(parsedRaw)); err != nil {
+			if err := writeJSONValue(outPath, parsedRaw); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: write %s: %v\n", outPath, err)
 				failures = append(failures, cfg.name)
 				continue
@@ -233,7 +377,7 @@ func captureTokens(tokensDir, target string) int {
 			fmt.Printf("  Wrote raw credentials to %s\n", outPath)
 		}
 		if !credentialsFileExists {
-			if err := writeJSONValue(credentialsFilePath, util.ObfuscateFields(parsedRaw)); err != nil {
+			if err := writeJSONValue(credentialsFilePath, parsedRaw); err != nil {
 				fmt.Fprintf(os.Stderr, "warning: write %s: %v\n", credentialsFilePath, err)
 				failures = append(failures, cfg.name)
 				continue

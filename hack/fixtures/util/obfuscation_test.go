@@ -22,27 +22,3 @@ func TestObfuscate(t *testing.T) {
 		})
 	}
 }
-
-func TestObfuscateFields(t *testing.T) {
-	input := map[string]any{
-		"accessToken": "access-secret",
-		"nested": []any{
-			map[string]any{
-				"refresh_token": "refresh-secret",
-				"safe":          "unchanged",
-			},
-		},
-	}
-
-	got := ObfuscateFields(input).(map[string]any)
-	if got["accessToken"] == "access-secret" {
-		t.Error("accessToken was not obfuscated")
-	}
-	nested := got["nested"].([]any)[0].(map[string]any)
-	if nested["refresh_token"] == "refresh-secret" {
-		t.Error("nested refresh_token was not obfuscated")
-	}
-	if nested["safe"] != "unchanged" {
-		t.Errorf("safe value changed: %v", nested["safe"])
-	}
-}

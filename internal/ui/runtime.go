@@ -3,7 +3,6 @@ package ui
 import (
 	"fmt"
 	"io/fs"
-	"log"
 
 	usageapp "github.com/jmnote/aigauge/internal/app"
 	"github.com/jmnote/aigauge/internal/config"
@@ -43,9 +42,6 @@ func Run(frontendAssets fs.FS, icon []byte, startHidden bool) error {
 	rt := &runtime{icon: icon}
 	appService := usageapp.NewApp(rt.setContentHeight, rt.setWindowWidth, rt.setAlwaysOnTop, rt.hideToTray, rt.showSettingsWindow, rt.emitSettingsChanged, rt.setGlobalHotkey)
 	rt.appService = appService
-	if _, err := appService.GetStartWithWindows(); err != nil {
-		log.Printf("[aigauge] read startup settings: %v", err)
-	}
 	appService.SetSettingsContentHeightHandler(rt.setSettingsContentHeight)
 
 	rt.application = application.New(application.Options{

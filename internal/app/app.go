@@ -42,6 +42,7 @@ func providerTypeLabel(id string) (string, bool) {
 
 type App struct {
 	settingsMu            sync.Mutex
+	startupMu             sync.Mutex
 	onContentHeight       func(height int)
 	onSettingsHeight      func(height int)
 	onWindowWidth         func(width int)
@@ -161,8 +162,6 @@ func (a *App) SetStartWithWindowsHandlers(getter func() (string, error), setter 
 }
 
 func (a *App) GetStartWithWindows() (string, error) {
-	a.settingsMu.Lock()
-	defer a.settingsMu.Unlock()
 	return a.getStartWithWindows()
 }
 
@@ -177,19 +176,13 @@ func (a *App) SetStartWithWindows(state string) error {
 	if !validStartWithWindowsState(state) {
 		return fmt.Errorf("unsupported start with Windows state %q", state)
 	}
-	a.settingsMu.Lock()
-	err := a.saveStartWithWindows(state)
-	a.settingsMu.Unlock()
-	return err
+	a.startupMu.Lock()
+	defer a.startupMu.Unlock()
+	return a.saveStartWithWindows(state)
 }
 
 func (a *App) saveStartWithWindows(state string) error {
-	// The getter also migrates the old Run preference before loading settings.
 	previous, err := a.getStartWithWindows()
-	if err != nil {
-		return err
-	}
-	settings, err := config.Load()
 	if err != nil {
 		return err
 	}
@@ -200,13 +193,21 @@ func (a *App) saveStartWithWindows(state string) error {
 	if err := setter(state); err != nil {
 		return err
 	}
-	settings.StartupMode = state
-	if err := config.Save(settings); err != nil {
+	a.settingsMu.Lock()
+	var settings config.Settings
+	settings, err = config.Load()
+	if err == nil {
+		settings.StartupMode = state
+		err = config.Save(settings)
+	}
+	a.settingsMu.Unlock()
+	if err != nil {
 		if rollbackErr := setter(previous); rollbackErr != nil {
 			return errors.Join(err, fmt.Errorf("restore previous startup state: %w", rollbackErr))
 		}
 		return err
 	}
+	a.notifySettingsChanged(settings)
 	return nil
 }
 

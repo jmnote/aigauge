@@ -212,7 +212,10 @@ func TestAppSetGlobalHotkey(t *testing.T) {
 func TestAppStartWithWindows(t *testing.T) {
 	withIsolatedStores(t)
 	state := StartWithWindowsOff
-	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
+	var changed []config.Settings
+	app := NewApp(nil, nil, nil, nil, nil, func(settings config.Settings) {
+		changed = append(changed, settings)
+	}, nil)
 	app.SetStartWithWindowsHandlers(
 		func() (string, error) { return state, nil },
 		func(value string) error { state = value; return nil },
@@ -227,6 +230,9 @@ func TestAppStartWithWindows(t *testing.T) {
 	}
 	if state != StartWithWindowsShow {
 		t.Fatal("SetStartWithWindows(show) did not update the injected handler")
+	}
+	if len(changed) != 1 || changed[0].StartupMode != StartWithWindowsShow {
+		t.Fatalf("settings change notification = %+v, want one show notification", changed)
 	}
 	if err := app.SetStartWithWindows(StartWithWindowsInTray); err != nil {
 		t.Fatalf("SetStartWithWindows(tray) error = %v", err)

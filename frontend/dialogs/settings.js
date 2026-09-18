@@ -452,10 +452,11 @@ let startupBusy = false;
 let startupReadGeneration = 0;
 function updateStartWithWindowsUI(state) {
   confirmedStartupState = state;
-  startWithWindowsSelect.value = state;
+  if (startWithWindowsSelect) startWithWindowsSelect.value = state;
 }
 
 async function syncStartWithWindowsSettings() {
+  if (!startWithWindowsSelect) return;
   const generation = ++startupReadGeneration;
   try {
     const state = await rpc('GetStartWithWindows');
@@ -469,7 +470,7 @@ async function syncStartWithWindowsSettings() {
 }
 
 async function setStartWithWindows(state) {
-  if (startupBusy) return;
+  if (startupBusy || !startWithWindowsSelect) return;
   startupBusy = true;
   ++startupReadGeneration;
   startWithWindowsSelect.disabled = true;
@@ -487,9 +488,11 @@ async function setStartWithWindows(state) {
   }
 }
 
-startWithWindowsSelect?.addEventListener('change', () => setStartWithWindows(startWithWindowsSelect.value));
-startWithWindowsSelect.disabled = true;
-syncStartWithWindowsSettings().finally(() => { startWithWindowsSelect.disabled = false; });
+if (startWithWindowsSelect) {
+  startWithWindowsSelect.addEventListener('change', () => setStartWithWindows(startWithWindowsSelect.value));
+  startWithWindowsSelect.disabled = true;
+  syncStartWithWindowsSettings().finally(() => { startWithWindowsSelect.disabled = false; });
+}
 window.addEventListener('focus', () => {
   if (!startupBusy) syncStartWithWindowsSettings();
 });

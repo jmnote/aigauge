@@ -96,8 +96,11 @@ provider instance), run:
 .\build.ps1 fixtures-usage
 ```
 
+Existing fixture files are skipped and never overwritten. Delete the relevant files first when
+you intentionally want to capture a fresh snapshot.
+
 One API call per provider writes two files: `hack/fixtures/usage/usage_<provider>.json`, the API's raw
-response byte for byte (Codex's `user_id`/`email` redacted) - useful on its own as a reference for
+response byte for byte (Codex's `user_id`/`email` obfuscated) - useful on its own as a reference for
 what that (often undocumented) endpoint actually returns - and `hack/fixtures/usage/display_<provider>.json`,
 that same response parsed and converted (`ParseXUsage` + `ToDisplay` - `internal/providers`) into the
 `DisplayUsage` shape the app renders. Because the output reflects your own account (plan tier, usage
@@ -205,7 +208,7 @@ Critical takes precedence when both match; Critical at 100% marks every remainin
 Loading an older settings file rounds and clamps numeric values to this range and persists the migration,
 keeping each threshold's enabled flag. For example, 98/99 becomes 100 and 0/1 becomes 5.
 
-Go and JavaScript share `internal/config/testdata/threshold-migration.json` to verify these conversions.
+Go and JavaScript each cover these conversions with table-driven test cases.
 If a settings write fails, the UI reloads the saved values and displays a notification.
 
 ## Theme behavior
