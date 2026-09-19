@@ -223,8 +223,6 @@ type tokenExchangeResponse struct {
 	ExpiresIn        int    `json:"expires_in"`
 	SubscriptionType string `json:"subscription_type"`
 	PlanType         string `json:"plan_type"`
-	OrganizationUUID string `json:"organization_uuid"`
-	OrganizationID   string `json:"organizationUuid"`
 	Error            string `json:"error"`
 	ErrorDescription string `json:"error_description"`
 }
@@ -325,10 +323,7 @@ func exchangeCodeForToken(ctx context.Context, cfg ProviderConfig, code, verifie
 		AccessToken:  raw.AccessToken,
 		RefreshToken: raw.RefreshToken,
 		TokenType:    raw.TokenType,
-		Extra: Extra{
-			Plan:             raw.SubscriptionType,
-			OrganizationUUID: firstNonEmpty(raw.OrganizationUUID, raw.OrganizationID),
-		},
+		Extra:        Extra{Plan: raw.SubscriptionType},
 	}
 	if tok.Extra.Plan == "" {
 		tok.Extra.Plan = raw.PlanType
@@ -435,24 +430,11 @@ func refreshTokenRaw(ctx context.Context, cfgType, tokenKey string) (*Token, []b
 	if raw.ExpiresIn > 0 {
 		tok.ExpiresAt = time.Now().Add(time.Duration(raw.ExpiresIn) * time.Second)
 	}
-	if organizationUUID := firstNonEmpty(raw.OrganizationUUID, raw.OrganizationID); organizationUUID != "" {
-		tok.Extra.OrganizationUUID = organizationUUID
-	}
-
 	if err := SaveToken(tokenKey, tok); err != nil {
 		return nil, nil, fmt.Errorf("failed to save refreshed token: %w", err)
 	}
 
 	return tok, body, nil
-}
-
-func firstNonEmpty(values ...string) string {
-	for _, value := range values {
-		if value != "" {
-			return value
-		}
-	}
-	return ""
 }
 
 // GetValidAccessToken returns an unexpired access token, automatically

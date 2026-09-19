@@ -304,8 +304,7 @@ func parseClaudeCredentials(data []byte) *Token {
 			AccessToken:  creds.ClaudeAiOauth.AccessToken,
 			RefreshToken: creds.ClaudeAiOauth.RefreshToken,
 			Extra: Extra{
-				Plan:             creds.ClaudeAiOauth.SubscriptionType,
-				OrganizationUUID: creds.OrganizationUUID,
+				Plan: creds.ClaudeAiOauth.SubscriptionType,
 			},
 		}
 		if creds.ClaudeAiOauth.ExpiresAt > 0 {

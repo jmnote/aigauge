@@ -20,7 +20,6 @@ type Extra struct {
 	Plan               string `json:"plan,omitempty"`
 	Email              string `json:"email,omitempty"`
 	AccountDisplayName string `json:"accountDisplayName,omitempty"`
-	OrganizationUUID   string `json:"organizationUuid,omitempty"`
 }
 
 // IsExpired reports whether the token is expired or close to expiration (within 2 minutes).
