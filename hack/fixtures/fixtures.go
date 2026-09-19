@@ -146,10 +146,28 @@ func obfuscateCopilotUsageResponse(raw []byte) ([]byte, error) {
 			return nil, err
 		}
 	}
-	if _, ok := obj["id"]; ok {
-		obj["id"] = 0
+	if err := obfuscateNumericField(obj, "id"); err != nil {
+		return nil, err
 	}
 	return json.Marshal(obj)
+}
+
+func obfuscateNumericField(object map[string]any, key string) error {
+	value, ok := object[key]
+	if !ok {
+		return nil
+	}
+	num, ok := value.(float64)
+	if !ok {
+		return fmt.Errorf("JSON field %q must be a number, got %T", key, value)
+	}
+	obfuscated := util.Obfuscate(fmt.Sprintf("%d", int64(num)))
+	var id int64
+	if _, err := fmt.Sscanf(obfuscated, "%d", &id); err != nil {
+		return fmt.Errorf("obfuscated %q is not numeric: %w", key, err)
+	}
+	object[key] = id
+	return nil
 }
 
 func obfuscateField(object map[string]any, key string, required bool) error {

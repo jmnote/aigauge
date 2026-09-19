@@ -1,0 +1,31 @@
+{
+  "access_type_sku": "subscription_ended",
+  "analytics_tracking_id": "7a91c3eb5802469d135fc7e02EXAMPLE",
+  "assigned_date": null,
+  "can_signup_for_limited": true,
+  "can_upgrade_plan": false,
+  "chat_enabled": false,
+  "cli_enabled": false,
+  "cli_remote_control_enabled": false,
+  "cloud_session_storage_enabled": false,
+  "copilot_app_enabled": false,
+  "copilot_plan": "individual",
+  "copilotignore_enabled": false,
+  "editor_preview_features_enabled": false,
+  "endpoints": {
+    "api": "https://api.individual.githubcopilot.com",
+    "exp": "https://exp.individual.githubcopilot.com",
+    "origin-tracker": "https://origin-tracker.individual.githubcopilot.com",
+    "proxy": "https://proxy.individual.githubcopilot.com",
+    "telemetry": "https://telemetry.individual.githubcopilot.com"
+  },
+  "enterprise_list": [],
+  "id": 2468035,
+  "is_mcp_enabled": false,
+  "is_staff": false,
+  "login": "jlnprt",
+  "organization_list": [],
+  "organization_login_list": [],
+  "restricted_telemetry": true,
+  "te": false
+}

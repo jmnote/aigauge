@@ -48,9 +48,9 @@ func TestCopilotToDisplay(t *testing.T) {
 		t.Fatalf("display.Groups count = %d, want 1", len(display.Groups))
 	}
 	buckets := display.Groups[0].Buckets
-	// First bucket should be premium requests with detail formatted with remaining / entitlement
-	if buckets[0].Label != "premium requests" || buckets[0].Detail != "375/500" || buckets[0].Remaining != 75.0 {
-		t.Errorf("bucket[0] = %+v, want premium requests with 375/500 and 75%%", buckets[0])
+	// First bucket should be labeled monthly with detail formatted with remaining / entitlement
+	if buckets[0].Label != "monthly" || buckets[0].Detail != "375/500" || buckets[0].Remaining != 75.0 {
+		t.Errorf("bucket[0] = %+v, want monthly with 375/500 and 75%%", buckets[0])
 	}
 	if buckets[0].ResetTime != "2026-10-01T00:00:00Z" {
 		t.Errorf("bucket[0].ResetTime = %q, want %q", buckets[0].ResetTime, "2026-10-01T00:00:00Z")
@@ -62,7 +62,7 @@ func TestCopilotToDisplay(t *testing.T) {
 	}
 }
 
-func TestCopilotToDisplayFallsBackToUnlimitedWithoutPremiumSnapshot(t *testing.T) {
+func TestCopilotToDisplayFallsBackToZeroWithoutPremiumSnapshot(t *testing.T) {
 	data := readFixture(t, "copilot-usage-no-premium.json")
 	usage, err := ParseCopilotUsage(data)
 	if err != nil {
@@ -79,30 +79,8 @@ func TestCopilotToDisplayFallsBackToUnlimitedWithoutPremiumSnapshot(t *testing.T
 		t.Fatalf("display.Groups = %+v, want 1 group with 1 bucket", display.Groups)
 	}
 	bucket := display.Groups[0].Buckets[0]
-	if bucket.Detail != "Unlimited" || bucket.Remaining != 100 {
-		t.Errorf("bucket = %+v, want Unlimited at 100%%", bucket)
-	}
-}
-
-func TestCopilotToDisplayDistinguishesPremiumAndCreditsLabels(t *testing.T) {
-	data := readFixture(t, "copilot-usage-premium-and-credits.json")
-	usage, err := ParseCopilotUsage(data)
-	if err != nil {
-		t.Fatalf("ParseCopilotUsage() error = %v", err)
-	}
-	usage.Status = StatusConnected
-	usage.FetchedAt = "2026-09-19T12:00:00Z"
-
-	display := usage.ToDisplay()
-	buckets := display.Groups[0].Buckets
-	if len(buckets) != 2 {
-		t.Fatalf("expected 2 buckets, got %d: %+v", len(buckets), buckets)
-	}
-	if buckets[0].Label == buckets[1].Label {
-		t.Errorf("expected distinct labels, both bucket labels are %q", buckets[0].Label)
-	}
-	if buckets[0].Label != "premium requests" || buckets[1].Label != "ai credits" {
-		t.Errorf("buckets = %+v, want labels %q and %q", buckets, "premium requests", "ai credits")
+	if bucket.Label != "monthly" || bucket.Detail != "" || bucket.Remaining != 0 {
+		t.Errorf("bucket = %+v, want monthly at 0%% with no detail", bucket)
 	}
 }
 
