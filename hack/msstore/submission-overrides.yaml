@@ -23,12 +23,12 @@ Listings:
         remote server.
       Features:
         - Automatic quota and reset-time monitoring
-        - GitHub Copilot support with secure OAuth device flow sign-in
         - Multiple provider accounts with ordering controls
         - Account details for distinguishing multiple Codex, Claude, or Copilot
           sessions
         - Codex reset-credit visibility when provided by the service
-        - Official browser sign-in and local credential import
+        - Official browser sign-in, GitHub Copilot device flow, and local
+          credential import
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
         - Global hotkey toggle to show and hide the window
