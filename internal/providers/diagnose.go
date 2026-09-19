@@ -159,7 +159,6 @@ func diagnoseClaude(_ context.Context, deps providerDeps, tokenKey string, activ
 			creds.ClaudeAiOauth.AccessToken = tok.AccessToken
 			creds.ClaudeAiOauth.SubscriptionType = tok.Extra.Plan
 			creds.AccountDisplayName = tok.Extra.AccountDisplayName
-			creds.OrganizationUUID = tok.Extra.OrganizationUUID
 			if !active {
 				return credentialsFoundDiagnosis("Credentials found. Connect to verify usage."), creds, false
 			}

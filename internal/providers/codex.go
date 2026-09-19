@@ -24,7 +24,7 @@ func ParseCodexUsage(data []byte) (CodexUsage, error) {
 // seconds resets into absolute timestamps anchored to FetchedAt.
 func (u CodexUsage) ToDisplay() DisplayUsage {
 	email := strings.TrimSpace(u.Email)
-	display := DisplayUsage{FetchedAt: u.FetchedAt, User: emailIdentifier(email), Email: email, ResetCredits: u.RateLimitResetCredits.AvailableCount, DiagnosisFields: u.DiagnosisFields}
+	display := DisplayUsage{FetchedAt: u.FetchedAt, User: email, Email: email, ResetCredits: u.RateLimitResetCredits.AvailableCount, DiagnosisFields: u.DiagnosisFields}
 	if u.Status != StatusConnected {
 		return display
 	}
@@ -63,10 +63,6 @@ func (u CodexUsage) ToDisplay() DisplayUsage {
 	}}
 	display.Status = StatusConnected
 	return display
-}
-
-func emailIdentifier(email string) string {
-	return strings.TrimSpace(email)
 }
 
 func GetCodexUsage(tokenKey string) CodexUsage {

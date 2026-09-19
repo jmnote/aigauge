@@ -147,12 +147,6 @@ func TestCodexToDisplay(t *testing.T) {
 	}
 }
 
-func TestCodexIdentifierUsesTheFullTrimmedEmail(t *testing.T) {
-	if got := emailIdentifier("  jane@example.com  "); got != "jane@example.com" {
-		t.Errorf("emailIdentifier() = %q, want full trimmed email", got)
-	}
-}
-
 func TestClaudeToDisplayUsesAccountDisplayName(t *testing.T) {
 	usage := connectedClaude(t, []byte(`{"five_hour":{"utilization":10}}`))
 	usage.AccountDisplayName = "Jane"

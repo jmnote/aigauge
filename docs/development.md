@@ -107,7 +107,7 @@ that same response parsed and converted (`ParseXUsage` + `ToDisplay` - `internal
 percentages, reset times), review it before committing either directory.
 
 The token fixture task also captures Claude's authenticated profile response, including the
-organization UUID used to identify browser-authenticated sessions:
+account display name used to identify browser-authenticated sessions:
 
 ```powershell
 .\build.ps1 fixtures-tokens

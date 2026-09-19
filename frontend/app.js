@@ -599,6 +599,12 @@ function renderNonUsageState(id, usage) {
   if (shouldKeepStaleData(usage.status, state.lastSuccessAt)) {
     showProviderError(meta.errorId, `${message} Showing data from ${formatAgo(state.lastSuccessAt)}.`, usage, onCheck, onConnect, onCancel, onSubmitCode);
   } else {
+    state.user = '';
+    state.email = '';
+    state.displayName = '';
+    state.resetCredits = null;
+    updateProviderUser(id);
+    updateResetCredits(id);
     document.getElementById(meta.groupsId).replaceChildren();
     showProviderError(meta.errorId, message, usage, onCheck, onConnect, onCancel, onSubmitCode);
   }

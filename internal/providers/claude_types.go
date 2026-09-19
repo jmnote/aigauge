@@ -15,7 +15,6 @@ type ClaudeUsage struct {
 	SevenDaySonnet     *claudeUsageWindow `json:"seven_day_sonnet"`
 	Plan               string             `json:"plan"`
 	FetchedAt          string             `json:"fetchedAt"`
-	OrganizationUUID   string             `json:"-"`
 	AccountDisplayName string             `json:"-"`
 
 	// Raw is the complete, untrimmed response body ParseClaudeUsage was
@@ -41,7 +40,6 @@ type claudeCredentials struct {
 		AccessToken      string `json:"accessToken"`
 		SubscriptionType string `json:"subscriptionType"`
 	} `json:"claudeAiOauth"`
-	OrganizationUUID   string `json:"organizationUuid"`
 	AccountDisplayName string `json:"accountDisplayName"`
 }
 
@@ -49,7 +47,4 @@ type claudeProfile struct {
 	Account struct {
 		DisplayName string `json:"display_name"`
 	} `json:"account"`
-	Organization struct {
-		UUID string `json:"uuid"`
-	} `json:"organization"`
 }
