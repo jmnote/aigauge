@@ -657,7 +657,7 @@ function updateProviderUser(id) {
   if (!meta || !user) return;
   const value = providerState.get(id)?.user || '';
   user.textContent = value;
-  user.title = value || 'Account user';
+  user.title = value;
   user.hidden = !shouldShowProviderUser(config.providers, meta.type, value);
 }
 

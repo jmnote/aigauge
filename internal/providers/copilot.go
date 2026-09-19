@@ -30,6 +30,10 @@ func (u CopilotUsage) ToDisplay() DisplayUsage {
 
 	// 1. Copilot Premium Requests / AI Credits
 	// Chat and Completions are intentionally excluded as they are typically unlimited.
+	copilotLabels := map[string]string{
+		"premium_interactions": "premium requests",
+		"ai_credits":           "ai credits",
+	}
 	copilotKeys := []string{"premium_interactions", "ai_credits"}
 
 	for _, key := range copilotKeys {
@@ -38,7 +42,7 @@ func (u CopilotUsage) ToDisplay() DisplayUsage {
 			if snapshot.Unlimited {
 				remPercent = 100
 			}
-			label := "monthly"
+			label := copilotLabels[key]
 			detail := ""
 			if snapshot.Entitlement > 0 {
 				detail = fmt.Sprintf("%d/%d", int(snapshot.Remaining), int(snapshot.Entitlement))
@@ -51,13 +55,25 @@ func (u CopilotUsage) ToDisplay() DisplayUsage {
 				Remaining: remPercent,
 				ResetTime: u.QuotaResetDate,
 			})
-			break
 		}
 	}
 
 	if len(buckets) == 0 {
-		display.applyDiagnosis(usageUnreadableDiagnosis("GitHub Copilot", ReasonNoUsageData, fmt.Errorf("no quota snapshots available in response")))
-		return display
+		// A plan with no premium_interactions/ai_credits snapshot (e.g. one
+		// entitled only to unlimited chat/completions) is still a working
+		// connection, not an unreadable response - show it as unlimited
+		// instead of an error card.
+		if u.CopilotPlan != "" || len(u.QuotaSnapshots) > 0 {
+			buckets = append(buckets, DisplayUsageBucket{
+				Label:     "monthly",
+				Detail:    "Unlimited",
+				Remaining: 100,
+				ResetTime: u.QuotaResetDate,
+			})
+		} else {
+			display.applyDiagnosis(usageUnreadableDiagnosis("GitHub Copilot", ReasonNoUsageData, fmt.Errorf("no quota snapshots available in response")))
+			return display
+		}
 	}
 
 	display.Groups = []DisplayUsageGroup{{
