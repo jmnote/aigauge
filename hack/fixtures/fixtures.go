@@ -12,8 +12,9 @@
 // for the sample-data preview.
 //
 // Run via `.\build.ps1 fixtures-usage <codex|claude|antigravity|all>` from
-// the repository root. Use `fixtures-tokens` for Codex and Claude token samples;
-// Claude's authenticated profile response is captured alongside its token.
+// the repository root. Use `fixtures-tokens` for Codex, Claude, and Copilot
+// token samples; Claude's authenticated profile response is captured
+// alongside its token.
 package main
 
 import (
@@ -320,8 +321,12 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 }
 
 type providerTokenConfig struct {
-	id                  string
-	name                string
+	id   string
+	name string
+	// credentialsFileName is the native CLI credential file to copy alongside
+	// the token sample (see ReadCredentialsFile). Empty for a provider with no
+	// such file - its token instead comes from AI Gauge's own Store, via
+	// captureStoredToken.
 	credentialsFileName string
 }
 
@@ -331,6 +336,48 @@ func writeJSONValue(path string, v any) error {
 		return err
 	}
 	return writeJSONFile(path, data)
+}
+
+// captureStoredToken writes token_<cfg.id>.json from AI Gauge's own stored
+// token for a connected instance of cfg.id, rather than from a native CLI's
+// credentials file: used for providers (currently only Copilot) that have no
+// such file, because they only ever authenticate through AI Gauge's own
+// OAuth flow and their token lives solely in AI Gauge's Store (the OS
+// keychain/credential manager).
+func captureStoredToken(tokensDir string, cfg providerTokenConfig) error {
+	outPath := filepath.Join(tokensDir, "token_"+cfg.id+".json")
+	exists, err := fixtureFileExists(outPath)
+	if err != nil {
+		return fmt.Errorf("check %s: %w", outPath, err)
+	}
+	if exists {
+		fmt.Printf("Skipping %s: token fixture already exists at %s\n", cfg.name, outPath)
+		return nil
+	}
+
+	settings, err := config.Load()
+	if err != nil {
+		return fmt.Errorf("load settings: %w", err)
+	}
+	id, ok := settings.FirstInstance(cfg.id)
+	if !ok {
+		return fmt.Errorf("no %s provider instance found - add and connect one in AI Gauge first", cfg.name)
+	}
+	tok, err := auth.GetToken(id)
+	if err != nil || tok == nil || tok.AccessToken == "" {
+		return fmt.Errorf("no stored %s token found - connect it in AI Gauge first", cfg.name)
+	}
+
+	obfuscated := *tok
+	obfuscated.AccessToken = util.Obfuscate(tok.AccessToken)
+	if tok.RefreshToken != "" {
+		obfuscated.RefreshToken = util.Obfuscate(tok.RefreshToken)
+	}
+	if err := writeJSONValue(outPath, obfuscated); err != nil {
+		return fmt.Errorf("write %s: %w", outPath, err)
+	}
+	fmt.Printf("  Wrote obfuscated token to %s\n", outPath)
+	return nil
 }
 
 func fixtureFileExists(path string) (bool, error) {
@@ -348,6 +395,7 @@ func captureTokens(tokensDir, target string) int {
 	configs := []providerTokenConfig{
 		{id: "codex", name: "Codex", credentialsFileName: "credentials-codex.json"},
 		{id: "claude", name: "Claude", credentialsFileName: "credentials-claude.json"},
+		{id: "copilot", name: "GitHub Copilot"},
 	}
 
 	var selected []providerTokenConfig
@@ -361,13 +409,21 @@ func captureTokens(tokensDir, target string) int {
 			}
 		}
 		if len(selected) == 0 {
-			fmt.Fprintf(os.Stderr, "fixtures: unknown token provider %q (valid: all, codex, claude)\n", target)
+			fmt.Fprintf(os.Stderr, "fixtures: unknown token provider %q (valid: all, codex, claude, copilot)\n", target)
 			return 1
 		}
 	}
 
 	var failures []string
 	for _, cfg := range selected {
+		if cfg.credentialsFileName == "" {
+			if err := captureStoredToken(tokensDir, cfg); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: %v\n", err)
+				failures = append(failures, cfg.name)
+			}
+			continue
+		}
+
 		outPath := filepath.Join(tokensDir, "token_"+cfg.id+".json")
 		credentialsFilePath := filepath.Join(tokensDir, cfg.credentialsFileName)
 		profilePath := ""

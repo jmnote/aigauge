@@ -181,7 +181,7 @@ switch ($Task) {
     "fixtures-tokens" {
         # Fetches/extracts token samples for each provider into hack/fixtures/tokens/.
         # Claude also captures its authenticated profile response there.
-        # Accepts an optional provider argument via -Version: all (default), codex, claude.
+        # Accepts an optional provider argument via -Version: all (default), codex, claude, copilot.
         # Antigravity is not covered - AI Gauge holds no OAuth token of its own for it.
         $target = if ($Version) { $Version } else { "all" }
         Push-Location $PSScriptRoot
