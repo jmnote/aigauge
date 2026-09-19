@@ -22,7 +22,9 @@ const PROVIDER_TYPE_RPC = {
   codex: { diagnoseRpcMethod: 'DiagnoseCodex', usageRpcMethod: 'GetCodexUsage' },
   claude: { diagnoseRpcMethod: 'DiagnoseClaude', usageRpcMethod: 'GetClaudeUsage' },
   antigravity: { diagnoseRpcMethod: 'DiagnoseAntigravity', usageRpcMethod: 'GetAntigravityUsage' },
+  copilot: { diagnoseRpcMethod: 'DiagnoseCopilot', usageRpcMethod: 'GetCopilotUsage' },
 };
+
 
 // Settings (the provider instance list/order/enabled state, theme, refresh
 // interval, thresholds and hotkey) are owned by the Go backend rather than
@@ -152,8 +154,13 @@ const providerAddDialogStatus = document.getElementById('provider-add-dialog-sta
 const providerAddDialogLogin = document.getElementById('provider-add-dialog-login');
 const providerAddDialogImport = document.getElementById('provider-add-dialog-import');
 const providerAddDialogCode = document.getElementById('provider-add-dialog-code');
+const providerAddDialogDeviceBox = document.getElementById('provider-add-dialog-device-box');
+const providerAddDialogDeviceCode = document.getElementById('provider-add-dialog-device-code');
+const providerAddDialogDeviceCopy = document.getElementById('provider-add-dialog-device-copy');
+const providerAddDialogDeviceOpen = document.getElementById('provider-add-dialog-device-open');
 const providerAddDialogSubmit = document.getElementById('provider-add-dialog-submit');
 const providerAddDialogClose = document.getElementById('provider-add-dialog-close');
+
 const providerAddDialogActionClose = document.getElementById('provider-add-dialog-action-close');
 const confirmDialog = document.getElementById('confirm-dialog');
 const confirmDialogTitle = document.getElementById('confirm-dialog-title');
@@ -196,8 +203,10 @@ providerAddDialogClose.addEventListener('click', async () => {
   providerAddDialogImport.disabled = false;
   providerAddDialogLogin.disabled = false;
   providerAddDialogStatus.classList.remove('is-loading');
+  providerAddDialogDeviceBox.hidden = true;
   providerAddDialogCode.hidden = true;
   providerAddDialogSubmit.hidden = true;
+  providerAddDialogSubmit.textContent = 'Submit code';
   providerAddDialogSubmit.disabled = false;
   providerAddDialogActionClose.hidden = true;
   if (providerFlowGeneration === closingGeneration) await reloadConfig();
@@ -205,6 +214,38 @@ providerAddDialogClose.addEventListener('click', async () => {
 providerAddDialogActionClose.addEventListener('click', () => {
   providerAddDialog.hidden = true;
   providerAddDialogActionClose.hidden = true;
+});
+providerAddDialogDeviceCopy.addEventListener('click', async () => {
+  const code = providerAddDialogDeviceCode.textContent;
+  if (!code) return;
+  try {
+    await navigator.clipboard.writeText(code);
+    providerAddDialogDeviceCopy.textContent = 'Copied!';
+    setTimeout(() => {
+      providerAddDialogDeviceCopy.textContent = 'Copy code';
+    }, 2000);
+  } catch (err) {
+    console.warn('Clipboard write failed:', err);
+  }
+});
+providerAddDialogDeviceOpen.addEventListener('click', async () => {
+  const code = providerAddDialogDeviceCode.textContent;
+  if (code) {
+    try {
+      await navigator.clipboard.writeText(code);
+      providerAddDialogDeviceCopy.textContent = 'Copied!';
+      setTimeout(() => {
+        providerAddDialogDeviceCopy.textContent = 'Copy code';
+      }, 2000);
+    } catch { /* best effort clipboard */ }
+  }
+  try {
+    await rpc('OpenURL', 'https://github.com/login/device');
+  } catch {
+    if (wails?.Browser?.OpenURL) {
+      wails.Browser.OpenURL('https://github.com/login/device');
+    }
+  }
 });
 function confirmRemove(instance) {
   confirmDialogTitle.textContent = `Remove ${providerDisplayName(instance)}?`;
@@ -231,6 +272,14 @@ providerAddDialogSubmit.addEventListener('click', async () => {
     providerAddDialogSubmit.disabled = false;
   }
 });
+
+providerAddDialogCode.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !providerAddDialogSubmit.disabled && !providerAddDialogSubmit.hidden) {
+    providerAddDialogSubmit.click();
+  }
+});
+
+
 
 providerAddDialogImport.addEventListener('click', async () => {
   if (!pendingLogin) return;
@@ -284,18 +333,80 @@ providerAddDialogLogin.addEventListener('click', async () => {
     let connected = connection?.status === 'connected';
     if (connection?.status === 'awaiting_code') {
       providerAddDialogStatus.classList.remove('is-loading');
-      providerAddDialogStatus.textContent = connection.message || 'Paste the code#state from Claude here.';
-      providerAddDialogCode.hidden = false;
-      providerAddDialogSubmit.hidden = false;
-      providerAddDialogCode.focus();
-      await new Promise(resolve => { pendingAuthCode = { id: instance.id, resolve }; });
-      pendingAuthCode = null;
+      const userCode = connection.details || '';
+      if (provider === 'copilot' && userCode) {
+        providerAddDialogStatus.textContent = 'Authorize with code at GitHub. Once approved, connection completes automatically:';
+        providerAddDialogDeviceCode.textContent = userCode;
+        providerAddDialogDeviceBox.hidden = false;
+        providerAddDialogCode.hidden = true;
+        providerAddDialogSubmit.textContent = 'Complete connection';
+        providerAddDialogSubmit.hidden = false;
+        try {
+          await navigator.clipboard.writeText(userCode);
+          showToast(`Copied code ${userCode} to clipboard`);
+        } catch { /* best effort clipboard */ }
+
+        let completed = false;
+        const checkDeviceAuth = async () => {
+          if (completed || !pendingAuthCode || pendingAuthCode.id !== instance.id) return;
+          try {
+            const result = await rpc('SubmitAuthCode', instance.id, '');
+            if (result?.status === 'connected' && !completed && pendingAuthCode) {
+              completed = true;
+              pendingAuthCode.resolve();
+            }
+          } catch {
+            // Still pending, continue waiting
+          }
+        };
+
+        // Long-poll in Go backend: immune to webview background timer throttling
+        rpc('WaitForDeviceAuth', instance.id).then(result => {
+          if (result?.status === 'connected' && !completed && pendingAuthCode) {
+            completed = true;
+            pendingAuthCode.resolve();
+          }
+        }).catch(() => { /* cancelled or dialog closed */ });
+
+        // Native window focus, webview focus, visibility change, and click all trigger instant check
+        const unsubscribeNativeFocus = wails.Events.On('aigauge:window-focus', checkDeviceAuth);
+        window.addEventListener('focus', checkDeviceAuth);
+        window.addEventListener('pointerdown', checkDeviceAuth);
+        const onVisibility = () => { if (document.visibilityState === 'visible') checkDeviceAuth(); };
+        document.addEventListener('visibilitychange', onVisibility);
+
+        try {
+          await new Promise(resolve => { pendingAuthCode = { id: instance.id, resolve }; });
+        } finally {
+          completed = true;
+          if (typeof unsubscribeNativeFocus === 'function') unsubscribeNativeFocus();
+          window.removeEventListener('focus', checkDeviceAuth);
+          window.removeEventListener('pointerdown', checkDeviceAuth);
+          document.removeEventListener('visibilitychange', onVisibility);
+          pendingAuthCode = null;
+        }
+      } else {
+        providerAddDialogStatus.textContent = connection.message || 'Paste the code#state from Claude here.';
+        providerAddDialogDeviceBox.hidden = true;
+        providerAddDialogCode.value = '';
+        providerAddDialogCode.placeholder = 'Auth code';
+        providerAddDialogCode.hidden = false;
+        providerAddDialogSubmit.textContent = 'Submit code';
+        providerAddDialogSubmit.hidden = false;
+        providerAddDialogCode.focus();
+        await new Promise(resolve => { pendingAuthCode = { id: instance.id, resolve }; });
+        pendingAuthCode = null;
+      }
       if (generation !== providerFlowGeneration || pendingLogin?.instance.id !== instance.id) return;
       connected = true;
+      providerAddDialogDeviceBox.hidden = true;
       providerAddDialogCode.hidden = true;
       providerAddDialogSubmit.hidden = true;
       providerAddDialogSubmit.disabled = false;
+      providerAddDialogSubmit.textContent = 'Submit code';
     }
+
+
     if (!connected) {
       throw new Error(connection?.message || 'Authentication could not be completed');
     }
@@ -650,9 +761,9 @@ function renderProviderList() {
     button.className = 'provider-add-button';
     button.title = `Add ${providerTypeLabel(provider)}`;
     button.setAttribute('aria-label', `Add ${providerTypeLabel(provider)}`);
-    if (provider === 'codex') {
+    if (provider === 'codex' || provider === 'copilot') {
       const icon = document.createElement('span');
-      icon.className = 'icon icon-codex';
+      icon.className = `icon icon-${provider === 'copilot' ? 'github' : 'codex'}`;
       icon.setAttribute('aria-hidden', 'true');
       button.append(icon);
     } else {
@@ -662,6 +773,7 @@ function renderProviderList() {
       image.setAttribute('aria-hidden', 'true');
       button.append(image);
     }
+
     button.disabled = addingProviders.size > 0;
     button.addEventListener('click', async () => {
       if (addingProviders.size > 0) return;

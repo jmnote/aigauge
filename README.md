@@ -4,7 +4,7 @@
   <img src="frontend/images/logo.svg" width="96" alt="AI Gauge logo">
 </p>
 
-<p align="center">A lightweight Windows tray widget for monitoring OpenAI Codex, Claude Code, and Google Antigravity usage.</p>
+<p align="center">A lightweight Windows tray widget for monitoring OpenAI Codex, Claude Code, GitHub Copilot, and Google Antigravity usage.</p>
 
 <p align="center">
   <a href="https://apps.microsoft.com/detail/9MT65KM56P99">
@@ -21,10 +21,12 @@
 
 - View remaining Codex quotas and reset times for the 5-hour and 7-day windows.
 - View remaining Claude Code quotas and reset times for the 5-hour and 7-day (weekly) windows.
+- View remaining GitHub Copilot quota and credit allowance balances.
 - View Google Antigravity (`agy`) model-group quotas and reset times.
-- Add multiple independent Codex or Claude account instances and reorder their cards.
+- Add multiple independent Codex, Claude, or GitHub Copilot account instances and reorder their cards.
 - Add an Antigravity instance backed by the installed `agy` CLI.
 - Connect through the official browser login flow or import an existing local CLI session.
+- Connect GitHub Copilot securely via the standard GitHub OAuth Device Flow.
 - Remove provider instances and their locally stored AI Gauge credentials.
 - Automatically adjusts window size to fit active content.
 - Keep the widget always on top with the title bar pin button.
@@ -61,22 +63,24 @@ choosing **Exit** from the tray menu quits the application.
 - Windows 10 or Windows 11 (64-bit)
 - An OpenAI Codex account, if Codex usage is needed
 - An Anthropic Claude Code account, if Claude usage is needed
+- A GitHub account with an active Copilot subscription, if GitHub Copilot usage is needed
 - The Google Antigravity `agy` command-line tool, if Antigravity usage is needed
 
 ## How it works
 
 AI Gauge is a standalone Windows application. It authenticates Codex and Claude Code through their
-official browser flows or imports their local CLI sessions, then stores the resulting credentials in
-its own protected local token store. For Antigravity it invokes the locally installed `agy` command-line
-tool. It then displays the retrieved usage information in the widget.
+official browser flows or imports their local CLI sessions, connects GitHub Copilot via GitHub's
+secure OAuth Device Flow, and stores the resulting credentials in its own protected local token store.
+For Antigravity it invokes the locally installed `agy` command-line tool. It then displays the retrieved
+usage information in the widget.
 
 ## Privacy
 
 AI Gauge is a standalone local application. Usage data is processed and displayed on your
 Windows device and is not stored by AI Gauge. AI Gauge does not request or store passwords,
-payment information, or unrelated personal data. OAuth tokens used for Codex and Claude Code are
-stored locally in AI Gauge's protected credential store; Antigravity authentication remains managed
-by `agy` and is not copied into AI Gauge.
+payment information, or unrelated personal data. OAuth tokens used for Codex, Claude Code, and
+GitHub Copilot are stored locally in AI Gauge's protected credential store; Antigravity authentication
+remains managed by `agy` and is not copied into AI Gauge.
 
 Any network communication and data handling by connected services are governed by their own
 authentication and privacy policies.
@@ -89,6 +93,9 @@ See the full [Privacy Policy](docs/privacy-policy.md).
   flow again, or import the updated `~/.codex/auth.json` session from Settings.
 - If Claude data is unavailable, use **Connect** in AI Gauge to complete the official browser login
   flow again, or import the updated `~/.claude/.credentials.json` session from Settings.
+- If GitHub Copilot data is unavailable, select **Connect** in Settings, open the GitHub device activation
+  link in your browser, enter the displayed 8-character code, and approve access. Once approved, the connection
+  completes automatically.
 - If Antigravity data is unavailable, verify that `agy` is installed and available to the app.
 - If the selected global hotkey is already used by another application, choose a different shortcut
   or free the shortcut, then select **Retry** in Settings.
@@ -116,3 +123,4 @@ Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; .\build.ps1 build
 ## License
 
 Licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for the full license text.
+ 

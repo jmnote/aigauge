@@ -149,6 +149,36 @@ func DiagnoseAntigravity(tokenKey string) Diagnosis {
 	return diagnoseAntigravityLocal(context.Background(), defaultDeps(), tokenKey)
 }
 
+func DiagnoseCopilot(tokenKey string) Diagnosis {
+	diagnosis, _, _ := diagnoseCopilot(context.Background(), defaultDeps(), tokenKey, false)
+	return diagnosis
+}
+
+// diagnoseCopilot reports GitHub Copilot's readiness using stored tokens first.
+func diagnoseCopilot(_ context.Context, deps providerDeps, tokenKey string, active bool) (Diagnosis, copilotAuth, bool) {
+	if deps.getToken != nil {
+		if tok, err := deps.getToken(tokenKey); err != nil {
+			return Diagnosis{Status: StatusTemporaryError, Message: "Could not read GitHub Copilot credentials.", Details: technicalDetails(err.Error())}, copilotAuth{}, false
+		} else if tok != nil && tok.AccessToken != "" {
+			creds := copilotAuth{}
+			creds.Tokens.AccessToken = tok.AccessToken
+			if !active {
+				return credentialsFoundDiagnosis("Credentials found. Connect to verify usage."), creds, false
+			}
+			return Diagnosis{}, creds, true
+		}
+	}
+	canImport := false
+	if deps.canImport != nil {
+		canImport = deps.canImport("copilot")
+	}
+	return Diagnosis{
+		Status:    StatusLoginRequired,
+		Message:   "Connect to GitHub Copilot to view quota information.",
+		CanImport: canImport,
+	}, copilotAuth{}, false
+}
+
 // diagnoseClaude reports Claude's readiness using stored tokens first.
 func diagnoseClaude(_ context.Context, deps providerDeps, tokenKey string, active bool) (Diagnosis, claudeCredentials, bool) {
 	if deps.getToken != nil {

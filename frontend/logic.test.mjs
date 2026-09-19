@@ -215,7 +215,8 @@ test('providerTypeLabel names every known type and echoes back an unknown one', 
   assert.equal(providerTypeLabel('codex'), 'Codex');
   assert.equal(providerTypeLabel('claude'), 'Claude');
   assert.equal(providerTypeLabel('antigravity'), 'Antigravity');
-  assert.equal(PROVIDER_TYPE_IDS.length, 3);
+  assert.equal(providerTypeLabel('copilot'), 'GitHub Copilot');
+  assert.equal(PROVIDER_TYPE_IDS.length, 4);
   assert.equal(providerTypeLabel('gemini'), 'gemini');
 });
 
