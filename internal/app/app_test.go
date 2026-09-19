@@ -289,6 +289,40 @@ func TestAppAuthMethods(t *testing.T) {
 	}
 }
 
+func TestOpenURLRejectsNonHTTPSchemes(t *testing.T) {
+	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
+	launched := ""
+	app.SetBrowserLauncher(func(u string) error {
+		launched = u
+		return nil
+	})
+
+	cases := map[string]string{
+		"HTTPS://example.com":    "HTTPS://example.com",
+		"  http://example.com  ": "http://example.com",
+		"http://example.com":     "http://example.com",
+	}
+	for u, want := range cases {
+		launched = ""
+		if err := app.OpenURL(u); err != nil {
+			t.Errorf("OpenURL(%q) error = %v, want nil", u, err)
+		}
+		if launched != want {
+			t.Errorf("OpenURL(%q) launched %q, want %q", u, launched, want)
+		}
+	}
+
+	for _, u := range []string{"javascript:alert(1)", "file:///etc/passwd", "ftp://example.com", "not-a-url"} {
+		launched = ""
+		if err := app.OpenURL(u); err == nil {
+			t.Errorf("OpenURL(%q) error = nil, want a rejection", u)
+		}
+		if launched != "" {
+			t.Errorf("OpenURL(%q) launched %q, want the browser never invoked", u, launched)
+		}
+	}
+}
+
 // TestConnectProviderChecksAntigravityLocallyRatherThanOAuth verifies
 // ConnectProvider's Antigravity special case (see app.go): unlike
 // Claude/Codex, Antigravity has no OAuth client of its own (see

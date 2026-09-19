@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -243,10 +244,12 @@ func (a *App) launchBrowser(u string) error {
 // http(s) URL rather than handing an arbitrary string to the OS's URL
 // handler.
 func (a *App) OpenURL(u string) error {
-	if !strings.HasPrefix(u, "http://") && !strings.HasPrefix(u, "https://") {
+	trimmed := strings.TrimSpace(u)
+	parsed, err := url.Parse(trimmed)
+	if err != nil || (!strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https")) {
 		return fmt.Errorf("refusing to open non-http(s) URL")
 	}
-	return a.launchBrowser(u)
+	return a.launchBrowser(trimmed)
 }
 
 // ConnectProvider initiates the browser-based OAuth flow for a provider

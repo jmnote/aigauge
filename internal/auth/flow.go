@@ -953,11 +953,14 @@ func CompleteDeviceAuthFlow(tokenKey string) (*Token, error) {
 		pending.pollMu.Unlock()
 		select {
 		case <-pending.done:
-			if pending.tok != nil {
-				return pending.tok, nil
+			pending.pollMu.Lock()
+			tok, err := pending.tok, pending.err
+			pending.pollMu.Unlock()
+			if tok != nil {
+				return tok, nil
 			}
-			if pending.err != nil {
-				return nil, pending.err
+			if err != nil {
+				return nil, err
 			}
 		case <-time.After(200 * time.Millisecond):
 		}
