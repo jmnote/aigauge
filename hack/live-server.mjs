@@ -34,6 +34,7 @@ const providers = {
   Codex: 'latest/codex.json',
   Claude: 'latest/claude.json',
   Antigravity: 'latest/antigravity.json',
+  Copilot: 'latest/copilot.json',
 };
 
 // Every provider state the real app can show, reproducible here with no CLI,

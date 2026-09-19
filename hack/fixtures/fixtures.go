@@ -11,7 +11,7 @@
 // embeds the usage/display_ snapshot per provider into internal/app/fixtures
 // for the sample-data preview.
 //
-// Run via `.\build.ps1 fixtures-usage <codex|claude|antigravity|all>` from
+// Run via `.\build.ps1 fixtures-usage <codex|claude|antigravity|copilot|all>` from
 // the repository root. Use `fixtures-tokens` for Codex and Claude token samples;
 // Claude's authenticated profile response is captured alongside its token.
 package main
@@ -132,6 +132,22 @@ func obfuscateCodexUsageResponse(raw []byte) ([]byte, error) {
 				return nil, err
 			}
 		}
+	}
+	return json.Marshal(obj)
+}
+
+func obfuscateCopilotUsageResponse(raw []byte) ([]byte, error) {
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, fmt.Errorf("response is not a JSON object: %w", err)
+	}
+	for _, field := range []string{"login", "analytics_tracking_id"} {
+		if err := obfuscateField(obj, field, false); err != nil {
+			return nil, err
+		}
+	}
+	if _, ok := obj["id"]; ok {
+		obj["id"] = 0
 	}
 	return json.Marshal(obj)
 }
@@ -294,6 +310,18 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 			usage.Status = providers.StatusConnected
 			display = usage.ToDisplay()
 		}
+	case "copilot":
+		raw, err = providers.FetchCopilotRawUsage(id)
+		if err == nil {
+			var usage providers.CopilotUsage
+			usage, err = providers.ParseCopilotUsage(raw)
+			if err != nil {
+				break
+			}
+			usage.FetchedAt = fetchedAt
+			usage.Status = providers.StatusConnected
+			display = usage.ToDisplay()
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %w", providerType, err)
@@ -306,6 +334,10 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 	if providerType == "codex" {
 		if raw, err = obfuscateCodexUsageResponse(raw); err != nil {
 			return fmt.Errorf("codex: %w", err)
+		}
+	} else if providerType == "copilot" {
+		if raw, err = obfuscateCopilotUsageResponse(raw); err != nil {
+			return fmt.Errorf("copilot: %w", err)
 		}
 	}
 
@@ -495,9 +527,9 @@ func captureTokens(tokensDir, target string) int {
 }
 
 func captureUsage(usageDir, target string) int {
-	valid := map[string]bool{"all": true, "codex": true, "claude": true, "antigravity": true}
+	valid := map[string]bool{"all": true, "codex": true, "claude": true, "antigravity": true, "copilot": true}
 	if !valid[target] {
-		fatalf("usage: go run hack/fixtures/fixtures.go <codex|claude|antigravity|all>")
+		fatalf("usage: go run hack/fixtures/fixtures.go <codex|claude|antigravity|copilot|all>")
 	}
 
 	settings, err := config.Load()
@@ -505,7 +537,7 @@ func captureUsage(usageDir, target string) int {
 		fatalf("load settings: %v", err)
 	}
 
-	targets := []string{"codex", "claude", "antigravity"}
+	targets := []string{"codex", "claude", "antigravity", "copilot"}
 	if target != "all" {
 		targets = []string{target}
 	}

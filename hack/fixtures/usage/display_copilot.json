@@ -1,0 +1,19 @@
+{
+  "plan": "individual",
+  "user": "",
+  "groups": [
+    {
+      "name": "",
+      "buckets": [
+        {
+          "label": "monthly",
+          "detail": "84/200",
+          "remaining": 42.4,
+          "resetTime": "2026-10-01"
+        }
+      ]
+    }
+  ],
+  "fetchedAt": "2026-09-19T21:47:23+09:00",
+  "status": "connected"
+}
