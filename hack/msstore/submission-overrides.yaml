@@ -6,24 +6,27 @@ Listings:
   en-us:
     BaseListing:
       Description: AI Gauge is a lightweight Windows system tray widget for monitoring
-        usage across OpenAI Codex, Anthropic Claude Code, and Google
-        Antigravity. Connect Codex and Claude Code through their official browser
-        login flows or import an existing local CLI session; Antigravity uses the
+        usage across OpenAI Codex, Anthropic Claude Code, GitHub Copilot, and
+        Google Antigravity. Connect Codex and Claude Code through their official
+        browser login flows or import an existing local CLI session; connect
+        GitHub Copilot via GitHub's secure OAuth device flow; Antigravity uses the
         locally installed and signed-in agy command-line tool. AI Gauge shows
         remaining quota percentages, reset times, connection status, and the last
-        successful update in a compact desktop window. Multiple Codex or Claude
-        accounts can be added and identified by their account details. You can
-        connect or import credentials, remove and reorder provider instances,
+        successful update in a compact desktop window. Multiple Codex, Claude, or
+        Copilot accounts can be added and identified by their account details. You
+        can connect or import credentials, remove and reorder provider instances,
         configure refresh intervals and warning and critical thresholds, keep the
         widget above other windows, and choose a light, dark, or system theme.
         Optionally start with Windows with the window shown or in the system tray.
-        AI Gauge runs locally, stores Codex and Claude OAuth tokens in its
-        protected local credential store, and does not retain usage data on a
+        AI Gauge runs locally, stores Codex, Claude, and Copilot OAuth tokens in
+        its protected local credential store, and does not retain usage data on a
         remote server.
       Features:
         - Automatic quota and reset-time monitoring
+        - GitHub Copilot support with secure OAuth device flow sign-in
         - Multiple provider accounts with ordering controls
-        - Account details for distinguishing multiple Codex or Claude sessions
+        - Account details for distinguishing multiple Codex, Claude, or Copilot
+          sessions
         - Codex reset-credit visibility when provided by the service
         - Official browser sign-in and local credential import
         - Configurable background refresh intervals
@@ -31,24 +34,27 @@ Listings:
         - Global hotkey toggle to show and hide the window
         - Optional Windows startup with the window shown or in the system tray
         - Independent warning and critical thresholds in 5% steps or disabled
-      ReleaseNotes: Provider cards now show account details when available, making
-        multiple Codex or Claude sessions easier to distinguish. Codex reset
-        credits and expanded fetch-status details are available from the card
-        status panel. Refresh is available from the panel's compact action button.
+      ReleaseNotes: Added GitHub Copilot as a supported provider. Connect securely
+        via GitHub's OAuth device flow and monitor your premium request quota
+        alongside Codex, Claude, and Antigravity. Long account labels in Settings
+        now truncate with an ellipsis and show the full text on hover, keeping
+        action buttons from overflowing in multi-account setups.
 
 NotesForCertification: |
-  AI Gauge is a Windows tray widget for Codex, Claude Code and Antigravity usage.
+  AI Gauge is a Windows tray widget for Codex, Claude Code, GitHub Copilot, and
+  Antigravity usage.
 
   No test accounts are supplied. The clean-install experience, settings, startup,
   themes, hotkeys, tray behavior, and provider-card layout can be tested without
   an account. Live quota checks are optional and require the reviewer's own
-  provider account; Antigravity additionally requires the supported agy CLI to be
-  pre-installed and signed in.
+  provider account; GitHub Copilot requires an active Copilot subscription, and
+  Antigravity additionally requires the supported agy CLI to be pre-installed and
+  signed in.
 
   Steps to verify:
   1. Launch on a clean system and confirm setup guidance appears without errors.
   2. In Settings, test light/dark/system themes, the optional global hotkey (off by default), tray restore, and Always on top. Confirm thresholds offer Disabled or 5%-100% in 5% steps.
-  3. Add Codex or Claude Code and use Connect for browser sign-in. Claude's manual flow may require CODE#STATE. If a local CLI session exists, verify Import. For Antigravity, use the installed agy CLI. When two accounts of the same supported provider are present, confirm their account details distinguish the cards.
+  3. Add Codex, Claude Code, or GitHub Copilot and use Connect for browser or device-flow sign-in. Claude's manual flow may require CODE#STATE. If a local CLI session exists, verify Import for Codex or Claude. For Antigravity, use the installed agy CLI. When two accounts of the same supported provider are present, confirm their account details distinguish the cards.
   4. Open a provider's status dot to inspect the status card, fetch-failure count, reset credits when available, and the Refresh action. Reopen Settings, remove the connected provider, and confirm its AI Gauge credential and card are removed.
   5. Confirm Start with Windows defaults to Off. Test Show window and Start in tray across sign-in, and confirm a manual Start-menu launch still shows the window. Disable the app in Windows Settings or Task Manager and verify enabling it reports the block and remains Off.
 

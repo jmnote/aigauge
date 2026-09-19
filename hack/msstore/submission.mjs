@@ -163,9 +163,22 @@ async function submissionYaml() {
     process.exit(1);
   }
 
-  // Mask sensitive ephemeral SAS token unless --raw is specified
-  if (!process.argv.includes('--raw') && data && data.FileUploadUrl) {
-    data.FileUploadUrl = '__REDACTED__';
+  // Mask sensitive ephemeral SAS token and pin submission-churn fields (Id,
+  // Status, FriendlyName) that vary per fetch but carry no useful meaning in
+  // the committed snapshot, unless --raw is specified.
+  if (!process.argv.includes('--raw') && data) {
+    if (data.FileUploadUrl) {
+      data.FileUploadUrl = '__REDACTED__';
+    }
+    if (data.Id) {
+      data.Id = '1152921505700000000';
+    }
+    if (data.Status) {
+      data.Status = 'Certification';
+    }
+    if (data.FriendlyName) {
+      data.FriendlyName = 'Submission X';
+    }
   }
 
   const YAML = await getYaml();
