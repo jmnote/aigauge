@@ -700,6 +700,7 @@ function renderProviderList() {
       const userLabel = document.createElement('span');
       userLabel.className = 'provider-setting-user';
       userLabel.textContent = user;
+      userLabel.title = user;
       nameLabel.append(userLabel);
     }
 

@@ -1113,14 +1113,22 @@ button {
   color: var(--muted);
   font-size: .75rem;
   white-space: nowrap;
+  min-width: 0;
+  flex: 1 1 auto;
 }
 
 .provider-setting-name {
+  flex-shrink: 0;
   color: var(--text);
   font-weight: 400;
 }
 
 .provider-setting-user {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: color-mix(in srgb, var(--muted) 72%, transparent);
   font-size: .7rem;
   font-weight: 400;
@@ -1152,6 +1160,7 @@ button {
   display: inline-flex;
   align-items: center;
   gap: 6px;
+  flex-shrink: 0;
 }
 
 .threshold-settings {
