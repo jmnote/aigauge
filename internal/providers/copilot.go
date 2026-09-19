@@ -26,61 +26,51 @@ func (u CopilotUsage) ToDisplay() DisplayUsage {
 
 	display.Plan = u.CopilotPlan
 
-	var buckets []DisplayUsageBucket
-
-	// 1. Copilot Premium Requests / AI Credits
-	// Chat and Completions are intentionally excluded as they are typically unlimited.
-	copilotLabels := map[string]string{
-		"premium_interactions": "premium requests",
-		"ai_credits":           "ai credits",
+	if u.CopilotPlan == "" && len(u.QuotaSnapshots) == 0 {
+		display.applyDiagnosis(usageUnreadableDiagnosis("GitHub Copilot", ReasonNoUsageData, fmt.Errorf("no quota snapshots available in response")))
+		return display
 	}
-	copilotKeys := []string{"premium_interactions", "ai_credits"}
 
-	for _, key := range copilotKeys {
-		if snapshot, ok := u.QuotaSnapshots[key]; ok {
-			remPercent := snapshot.PercentRemaining
-			if snapshot.Unlimited {
-				remPercent = 100
-			}
-			label := copilotLabels[key]
-			detail := ""
-			if snapshot.Entitlement > 0 {
-				detail = fmt.Sprintf("%d/%d", int(snapshot.Remaining), int(snapshot.Entitlement))
-			} else if snapshot.Remaining > 0 {
-				detail = fmt.Sprintf("%d", int(snapshot.Remaining))
-			}
-			buckets = append(buckets, DisplayUsageBucket{
-				Label:     label,
-				Detail:    detail,
-				Remaining: remPercent,
-				ResetTime: u.QuotaResetDate,
-			})
+	// Copilot's usage rate prefers ai_credits.percent_remaining, falling back
+	// to premium_interactions.percent_remaining, and 0% if neither snapshot is
+	// present. A snapshot that has fully run out (remaining == 0) is treated
+	// as 0% remaining regardless of what percent_remaining itself reports.
+	// The label reflects the reset cadence (like Claude/Codex's "5h"/"7d"),
+	// not which snapshot backed the number, since quota_reset_date is monthly
+	// either way.
+	detail, remaining := "", 0.0
+	if credits, ok := u.QuotaSnapshots["ai_credits"]; ok {
+		detail = quotaDetail(credits)
+		if credits.Remaining != 0 {
+			remaining = credits.PercentRemaining
 		}
-	}
-
-	if len(buckets) == 0 {
-		// A plan with no premium_interactions/ai_credits snapshot (e.g. one
-		// entitled only to unlimited chat/completions) is still a working
-		// connection, not an unreadable response - show it as unlimited
-		// instead of an error card.
-		if u.CopilotPlan != "" || len(u.QuotaSnapshots) > 0 {
-			buckets = append(buckets, DisplayUsageBucket{
-				Label:     "monthly",
-				Detail:    "Unlimited",
-				Remaining: 100,
-				ResetTime: u.QuotaResetDate,
-			})
-		} else {
-			display.applyDiagnosis(usageUnreadableDiagnosis("GitHub Copilot", ReasonNoUsageData, fmt.Errorf("no quota snapshots available in response")))
-			return display
+	} else if premium, ok := u.QuotaSnapshots["premium_interactions"]; ok {
+		detail = quotaDetail(premium)
+		if premium.Remaining != 0 {
+			remaining = premium.PercentRemaining
 		}
 	}
 
 	display.Groups = []DisplayUsageGroup{{
-		Buckets: buckets,
+		Buckets: []DisplayUsageBucket{{
+			Label:     "monthly",
+			Detail:    detail,
+			Remaining: remaining,
+			ResetTime: u.QuotaResetDate,
+		}},
 	}}
 	display.Status = StatusConnected
 	return display
+}
+
+func quotaDetail(snapshot CopilotQuotaSnapshot) string {
+	if snapshot.Entitlement > 0 {
+		return fmt.Sprintf("%d/%d", int(snapshot.Remaining), int(snapshot.Entitlement))
+	}
+	if snapshot.Remaining > 0 {
+		return fmt.Sprintf("%d", int(snapshot.Remaining))
+	}
+	return ""
 }
 
 // GetCopilotUsage fetches the usage for the GitHub Copilot instance identified by tokenKey.
