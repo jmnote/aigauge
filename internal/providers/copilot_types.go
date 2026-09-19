@@ -18,7 +18,7 @@ type CopilotUsage struct {
 }
 
 // CopilotQuotaSnapshot represents the quota consumption state for an individual
-// feature (e.g. premium_interactions, chat, completions, ai_credits).
+// feature (e.g. premium_interactions, chat, completions).
 type CopilotQuotaSnapshot struct {
 	Entitlement      float64 `json:"entitlement"`
 	Remaining        float64 `json:"remaining"`

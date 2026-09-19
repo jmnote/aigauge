@@ -1,8 +1,8 @@
 {
   "id": 0,
-  "login": "loginname",
+  "login": "alex",
   "access_type_sku": "free_educational_quota",
-  "analytics_tracking_id": "aaaaaaaaaaaaaaaaaaaaaaaa",
+  "analytics_tracking_id": "7a91c3eb5802469d135fc7e02EXAMPLE",
   "assigned_date": "2026-01-01T00:00:00+09:00",
   "can_signup_for_limited": false,
   "chat_enabled": true,
