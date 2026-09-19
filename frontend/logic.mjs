@@ -75,8 +75,10 @@ export const PROVIDER_TYPES = [
   { id: 'codex', label: 'Codex' },
   { id: 'claude', label: 'Claude' },
   { id: 'antigravity', label: 'Antigravity' },
+  { id: 'copilot', label: 'GitHub Copilot' },
 ];
 export const PROVIDER_TYPE_IDS = PROVIDER_TYPES.map(t => t.id);
+
 
 export function providerTypeLabel(type) {
   return PROVIDER_TYPES.find(t => t.id === type)?.label || type;

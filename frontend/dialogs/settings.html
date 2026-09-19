@@ -101,9 +101,17 @@
         <p id="provider-add-dialog-status"></p>
         <button id="provider-add-dialog-import" class="provider-add-dialog-choice" type="button" hidden>Try existing credentials</button>
         <button id="provider-add-dialog-login" class="provider-add-dialog-choice" type="button" hidden>Sign in with browser</button>
+        <div id="provider-add-dialog-device-box" class="device-code-box" hidden>
+          <span id="provider-add-dialog-device-code" class="device-code-value"></span>
+          <div class="device-code-actions">
+            <button id="provider-add-dialog-device-copy" class="device-code-btn" type="button">Copy code</button>
+            <button id="provider-add-dialog-device-open" class="device-code-btn primary" type="button">Open GitHub</button>
+          </div>
+        </div>
         <input id="provider-add-dialog-code" type="text" placeholder="Auth code" autocomplete="off" hidden />
         <button id="provider-add-dialog-submit" type="button" hidden>Submit code</button>
         <button id="provider-add-dialog-action-close" type="button" hidden>Close</button>
+
       </div>
     </div>
     <div id="confirm-dialog" class="provider-add-dialog" hidden role="dialog" aria-modal="true" aria-labelledby="confirm-dialog-title">

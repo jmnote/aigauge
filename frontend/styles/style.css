@@ -996,6 +996,66 @@ button {
   box-shadow: 0 0 0 1px var(--base-accent);
 }
 
+.device-code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 12px;
+  margin: 0 0 10px;
+  gap: 10px;
+}
+
+.device-code-box[hidden] {
+  display: none;
+}
+
+.device-code-value {
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--base-accent);
+  user-select: all;
+}
+
+.device-code-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.device-code-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  font-size: 12px;
+  padding: 4px 8px;
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+  white-space: nowrap;
+}
+
+.device-code-btn:hover {
+  background: var(--surface-hover, rgba(128, 128, 128, 0.15));
+  border-color: var(--base-accent);
+}
+
+.device-code-btn.primary {
+  background: var(--base-accent);
+  border-color: var(--base-accent);
+  color: #fff;
+  font-weight: 600;
+}
+
+.device-code-btn.primary:hover {
+  opacity: 0.9;
+}
+
+
 .ui-toast {
   position: fixed;
   left: 50%;

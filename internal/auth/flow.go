@@ -221,6 +221,7 @@ type tokenExchangeResponse struct {
 	IDToken          string `json:"id_token"`
 	TokenType        string `json:"token_type"`
 	ExpiresIn        int    `json:"expires_in"`
+	Interval         int    `json:"interval"`
 	SubscriptionType string `json:"subscription_type"`
 	PlanType         string `json:"plan_type"`
 	Error            string `json:"error"`
@@ -611,4 +612,342 @@ func CompleteManualAuthFlow(tokenKey, rawCode string) (*Token, error) {
 	manualFlowMu.Unlock()
 	failed = false
 	return token, nil
+}
+
+// ---------------------------------------------------------------------------
+// Device Code Flow (OAuth 2.0 Device Authorization Grant, RFC 8628)
+// ---------------------------------------------------------------------------
+
+type deviceCodeResponse struct {
+	DeviceCode      string `json:"device_code"`
+	UserCode        string `json:"user_code"`
+	VerificationURI string `json:"verification_uri"`
+	ExpiresIn       int    `json:"expires_in"`
+	Interval        int    `json:"interval"`
+	Error           string `json:"error"`
+	ErrorDesc       string `json:"error_description"`
+}
+
+type pendingDeviceFlow struct {
+	cfgType    string
+	deviceCode string
+	userCode   string
+	interval   time.Duration
+	ctx        context.Context
+	cancel     context.CancelFunc
+	done       chan struct{}
+	pollMu     sync.Mutex
+	tok        *Token
+	err        error
+	lastPoll   time.Time
+}
+
+var (
+	deviceFlowMu sync.Mutex
+	deviceFlows  = map[string]*pendingDeviceFlow{} // keyed by tokenKey
+)
+
+// BeginDeviceAuthFlow initiates an OAuth 2.0 Device Authorization Flow (e.g. for GitHub Copilot).
+// It requests a device and user code from cfg.DeviceURL, remembers the pending flow for tokenKey,
+// launches a background polling worker in Go (which is immune to WebView background timer throttling),
+// and returns the verification URL to open in the browser along with the 8-character user code.
+func BeginDeviceAuthFlow(cfgType, tokenKey string) (authURL, userCode string, err error) {
+	cfg, ok := GetProviderConfig(cfgType)
+	if !ok {
+		return "", "", fmt.Errorf("unknown provider %q", cfgType)
+	}
+	if !cfg.DeviceFlow {
+		return "", "", fmt.Errorf("%s does not use the device code flow", cfg.Name)
+	}
+
+	values := url.Values{}
+	values.Set("client_id", cfg.ClientID)
+	if len(cfg.Scopes) > 0 {
+		values.Set("scope", strings.Join(cfg.Scopes, " "))
+	}
+
+	flowCtx, cancel := context.WithCancel(context.Background())
+	reqCtx, reqCancel := context.WithTimeout(flowCtx, 15*time.Second)
+	defer reqCancel()
+
+	req, err := http.NewRequestWithContext(reqCtx, "POST", cfg.DeviceURL, strings.NewReader(values.Encode()))
+	if err != nil {
+		cancel()
+		return "", "", fmt.Errorf("build device code request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+
+	resp, err := tokenHTTPClient.Do(req)
+	if err != nil {
+		cancel()
+		return "", "", fmt.Errorf("device code request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		cancel()
+		return "", "", fmt.Errorf("read device code response: %w", err)
+	}
+
+	var raw deviceCodeResponse
+	if err := json.Unmarshal(body, &raw); err != nil {
+		cancel()
+		return "", "", fmt.Errorf("unmarshal device code response: %w", err)
+	}
+
+	if raw.Error != "" {
+		cancel()
+		desc := raw.ErrorDesc
+		if desc == "" {
+			desc = raw.Error
+		}
+		return "", "", fmt.Errorf("device authorization error: %s", desc)
+	}
+
+	if raw.DeviceCode == "" || raw.UserCode == "" {
+		cancel()
+		return "", "", fmt.Errorf("missing device_code or user_code in response")
+	}
+
+	uri := raw.VerificationURI
+	if uri == "" {
+		uri = cfg.AuthURL
+	}
+
+	interval := time.Duration(raw.Interval) * time.Second
+	if interval < 5*time.Second {
+		interval = 5 * time.Second
+	}
+
+	flow := &pendingDeviceFlow{
+		cfgType:    cfgType,
+		deviceCode: raw.DeviceCode,
+		userCode:   raw.UserCode,
+		interval:   interval,
+		ctx:        flowCtx,
+		cancel:     cancel,
+		done:       make(chan struct{}),
+	}
+
+	deviceFlowMu.Lock()
+	if previous := deviceFlows[tokenKey]; previous != nil {
+		previous.cancel()
+	}
+	deviceFlows[tokenKey] = flow
+	deviceFlowMu.Unlock()
+
+	go flow.pollLoop(tokenKey)
+
+	return uri, raw.UserCode, nil
+}
+
+func (p *pendingDeviceFlow) pollLoop(tokenKey string) {
+	defer close(p.done)
+
+	ticker := time.NewTicker(p.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-p.ctx.Done():
+			p.pollMu.Lock()
+			if p.err == nil {
+				p.err = p.ctx.Err()
+			}
+			p.pollMu.Unlock()
+			return
+		case <-ticker.C:
+			tok, retry, err := p.checkOnce(tokenKey)
+			if tok != nil {
+				return
+			}
+			if err != nil && !retry {
+				return
+			}
+			ticker.Reset(p.interval)
+		}
+	}
+}
+
+func (p *pendingDeviceFlow) checkOnce(tokenKey string) (*Token, bool, error) {
+	p.pollMu.Lock()
+	defer p.pollMu.Unlock()
+
+	if p.tok != nil {
+		return p.tok, false, nil
+	}
+	if p.err != nil {
+		return nil, false, p.err
+	}
+
+	cfg, ok := GetProviderConfig(p.cfgType)
+	if !ok {
+		p.err = fmt.Errorf("unknown provider %q", p.cfgType)
+		return nil, false, p.err
+	}
+
+	values := url.Values{}
+	values.Set("client_id", cfg.ClientID)
+	values.Set("device_code", p.deviceCode)
+	values.Set("grant_type", "urn:ietf:params:oauth:grant-type:device_code")
+
+	ctx, cancel := context.WithTimeout(p.ctx, 15*time.Second)
+	defer cancel()
+
+	p.lastPoll = time.Now()
+	raw, _, reqErr := postTokenRequest(ctx, cfg.TokenURL, values)
+	if reqErr != nil {
+		return nil, true, reqErr
+	}
+
+	if raw.Error != "" {
+		switch raw.Error {
+		case "authorization_pending":
+			return nil, true, fmt.Errorf("authorization pending for code %s", p.userCode)
+		case "slow_down":
+			if raw.Interval > 0 {
+				p.interval = time.Duration(raw.Interval) * time.Second
+			} else {
+				p.interval += 5 * time.Second
+			}
+			return nil, true, fmt.Errorf("slow down, interval increased to %v", p.interval)
+		case "expired_token":
+			p.err = errors.New("the authorization code has expired. Please click Connect again")
+			return nil, false, p.err
+		case "access_denied":
+			p.err = errors.New("access was denied")
+			return nil, false, p.err
+		default:
+			desc := raw.ErrorDescription
+			if desc == "" {
+				desc = raw.Error
+			}
+			p.err = fmt.Errorf("device authorization error: %s", desc)
+			return nil, false, p.err
+		}
+	}
+
+	if raw.AccessToken == "" {
+		return nil, true, errors.New("no access token in response")
+	}
+
+	tok := &Token{
+		AccessToken:  raw.AccessToken,
+		RefreshToken: raw.RefreshToken,
+		TokenType:    raw.TokenType,
+	}
+	if raw.ExpiresIn > 0 {
+		tok.ExpiresAt = time.Now().Add(time.Duration(raw.ExpiresIn) * time.Second)
+	}
+
+	if err := SaveToken(tokenKey, tok); err != nil {
+		p.err = fmt.Errorf("failed to store token: %w", err)
+		return nil, false, p.err
+	}
+
+	p.tok = tok
+
+	deviceFlowMu.Lock()
+	if deviceFlows[tokenKey] == p {
+		delete(deviceFlows, tokenKey)
+	}
+	deviceFlowMu.Unlock()
+
+	return tok, false, nil
+}
+
+// WaitForDeviceAuth blocks until the device flow for tokenKey completes, fails, or ctx expires.
+func WaitForDeviceAuth(ctx context.Context, tokenKey string) (*Token, error) {
+	deviceFlowMu.Lock()
+	pending := deviceFlows[tokenKey]
+	deviceFlowMu.Unlock()
+
+	if pending == nil {
+		if tok, err := GetToken(tokenKey); err == nil && tok != nil && tok.AccessToken != "" {
+			return tok, nil
+		}
+		return nil, fmt.Errorf("no device flow in progress for %q", tokenKey)
+	}
+
+	select {
+	case <-pending.done:
+		pending.pollMu.Lock()
+		tok, err := pending.tok, pending.err
+		pending.pollMu.Unlock()
+		if tok != nil {
+			return tok, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return nil, errors.New("device flow completed without token")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case <-pending.ctx.Done():
+		return nil, pending.ctx.Err()
+	}
+}
+
+// CancelDeviceAuthFlow discards a pending device-code login for tokenKey.
+func CancelDeviceAuthFlow(tokenKey string) {
+	deviceFlowMu.Lock()
+	if pending := deviceFlows[tokenKey]; pending != nil {
+		pending.cancel()
+		delete(deviceFlows, tokenKey)
+	}
+	deviceFlowMu.Unlock()
+}
+
+// CompleteDeviceAuthFlow checks token availability for a pending device flow immediately.
+func CompleteDeviceAuthFlow(tokenKey string) (*Token, error) {
+	if tok, err := GetToken(tokenKey); err == nil && tok != nil && tok.AccessToken != "" {
+		return tok, nil
+	}
+
+	deviceFlowMu.Lock()
+	pending := deviceFlows[tokenKey]
+	deviceFlowMu.Unlock()
+
+	if pending == nil {
+		return nil, fmt.Errorf("no authentication in progress for %q - click Connect again", tokenKey)
+	}
+
+	pending.pollMu.Lock()
+	if pending.tok != nil {
+		tok := pending.tok
+		pending.pollMu.Unlock()
+		return tok, nil
+	}
+	if pending.err != nil {
+		err := pending.err
+		pending.pollMu.Unlock()
+		return nil, err
+	}
+
+	if time.Since(pending.lastPoll) < 2*time.Second {
+		pending.pollMu.Unlock()
+		select {
+		case <-pending.done:
+			if pending.tok != nil {
+				return pending.tok, nil
+			}
+			if pending.err != nil {
+				return nil, pending.err
+			}
+		case <-time.After(200 * time.Millisecond):
+		}
+		return nil, fmt.Errorf("Authorization still pending. Please enter code %s in your browser, then click Complete Connection.", pending.userCode)
+	}
+	pending.pollMu.Unlock()
+
+	tok, _, err := pending.checkOnce(tokenKey)
+	if tok != nil {
+		return tok, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return nil, fmt.Errorf("Authorization still pending. Please enter code %s in your browser, then click Complete Connection.", pending.userCode)
 }

@@ -241,4 +241,8 @@ func (rt *runtime) createSettingsWindow() {
 		event.Cancel()
 		rt.settingsWindow.Hide()
 	})
+
+	rt.settingsWindow.RegisterHook(events.Common.WindowFocus, func(event *application.WindowEvent) {
+		rt.application.Event.Emit("aigauge:window-focus", nil)
+	})
 }

@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"os"
 	"sync"
 	"time"
 )
@@ -71,6 +72,12 @@ type ProviderConfig struct {
 	// CODE#STATE string for the user to copy and paste back into AI Gauge,
 	// since a local server never sees that redirect at all.
 	ManualCode bool
+
+	// DeviceFlow is true for a provider using the OAuth 2.0 Device Authorization
+	// Grant (RFC 8628), such as GitHub Copilot, which authorizes with an 8-character
+	// user code in the browser and requires no client_secret.
+	DeviceFlow bool
+	DeviceURL  string
 }
 
 // DefaultConfigs holds the default OAuth configurations for each supported provider.
@@ -122,6 +129,17 @@ var DefaultConfigs = map[string]ProviderConfig{
 			"originator": "codex_cli_rs",
 		},
 	},
+	"copilot": {
+		ID:         "copilot",
+		Name:       "GitHub Copilot",
+		AuthURL:    "https://github.com/login/device",
+		TokenURL:   "https://github.com/login/oauth/access_token",
+		DeviceURL:  "https://github.com/login/device/code",
+		ClientID:   defaultCopilotClientID(),
+		Scopes:     []string{"read:user", "copilot"},
+		DeviceFlow: true,
+	},
+
 	// Antigravity deliberately has no entry here: unlike Claude/Codex, its
 	// usage lookup goes through the locally installed agy CLI (see
 	// internal/providers/antigravity.go), not a token AI Gauge holds itself.
@@ -130,6 +148,13 @@ var DefaultConfigs = map[string]ProviderConfig{
 	// the official CLI, or reading its local token store to call the API
 	// directly - as a violation, so this app never does either for
 	// Antigravity.
+}
+
+func defaultCopilotClientID() string {
+	if id := os.Getenv("AIGAUGE_COPILOT_CLIENT_ID"); id != "" {
+		return id
+	}
+	return "Ov23li82lk0Rjtwtz7BG"
 }
 
 var (

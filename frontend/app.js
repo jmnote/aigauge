@@ -45,7 +45,9 @@ const RPC_BY_TYPE = {
   codex: { rpcMethod: 'GetCodexUsage', diagnoseRpcMethod: 'DiagnoseCodex' },
   claude: { rpcMethod: 'GetClaudeUsage', diagnoseRpcMethod: 'DiagnoseClaude' },
   antigravity: { rpcMethod: 'GetAntigravityUsage', diagnoseRpcMethod: 'DiagnoseAntigravity' },
+  copilot: { rpcMethod: 'GetCopilotUsage', diagnoseRpcMethod: 'DiagnoseCopilot' },
 };
+
 
 // Turns one provider instance from config.providers into the full set of
 // per-card details the rendering code needs (RPC method names, the element

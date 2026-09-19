@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"sync"
+	"time"
 
 	"github.com/jmnote/aigauge/internal/auth"
 	"github.com/jmnote/aigauge/internal/config"
@@ -29,6 +30,7 @@ var providerTypeCatalog = []providerTypeInfo{
 	{"codex", "Codex", func(id string) providers.Diagnosis { return providers.GetCodexUsage(id).ToDiagnosis() }},
 	{"claude", "Claude", func(id string) providers.Diagnosis { return providers.GetClaudeUsage(id).ToDiagnosis() }},
 	{"antigravity", "Antigravity", func(id string) providers.Diagnosis { return providers.GetAntigravityUsage(id).ToDiagnosis() }},
+	{"copilot", "GitHub Copilot", func(id string) providers.Diagnosis { return providers.GetCopilotUsage(id).ToDiagnosis() }},
 }
 
 func providerTypeLabel(id string) (string, bool) {
@@ -235,6 +237,11 @@ func (a *App) launchBrowser(u string) error {
 	return openSystemBrowser(u)
 }
 
+// OpenURL opens the given URL in the user's default browser.
+func (a *App) OpenURL(u string) error {
+	return a.launchBrowser(u)
+}
+
 // ConnectProvider initiates the browser-based OAuth flow for a provider
 // instance, saves the token under the instance's id, and confirms
 // connectivity by returning the provider's diagnosis.
@@ -291,6 +298,23 @@ func (a *App) ConnectProvider(instanceID string) (providers.Diagnosis, error) {
 		}, nil
 	}
 
+	if cfg, ok := auth.GetProviderConfig(instance.Type); ok && cfg.DeviceFlow {
+		authURL, userCode, err := auth.BeginDeviceAuthFlow(instance.Type, instance.ID)
+		if err != nil {
+			log.Printf("[aigauge] ConnectProvider(%q): BeginDeviceAuthFlow failed: %v", instanceID, err)
+			return providers.Diagnosis{
+				Status:  providers.StatusTemporaryError,
+				Message: fmt.Sprintf("Authentication failed: %v", err),
+			}, err
+		}
+		log.Printf("[aigauge] ConnectProvider(%q): device flow initiated, user_code=%s, auth_url=%s", instanceID, userCode, authURL)
+		return providers.Diagnosis{
+			Status:  providers.StatusAwaitingCode,
+			Message: fmt.Sprintf("Enter code %s at GitHub in your browser, then click Complete Connection.", userCode),
+			Details: userCode,
+		}, nil
+	}
+
 	ctx := context.Background()
 	if _, err := auth.StartAuthFlow(ctx, instance.Type, instance.ID, a.launchBrowser); err != nil {
 		log.Printf("[aigauge] ConnectProvider(%q): StartAuthFlow failed: %v", instanceID, err)
@@ -319,6 +343,19 @@ func (a *App) SubmitAuthCode(instanceID, code string) (providers.Diagnosis, erro
 		}, err
 	}
 
+	if cfg, ok := auth.GetProviderConfig(instance.Type); ok && cfg.DeviceFlow {
+		if _, err := auth.CompleteDeviceAuthFlow(instance.ID); err != nil {
+			log.Printf("[aigauge] SubmitAuthCode(%q): CompleteDeviceAuthFlow failed: %v", instanceID, err)
+			return providers.Diagnosis{
+				Status:  providers.StatusAwaitingCode,
+				Message: err.Error(),
+			}, err
+		}
+		diag := diagnoseConnectedInstance(instance)
+		log.Printf("[aigauge] SubmitAuthCode(%q): connected via device flow, status=%s", instanceID, diag.Status)
+		return diag, nil
+	}
+
 	if _, err := auth.CompleteManualAuthFlow(instance.ID, code); err != nil {
 		log.Printf("[aigauge] SubmitAuthCode(%q): CompleteManualAuthFlow failed: %v", instanceID, err)
 		return providers.Diagnosis{
@@ -329,6 +366,35 @@ func (a *App) SubmitAuthCode(instanceID, code string) (providers.Diagnosis, erro
 
 	diag := diagnoseConnectedInstance(instance)
 	log.Printf("[aigauge] SubmitAuthCode(%q): connected, status=%s", instanceID, diag.Status)
+	return diag, nil
+}
+
+// WaitForDeviceAuth blocks until the device authorization flow for instanceID
+// completes in the background (or user cancels/times out), returning the connected diagnosis.
+func (a *App) WaitForDeviceAuth(instanceID string) (providers.Diagnosis, error) {
+	log.Printf("[aigauge] WaitForDeviceAuth(%q)", instanceID)
+	instance, err := a.resolveInstance(instanceID)
+	if err != nil {
+		log.Printf("[aigauge] WaitForDeviceAuth(%q): resolveInstance failed: %v", instanceID, err)
+		return providers.Diagnosis{
+			Status:  providers.StatusTemporaryError,
+			Message: fmt.Sprintf("Authentication failed: %v", err),
+		}, err
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	defer cancel()
+
+	if _, err := auth.WaitForDeviceAuth(ctx, instance.ID); err != nil {
+		log.Printf("[aigauge] WaitForDeviceAuth(%q): WaitForDeviceAuth failed: %v", instanceID, err)
+		return providers.Diagnosis{
+			Status:  providers.StatusTemporaryError,
+			Message: err.Error(),
+		}, err
+	}
+
+	diag := diagnoseConnectedInstance(instance)
+	log.Printf("[aigauge] WaitForDeviceAuth(%q): connected via device flow, status=%s", instanceID, diag.Status)
 	return diag, nil
 }
 
@@ -375,6 +441,7 @@ func diagnoseConnectedInstance(instance config.ProviderInstance) providers.Diagn
 func (a *App) CancelAuth(instanceID string) error {
 	auth.CancelAuthFlowAndWait(instanceID)
 	auth.CancelManualAuthFlow(instanceID)
+	auth.CancelDeviceAuthFlow(instanceID)
 	return nil
 }
 
@@ -395,6 +462,10 @@ func (a *App) DiagnoseAntigravity(instanceID string) providers.Diagnosis {
 	return providers.DiagnoseAntigravity(instanceID)
 }
 
+func (a *App) DiagnoseCopilot(instanceID string) providers.Diagnosis {
+	return providers.DiagnoseCopilot(instanceID)
+}
+
 // GetXUsage performs the real, network-backed lookup for the provider
 // instance whose token is stored under instanceID, converted to the common
 // DisplayUsage shape the frontend's single renderer expects.
@@ -408,6 +479,10 @@ func (a *App) GetAntigravityUsage(instanceID string) providers.DisplayUsage {
 
 func (a *App) GetClaudeUsage(instanceID string) providers.DisplayUsage {
 	return providers.GetClaudeUsage(instanceID).ToDisplay()
+}
+
+func (a *App) GetCopilotUsage(instanceID string) providers.DisplayUsage {
+	return providers.GetCopilotUsage(instanceID).ToDisplay()
 }
 
 // ---------------------------------------------------------------------------
@@ -620,6 +695,7 @@ func (a *App) CleanupPendingProviderInstances() error {
 			continue
 		}
 		auth.CancelManualAuthFlow(p.ID)
+		auth.CancelDeviceAuthFlow(p.ID)
 		auth.CancelAuthFlowAndWait(p.ID)
 		tok, tokenErr := auth.GetToken(p.ID)
 		if tokenErr == nil && tok != nil && tok.AccessToken != "" {
@@ -667,6 +743,7 @@ func (a *App) RemoveProviderInstance(instanceID string) error {
 	// instance id until the code is submitted. Removing the instance must also
 	// discard that pending authentication state.
 	auth.CancelManualAuthFlow(instanceID)
+	auth.CancelDeviceAuthFlow(instanceID)
 	auth.CancelAuthFlowAndWait(instanceID)
 	a.settingsMu.Lock()
 	defer a.settingsMu.Unlock()

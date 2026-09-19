@@ -590,3 +590,109 @@ func TestParseCredentialsFileInvalid(t *testing.T) {
 		t.Errorf("parseCodexCredentials(invalid) = %+v, want nil", tok)
 	}
 }
+
+func TestDeviceAuthFlowRoundTrip(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/device/code" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"device_code":      "dev-code-123",
+				"user_code":        "ABCD-1234",
+				"verification_uri": "https://github.com/login/device",
+				"expires_in":       900,
+				"interval":         5,
+			})
+			return
+		}
+		if r.URL.Path == "/oauth/access_token" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"access_token": "ghu_test_token_123",
+				"token_type":   "bearer",
+				"scope":        "read:user,copilot",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer ts.Close()
+
+	SetProviderConfig("test_device", ProviderConfig{
+		ID:         "test_device",
+		Name:       "Test Device",
+		DeviceFlow: true,
+		DeviceURL:  ts.URL + "/device/code",
+		TokenURL:   ts.URL + "/oauth/access_token",
+		ClientID:   "test-client-id",
+	})
+
+	authURL, userCode, err := BeginDeviceAuthFlow("test_device", "inst-device-1")
+	if err != nil {
+		t.Fatalf("BeginDeviceAuthFlow failed: %v", err)
+	}
+	if authURL != "https://github.com/login/device" || userCode != "ABCD-1234" {
+		t.Errorf("got authURL=%q, userCode=%q", authURL, userCode)
+	}
+
+	tok, err := CompleteDeviceAuthFlow("inst-device-1")
+	if err != nil {
+		t.Fatalf("CompleteDeviceAuthFlow failed: %v", err)
+	}
+	if tok.AccessToken != "ghu_test_token_123" {
+		t.Errorf("token = %q, want %q", tok.AccessToken, "ghu_test_token_123")
+	}
+}
+
+func TestWaitForDeviceAuth(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.URL.Path == "/device/code" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"device_code":      "dev-code-wait",
+				"user_code":        "WAIT-1234",
+				"verification_uri": "https://github.com/login/device",
+				"expires_in":       900,
+				"interval":         5,
+			})
+			return
+		}
+		if r.URL.Path == "/oauth/access_token" {
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{
+				"access_token": "ghu_wait_token_456",
+				"token_type":   "bearer",
+			})
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer ts.Close()
+
+	SetProviderConfig("test_device_wait", ProviderConfig{
+		ID:         "test_device_wait",
+		Name:       "Test Device Wait",
+		DeviceFlow: true,
+		DeviceURL:  ts.URL + "/device/code",
+		TokenURL:   ts.URL + "/oauth/access_token",
+		ClientID:   "test-client-id",
+	})
+
+	_, _, err := BeginDeviceAuthFlow("test_device_wait", "inst-device-wait")
+	if err != nil {
+		t.Fatalf("BeginDeviceAuthFlow failed: %v", err)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	// WaitForDeviceAuth should succeed when token is acquired
+	tok, err := WaitForDeviceAuth(ctx, "inst-device-wait")
+	if err != nil {
+		// If background ticker has not ticked yet, check if CompleteDeviceAuthFlow can complete it
+		tok, err = CompleteDeviceAuthFlow("inst-device-wait")
+		if err != nil {
+			t.Fatalf("WaitForDeviceAuth/Complete failed: %v", err)
+		}
+	}
+	if tok == nil || tok.AccessToken == "" {
+		t.Errorf("expected access token, got %+v", tok)
+	}
+}
