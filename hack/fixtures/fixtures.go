@@ -3,7 +3,10 @@
 // Command fixtures captures a usage snapshot using AI Gauge's own stored
 // credentials and provider logic (internal/providers), writing both:
 //   - hack/fixtures/usage/usage_<provider>.json - the API's raw response, byte
-//     for byte (Codex's user_id/email obfuscated)
+//     for byte (Codex's user_id/email and Copilot's id/login/
+//     analytics_tracking_id/organization and enterprise names obfuscated;
+//     Claude and Antigravity have no known PII fields in their raw response
+//     to obfuscate, so review your own capture before committing it)
 //   - hack/fixtures/usage/display_<provider>.json - that same response parsed
 //     and converted (ParseXUsage + ToDisplay), the shape the app renders
 //
@@ -11,9 +14,9 @@
 // embeds the usage/display_ snapshot per provider into internal/app/fixtures
 // for the sample-data preview.
 //
-// Run via `.\build.ps1 fixtures-usage <codex|claude|antigravity|all>` from
-// the repository root. Use `fixtures-tokens` for Codex, Claude, and Copilot
-// token samples; Claude's authenticated profile response is captured
+// Run via `.\build.ps1 fixtures-usage <codex|claude|antigravity|copilot|all>`
+// from the repository root. Use `fixtures-tokens` for Codex, Claude, and
+// Copilot token samples; Claude's authenticated profile response is captured
 // alongside its token.
 package main
 
@@ -25,6 +28,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -135,6 +139,74 @@ func obfuscateCodexUsageResponse(raw []byte) ([]byte, error) {
 		}
 	}
 	return json.Marshal(obj)
+}
+
+// obfuscateCopilotUsageResponse obfuscates the account-identifying fields
+// GitHub's /copilot_internal/user response carries alongside plan/quota data:
+// a numeric account id, the GitHub login, a persistent analytics tracking id,
+// and any organization/enterprise names the account belongs to.
+func obfuscateCopilotUsageResponse(raw []byte) ([]byte, error) {
+	var obj map[string]any
+	if err := json.Unmarshal(raw, &obj); err != nil {
+		return nil, fmt.Errorf("response is not a JSON object: %w", err)
+	}
+	if err := obfuscateField(obj, "login", true); err != nil {
+		return nil, err
+	}
+	if err := obfuscateField(obj, "analytics_tracking_id", false); err != nil {
+		return nil, err
+	}
+	if err := obfuscateNumericField(obj, "id", true); err != nil {
+		return nil, err
+	}
+	for _, field := range []string{"organization_login_list", "organization_list", "enterprise_list"} {
+		if err := obfuscateStringListField(obj, field); err != nil {
+			return nil, err
+		}
+	}
+	return json.Marshal(obj)
+}
+
+func obfuscateNumericField(object map[string]any, key string, required bool) error {
+	value, ok := object[key]
+	if !ok {
+		if required {
+			return fmt.Errorf("JSON field %q is missing", key)
+		}
+		return nil
+	}
+	if value == nil {
+		return nil
+	}
+	num, ok := value.(float64)
+	if !ok {
+		return fmt.Errorf("JSON field %q must be a number, got %T", key, value)
+	}
+	obfuscated, err := strconv.ParseInt(util.Obfuscate(strconv.FormatInt(int64(num), 10)), 10, 64)
+	if err != nil {
+		return fmt.Errorf("obfuscated field %q is not numeric: %w", key, err)
+	}
+	object[key] = obfuscated
+	return nil
+}
+
+func obfuscateStringListField(object map[string]any, key string) error {
+	value, ok := object[key]
+	if !ok || value == nil {
+		return nil
+	}
+	list, ok := value.([]any)
+	if !ok {
+		return fmt.Errorf("JSON field %q must be an array, got %T", key, value)
+	}
+	for i, item := range list {
+		text, ok := item.(string)
+		if !ok {
+			return fmt.Errorf("JSON field %q[%d] must be a string, got %T", key, i, item)
+		}
+		list[i] = util.Obfuscate(text)
+	}
+	return nil
 }
 
 func obfuscateField(object map[string]any, key string, required bool) error {
@@ -295,6 +367,15 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 			usage.Status = providers.StatusConnected
 			display = usage.ToDisplay()
 		}
+	case "copilot":
+		raw, err = providers.FetchCopilotRawUsage(id)
+		if err == nil {
+			var usage providers.CopilotUsage
+			usage, err = providers.ParseCopilotUsage(raw)
+			usage.FetchedAt = fetchedAt
+			usage.Status = providers.StatusConnected
+			display = usage.ToDisplay()
+		}
 	}
 	if err != nil {
 		return fmt.Errorf("%s: %w", providerType, err)
@@ -307,6 +388,11 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 	if providerType == "codex" {
 		if raw, err = obfuscateCodexUsageResponse(raw); err != nil {
 			return fmt.Errorf("codex: %w", err)
+		}
+	}
+	if providerType == "copilot" {
+		if raw, err = obfuscateCopilotUsageResponse(raw); err != nil {
+			return fmt.Errorf("copilot: %w", err)
 		}
 	}
 
@@ -551,9 +637,9 @@ func captureTokens(tokensDir, target string) int {
 }
 
 func captureUsage(usageDir, target string) int {
-	valid := map[string]bool{"all": true, "codex": true, "claude": true, "antigravity": true}
+	valid := map[string]bool{"all": true, "codex": true, "claude": true, "antigravity": true, "copilot": true}
 	if !valid[target] {
-		fatalf("usage: go run hack/fixtures/fixtures.go <codex|claude|antigravity|all>")
+		fatalf("usage: go run hack/fixtures/fixtures.go <codex|claude|antigravity|copilot|all>")
 	}
 
 	settings, err := config.Load()
@@ -561,7 +647,7 @@ func captureUsage(usageDir, target string) int {
 		fatalf("load settings: %v", err)
 	}
 
-	targets := []string{"codex", "claude", "antigravity"}
+	targets := []string{"codex", "claude", "antigravity", "copilot"}
 	if target != "all" {
 		targets = []string{target}
 	}

@@ -168,7 +168,7 @@ switch ($Task) {
         # API's raw response and the converted DisplayUsage response.
         # Needs a connected provider
         # instance of the requested type. Accepts an optional provider
-        # argument via -Version: all (default), codex, claude, antigravity.
+        # argument via -Version: all (default), codex, claude, antigravity, copilot.
         $target = if ($Version) { $Version } else { "all" }
         Push-Location $PSScriptRoot
         try {
