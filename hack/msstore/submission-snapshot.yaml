@@ -1,6 +1,6 @@
 # Generated Partner Center export snapshot. Do not edit manually;
 # update submission-overrides.yaml for release metadata changes.
-Id: "1152921505701921622"
+Id: "1152921505701929743"
 ApplicationCategory: UtilitiesAndTools
 Pricing:
   TrialPeriod: NoFreeTrial
@@ -31,9 +31,10 @@ Listings:
         multiple provider accounts, connect or import credentials, remove and
         reorder provider instances, configure refresh intervals and warning and
         critical thresholds, keep the widget above other windows, and choose a
-        light, dark, or system theme. AI Gauge runs locally, stores Codex and
-        Claude OAuth tokens in its protected local credential store, and does
-        not retain usage data on a remote server.
+        light, dark, or system theme. Optionally start with Windows with the
+        window shown or in the system tray. AI Gauge runs locally, stores Codex
+        and Claude OAuth tokens in its protected local credential store, and
+        does not retain usage data on a remote server.
       Features:
         - Automatic quota and reset-time monitoring
         - Multiple provider accounts with ordering controls
@@ -41,9 +42,12 @@ Listings:
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
         - Global hotkey toggle to show and hide the window
-      ReleaseNotes: Configure multiple provider accounts, connect through official
-        browser sign-in or import an existing local session, and manage them
-        from Settings.
+        - Optional Windows startup with the window shown or in the system tray
+        - Independent warning and critical thresholds in 5% steps or disabled
+      ReleaseNotes: Choose whether AI Gauge starts with Windows, shows its window, or
+        starts in the system tray. Manual launches still show the window.
+        Warning and critical thresholds now use dropdowns with 5% steps or
+        Disabled.
       Images:
         - FileName: aigauge-native-dark.png
           FileStatus: Uploaded
@@ -80,44 +84,41 @@ GamingOptions:
 HasExternalInAppProducts: false
 MeetAccessibilityGuidelines: false
 NotesForCertification: >-
-  AI Gauge is a lightweight Windows system tray utility that monitors quota
-  usage and reset times for OpenAI Codex, Anthropic Claude Code, and Google
-  Antigravity.
+  AI Gauge is a Windows tray widget for Codex, Claude Code and Antigravity
+  usage.
 
 
-  No test accounts are supplied. Codex or Claude Code credentials are required
-  only to exercise provider connection and live usage monitoring; the app
-  remains functional on a clean device and shows setup guidance until a provider
-  is connected. Antigravity testing requires the supported `agy` CLI and an
-  account signed in through that CLI.
-
-  Steps to verify the app:
-
-  1. Launch AI Gauge on a clean system: The initial setup guidance appears
-  without errors or crash dialogs.
-
-  2. Open Settings (gear icon): Test light/dark/system themes, warning/critical
-  thresholds, window width adjustment, and the optional global hotkey (disabled
-  by default).
-
-  3. Test system tray integration: Confirm minimize to tray, restore from tray
-  icon, and "Always on top" pinning.
-
-  4. Add a Codex or Claude Code provider instance and click "Connect" to verify
-  the official browser authentication flow. Claude's manual flow may require
-  pasting the `CODE#STATE` value shown by the browser. If a local CLI session
-  exists, verify that "Import" also works. For Antigravity, use a supported,
-  pre-installed `agy` CLI.
-
-  5. Reopen Settings and remove the connected provider instance to verify that
-  its AI Gauge credential and card are removed.
+  No test accounts are supplied. Provider accounts are required only for
+  connection and live-usage checks. Startup, themes, hotkeys, tray behavior, and
+  the clean-install experience can be tested without an account. Antigravity
+  testing requires the supported agy CLI to be pre-installed and signed in.
 
 
-  Network behavior:
+  Steps to verify:
 
-  No provider network traffic is initiated until the user explicitly connects or
-  checks a configured provider. Antigravity checks use the locally installed
-  `agy` CLI.
+  1. Launch on a clean system and confirm setup guidance appears without errors.
+
+  2. In Settings, test light/dark/system themes, the optional global hotkey (off
+  by default), tray restore, and Always on top. Confirm thresholds offer
+  Disabled or 5%-100% in 5% steps.
+
+  3. Add Codex or Claude Code and use Connect for browser sign-in. Claude's
+  manual flow may require CODE#STATE. If a local CLI session exists, verify
+  Import. For Antigravity, use the installed agy CLI.
+
+  4. Reopen Settings, remove the connected provider, and confirm its AI Gauge
+  credential and card are removed.
+
+  5. Confirm Start with Windows defaults to Off. Test Show window and Start in
+  tray across sign-in, and confirm a manual Start-menu launch still shows the
+  window. Disable the app in Windows Settings or Task Manager and verify
+  enabling it reports the block and remains Off.
+
+
+  On a clean install, no provider network or CLI checks run until a provider is
+  connected or explicitly checked. Connected providers refresh automatically
+  while the app is running, including after sign-in when startup is enabled.
+  Antigravity checks use the locally installed agy CLI.
 Status: Published
 StatusDetails:
   Errors: []
@@ -128,10 +129,10 @@ StatusDetails:
   CertificationReports: []
 FileUploadUrl: null
 ApplicationPackages:
-  - FileName: aigauge_0.8.0.0_x64.msix
+  - FileName: aigauge_0.9.0.0_x64.msix
     FileStatus: Uploaded
-    Id: "2000000000098232882"
-    Version: 0.8.0.0
+    Id: "2000000000098265587"
+    Version: 0.9.0.0
     Architecture: x64
     Languages:
       - en-US
@@ -157,5 +158,5 @@ AllowTargetFutureDeviceFamilies:
   Xbox: false
   Team: false
   Holographic: false
-FriendlyName: Submission 3
+FriendlyName: Submission 4
 Trailers: []
