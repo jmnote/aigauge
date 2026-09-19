@@ -27,9 +27,11 @@ type DisplayUsageGroup struct {
 
 // DisplayUsageBucket is one progress row: Label and ResetTime are always
 // display-ready (an absolute timestamp, already sorted/labeled), unlike the
-// provider-specific bucket types this converts from.
+// provider-specific bucket types this converts from. Detail carries optional
+// supplementary count text, such as "84/200" for Copilot.
 type DisplayUsageBucket struct {
 	Label     string  `json:"label"`
+	Detail    string  `json:"detail,omitempty"`
 	Remaining float64 `json:"remaining"`
 	ResetTime string  `json:"resetTime"`
 }

@@ -30,28 +30,24 @@ func (u CopilotUsage) ToDisplay() DisplayUsage {
 
 	// 1. Copilot Premium Requests / AI Credits
 	// Chat and Completions are intentionally excluded as they are typically unlimited.
-	copilotKeys := []struct {
-		key   string
-		label string
-	}{
-		{"premium_interactions", "Copilot"},
-		{"ai_credits", "Copilot"},
-	}
+	copilotKeys := []string{"premium_interactions", "ai_credits"}
 
-	for _, item := range copilotKeys {
-		if snapshot, ok := u.QuotaSnapshots[item.key]; ok {
+	for _, key := range copilotKeys {
+		if snapshot, ok := u.QuotaSnapshots[key]; ok {
 			remPercent := snapshot.PercentRemaining
 			if snapshot.Unlimited {
 				remPercent = 100
 			}
-			label := item.label
+			label := "monthly"
+			detail := ""
 			if snapshot.Entitlement > 0 {
-				label = fmt.Sprintf("%s (%d / %d)", item.label, int(snapshot.Remaining), int(snapshot.Entitlement))
+				detail = fmt.Sprintf("%d/%d", int(snapshot.Remaining), int(snapshot.Entitlement))
 			} else if snapshot.Remaining > 0 {
-				label = fmt.Sprintf("%s (%d)", item.label, int(snapshot.Remaining))
+				detail = fmt.Sprintf("%d", int(snapshot.Remaining))
 			}
 			buckets = append(buckets, DisplayUsageBucket{
 				Label:     label,
+				Detail:    detail,
 				Remaining: remPercent,
 				ResetTime: u.QuotaResetDate,
 			})

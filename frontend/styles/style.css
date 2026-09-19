@@ -612,6 +612,13 @@ button {
   white-space: nowrap;
 }
 
+.limit-detail {
+  color: var(--subtle);
+  font-size: .62rem;
+  font-weight: 400;
+  margin-right: 4px;
+}
+
 .bar {
   width: 100%;
   height: 5px;

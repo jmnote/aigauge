@@ -48,9 +48,9 @@ func TestCopilotToDisplay(t *testing.T) {
 		t.Fatalf("display.Groups count = %d, want 1", len(display.Groups))
 	}
 	buckets := display.Groups[0].Buckets
-	// First bucket should be Copilot formatted with remaining / entitlement
-	if buckets[0].Label != "Copilot (375 / 500)" || buckets[0].Remaining != 75.0 {
-		t.Errorf("bucket[0] = %+v, want Copilot (375 / 500) with 75%%", buckets[0])
+	// First bucket should be monthly with detail formatted with remaining / entitlement
+	if buckets[0].Label != "monthly" || buckets[0].Detail != "375/500" || buckets[0].Remaining != 75.0 {
+		t.Errorf("bucket[0] = %+v, want monthly with 375/500 and 75%%", buckets[0])
 	}
 	if buckets[0].ResetTime != "2026-10-01T00:00:00Z" {
 		t.Errorf("bucket[0].ResetTime = %q, want %q", buckets[0].ResetTime, "2026-10-01T00:00:00Z")

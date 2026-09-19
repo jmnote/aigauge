@@ -130,9 +130,11 @@ const formatClockTime = targetDate => [targetDate.getHours(), targetDate.getMinu
 const formatTimeRemaining = (seconds, targetDate) => {
   if (!seconds || seconds <= 0 || !targetDate || Number.isNaN(targetDate.getTime())) return '';
   const withinTwentyFourHours = seconds < 24 * 60 * 60;
-  return withinTwentyFourHours
-    ? formatClockTime(targetDate)
-    : `${MONTH_NAMES[targetDate.getMonth()]} ${targetDate.getDate()}`;
+  if (withinTwentyFourHours) {
+    return formatClockTime(targetDate);
+  }
+  const days = Math.ceil(seconds / (24 * 60 * 60));
+  return `${days}d`;
 };
 
 // "Now", for reset-time math, is the moment this usage was fetched rather
@@ -687,7 +689,7 @@ function appendGroupElement(container, name) {
 // not a child of it - .inline-reset has overflow:hidden for text truncation,
 // which would clip a tooltip nested inside it) showing just that row's own
 // full reset date-time, e.g. "Jan 1 (Fri) 00:00".
-function renderBucketRow(container, label, remaining, resetTime, nowMs) {
+function renderBucketRow(container, label, detail, remaining, resetTime, nowMs) {
   const clamped = Math.max(0, Math.min(100, remaining));
   const limit = document.createElement('div');
   limit.className = 'limit';
@@ -717,7 +719,16 @@ function renderBucketRow(container, label, remaining, resetTime, nowMs) {
 
   const value = document.createElement('span');
   value.className = 'limit-value';
-  value.textContent = `${Math.round(clamped)}%`;
+  if (detail) {
+    const detailEl = document.createElement('span');
+    detailEl.className = 'limit-detail';
+    detailEl.textContent = detail;
+    value.append(detailEl);
+  }
+  const percentEl = document.createElement('span');
+  percentEl.className = 'limit-percent';
+  percentEl.textContent = `${Math.round(clamped)}%`;
+  value.append(percentEl);
 
   info.append(meta, value);
 
@@ -738,7 +749,7 @@ function renderBucketRow(container, label, remaining, resetTime, nowMs) {
 // own 5h/weekly pair) into `container`.
 function renderBuckets(container, buckets, nowMs) {
   for (const bucket of buckets) {
-    renderBucketRow(container, bucket.label, bucket.remaining, bucket.resetTime, nowMs);
+    renderBucketRow(container, bucket.label, bucket.detail, bucket.remaining, bucket.resetTime, nowMs);
   }
 }
 
