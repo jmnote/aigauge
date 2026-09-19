@@ -11,37 +11,45 @@ Listings:
         login flows or import an existing local CLI session; Antigravity uses the
         locally installed and signed-in agy command-line tool. AI Gauge shows
         remaining quota percentages, reset times, connection status, and the last
-        successful update in a compact desktop window. You can add multiple
-        provider accounts, connect or import credentials, remove and reorder
-        provider instances, configure refresh intervals and warning and critical
-        thresholds, keep the widget above other windows, and choose a light, dark,
-        or system theme. Optionally start with Windows with the window shown or
-        in the system tray. AI Gauge runs locally, stores Codex and Claude OAuth
-        tokens in its protected local credential store, and does not retain usage
-        data on a remote server.
+        successful update in a compact desktop window. Multiple Codex or Claude
+        accounts can be added and identified by their account details. You can
+        connect or import credentials, remove and reorder provider instances,
+        configure refresh intervals and warning and critical thresholds, keep the
+        widget above other windows, and choose a light, dark, or system theme.
+        Optionally start with Windows with the window shown or in the system tray.
+        AI Gauge runs locally, stores Codex and Claude OAuth tokens in its
+        protected local credential store, and does not retain usage data on a
+        remote server.
       Features:
         - Automatic quota and reset-time monitoring
         - Multiple provider accounts with ordering controls
+        - Account details for distinguishing multiple Codex or Claude sessions
+        - Codex reset-credit visibility when provided by the service
         - Official browser sign-in and local credential import
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
         - Global hotkey toggle to show and hide the window
         - Optional Windows startup with the window shown or in the system tray
         - Independent warning and critical thresholds in 5% steps or disabled
-      ReleaseNotes: Choose whether AI Gauge starts with Windows, shows its window,
-        or starts in the system tray. Manual launches still show the window.
-        Warning and critical thresholds now use dropdowns with 5% steps or Disabled.
+      ReleaseNotes: Provider cards now show account details when available, making
+        multiple Codex or Claude sessions easier to distinguish. Codex reset
+        credits and expanded fetch-status details are available from the card
+        status panel. Refresh is available from the panel's compact action button.
 
 NotesForCertification: |
   AI Gauge is a Windows tray widget for Codex, Claude Code and Antigravity usage.
 
-  No test accounts are supplied. Provider accounts are required only for connection and live-usage checks. Startup, themes, hotkeys, tray behavior, and the clean-install experience can be tested without an account. Antigravity testing requires the supported agy CLI to be pre-installed and signed in.
+  No test accounts are supplied. The clean-install experience, settings, startup,
+  themes, hotkeys, tray behavior, and provider-card layout can be tested without
+  an account. Live quota checks are optional and require the reviewer's own
+  provider account; Antigravity additionally requires the supported agy CLI to be
+  pre-installed and signed in.
 
   Steps to verify:
   1. Launch on a clean system and confirm setup guidance appears without errors.
   2. In Settings, test light/dark/system themes, the optional global hotkey (off by default), tray restore, and Always on top. Confirm thresholds offer Disabled or 5%-100% in 5% steps.
-  3. Add Codex or Claude Code and use Connect for browser sign-in. Claude's manual flow may require CODE#STATE. If a local CLI session exists, verify Import. For Antigravity, use the installed agy CLI.
-  4. Reopen Settings, remove the connected provider, and confirm its AI Gauge credential and card are removed.
+  3. Add Codex or Claude Code and use Connect for browser sign-in. Claude's manual flow may require CODE#STATE. If a local CLI session exists, verify Import. For Antigravity, use the installed agy CLI. When two accounts of the same supported provider are present, confirm their account details distinguish the cards.
+  4. Open a provider's status dot to inspect the status card, fetch-failure count, reset credits when available, and the Refresh action. Reopen Settings, remove the connected provider, and confirm its AI Gauge credential and card are removed.
   5. Confirm Start with Windows defaults to Off. Test Show window and Start in tray across sign-in, and confirm a manual Start-menu launch still shows the window. Disable the app in Windows Settings or Task Manager and verify enabling it reports the block and remains Off.
 
   On a clean install, no provider network or CLI checks run until a provider is connected or explicitly checked. Connected providers refresh automatically while the app is running, including after sign-in when startup is enabled. Antigravity checks use the locally installed agy CLI.

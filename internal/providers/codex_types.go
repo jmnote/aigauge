@@ -10,6 +10,7 @@ import "encoding/json"
 // all validation and unit conversion; this type does none.
 type CodexUsage struct {
 	PlanType  string `json:"plan_type"`
+	Email     string `json:"email"`
 	RateLimit struct {
 		PrimaryWindow struct {
 			UsedPercent       *float64 `json:"used_percent"`
@@ -20,6 +21,9 @@ type CodexUsage struct {
 			ResetAfterSeconds *int     `json:"reset_after_seconds"`
 		} `json:"secondary_window"`
 	} `json:"rate_limit"`
+	RateLimitResetCredits struct {
+		AvailableCount *int `json:"available_count"`
+	} `json:"rate_limit_reset_credits"`
 	FetchedAt string `json:"fetchedAt"`
 
 	// Raw is the complete, untrimmed response body ParseCodexUsage was

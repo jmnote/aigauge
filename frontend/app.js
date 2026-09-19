@@ -2,7 +2,7 @@ import {
   parseIntervalToSeconds, normalizeConfig, VALID_THEMES,
   shouldCountFailure, shouldScheduleRetry, isExpectedSetupState,
   shouldKeepStaleData, retryDelay, providerVisibilityAction,
-  normalizeWindowWidth, DEFAULT_REFRESH_SECONDS,
+  normalizeWindowWidth, providerTypeLabel, shouldShowProviderUser, DEFAULT_REFRESH_SECONDS,
 } from '/logic.mjs';
 import { createDropdown } from '/ui/dropdown.mjs';
 
@@ -53,11 +53,14 @@ const RPC_BY_TYPE = {
 function buildMeta(instance) {
   return {
     id: instance.id, type: instance.type, label: instance.label,
+    displayLabel: providerTypeLabel(instance.type),
     ...RPC_BY_TYPE[instance.type],
     cardId: `provider-card-${instance.id}`,
+    userId: `provider-user-${instance.id}`,
+    creditsId: `provider-credits-${instance.id}`,
     groupsId: `provider-groups-${instance.id}`,
     dotId: `provider-dot-${instance.id}`,
-    tooltipId: `provider-tooltip-${instance.id}`,
+    statusCardId: `provider-status-card-${instance.id}`,
     errorId: `provider-error-${instance.id}`,
   };
 }
@@ -178,7 +181,11 @@ function ensureProviderState(id) {
       lastSuccessAt: 0,
       lastError: '',
       status: '',
-      plan: ''
+      user: '',
+      email: '',
+      displayName: '',
+      plan: '',
+      resetCredits: null,
     });
   }
   return providerState.get(id);
@@ -188,7 +195,7 @@ function findInstance(id) {
   return config.providers.find(p => p.id === id);
 }
 
-function updateStatus(id, dotId, tooltipId, status, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan) {
+function updateStatus(id, dotId, statusCardId, status, failureCount, lastSuccessAt, nextRefreshAt, lastError, plan, resetCredits, email, displayName) {
   const dot = document.getElementById(dotId);
   dot.classList.remove('connected', 'warning');
   // An expected setup state (login_required, not_installed, ...) is never
@@ -200,12 +207,15 @@ function updateStatus(id, dotId, tooltipId, status, failureCount, lastSuccessAt,
   if (stale && failureCount < 3) dot.classList.add('connected');
   else if (stale && failureCount < 6) dot.classList.add('warning');
 
-  const tooltip = document.getElementById(tooltipId);
+  const statusCard = document.getElementById(statusCardId);
   const successValue = lastSuccessAt ? formatAgo(lastSuccessAt) : 'None';
   const nextRefreshText = formatUntil(nextRefreshAt);
-  tooltip.replaceChildren(
+  statusCard.replaceChildren(
+    ...(email ? [createTooltipRow('Email', email)] : []),
+    ...(displayName ? [createTooltipRow('Display name', displayName)] : []),
     ...(plan ? [createTooltipRow('Plan', plan)] : []),
-    createTooltipRow('Fails', `${failureCount}`),
+    ...(Number.isFinite(resetCredits) ? [createTooltipRow('Reset credits', `${resetCredits}`)] : []),
+    createTooltipRow('Fetch fails', `${failureCount}`),
     createTooltipRow('Last fetch', successValue),
     ...(lastError ? [createTooltipRow('Last error', lastError)] : []),
     createTooltipRow('Next fetch', nextRefreshText),
@@ -216,20 +226,22 @@ function updateStatus(id, dotId, tooltipId, status, failureCount, lastSuccessAt,
 function updateProviderStatus(id) {
   const meta = PROVIDERS_BY_ID.get(id);
   const state = providerState.get(id);
-  updateStatus(id, meta.dotId, meta.tooltipId, state.status, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan);
+  updateStatus(id, meta.dotId, meta.statusCardId, state.status, state.failureCount, state.lastSuccessAt, state.nextRefreshAt, state.lastError, state.plan, state.resetCredits, state.email, state.displayName);
 }
 
 // The dot dropdown's refresh action.
 function buildStatusActions(id) {
   const actions = document.createElement('div');
-  actions.className = 'status-tooltip-actions';
+  actions.className = 'status-card-actions';
 
   const refreshItem = document.createElement('button');
   refreshItem.type = 'button';
   refreshItem.className = 'provider-menu-item';
+  refreshItem.title = 'Refresh';
+  refreshItem.setAttribute('aria-label', 'Refresh');
   const refreshIcon = Object.assign(document.createElement('span'), { className: 'icon icon-refresh' });
   refreshIcon.setAttribute('aria-hidden', 'true');
-  refreshItem.append(refreshIcon, 'Refresh');
+  refreshItem.append(refreshIcon);
   refreshItem.addEventListener('click', event => {
     event.stopPropagation();
     statusDropdowns.get(id)?.close();
@@ -242,12 +254,12 @@ function buildStatusActions(id) {
 
 function createTooltipRow(labelText, valueText) {
   const row = document.createElement('div');
-  row.className = 'status-tooltip-row';
+  row.className = 'status-card-row';
   const label = document.createElement('span');
-  label.className = 'status-tooltip-label';
+  label.className = 'status-card-label';
   label.textContent = labelText;
   const value = document.createElement('span');
-  value.className = 'status-tooltip-value';
+  value.className = 'status-card-value';
   renderFormattedMessage(value, valueText);
   row.append(label, value);
   return row;
@@ -606,8 +618,14 @@ function renderUsage(id, usage) {
     renderNonUsageState(id, usage);
     return;
   }
+  state.user = typeof usage.user === 'string' ? usage.user.trim() : '';
+  state.email = typeof usage.email === 'string' ? usage.email.trim() : '';
+  state.displayName = typeof usage.displayName === 'string' ? usage.displayName.trim() : '';
+  updateProviderUser(id);
   showProviderError(meta.errorId, '');
   state.plan = usage.plan || '';
+  state.resetCredits = Number.isFinite(usage.resetCredits) ? usage.resetCredits : null;
+  updateResetCredits(id);
   updateProviderStatus(id);
   container.replaceChildren();
   if (!usage.groups?.length) {
@@ -621,6 +639,27 @@ function renderUsage(id, usage) {
     renderBuckets(target, group.buckets || [], nowMs);
   }
   requestWindowResize();
+}
+
+function updateProviderUser(id) {
+  const meta = PROVIDERS_BY_ID.get(id);
+  const user = document.getElementById(meta?.userId);
+  if (!meta || !user) return;
+  const value = providerState.get(id)?.user || '';
+  user.textContent = value;
+  user.hidden = !shouldShowProviderUser(config.providers, meta.type, value);
+}
+
+function updateResetCredits(id) {
+  const meta = PROVIDERS_BY_ID.get(id);
+  const element = document.getElementById(meta?.creditsId);
+  if (!meta || !element) return;
+  const credits = providerState.get(id)?.resetCredits;
+  const visible = Number.isFinite(credits) && credits > 0;
+  element.hidden = !visible;
+  if (visible) {
+    element.querySelector('.reset-credits-count').textContent = `${credits}`;
+  }
 }
 
 function appendGroupElement(container, name) {
@@ -752,14 +791,12 @@ function toggleAlwaysOnTop() {
 pinWindowBtn.addEventListener('click', toggleAlwaysOnTop);
 updateAlwaysOnTopUI(isAlwaysOnTop);
 
-// One card's dot-button dropdown: the same status info the old hover
-// tooltip showed, plus Refresh and Delete actions - so the standalone
-// refresh button and any per-card "remove" control both fold into this one
-// menu instead of crowding the heading with more icons.
+// One card's dot-button dropdown: status details and actions are rendered in
+// the card flow directly below the provider heading.
 const statusDropdowns = new Map();
 
 // Builds the DOM for one provider instance's usage card: heading (name,
-// status dot/dropdown), the usage groups area, and the error area.
+// status dot/dropdown), the status card, usage groups, and error area.
 // Interaction wiring is attached here at creation time rather than through a
 // delegated or one-time document-wide listener, since cards themselves are
 // created and destroyed as provider instances are added and removed.
@@ -768,13 +805,35 @@ function buildProviderCard(meta) {
   section.className = 'usage-card';
   section.id = meta.cardId;
 
+  const providerHeader = document.createElement('div');
+  providerHeader.className = 'provider-header';
   const heading = document.createElement('div');
   heading.className = 'heading';
+  const nameArea = document.createElement('span');
+  nameArea.className = 'provider-name-area';
   const name = document.createElement('strong');
-  name.textContent = meta.label;
+  name.textContent = meta.displayLabel;
+  const user = document.createElement('span');
+  user.className = 'provider-user';
+  user.id = meta.userId;
+  user.title = 'Account user';
+  user.hidden = true;
+  nameArea.append(name, user);
 
   const statusArea = document.createElement('span');
   statusArea.className = 'status-area';
+  const credits = document.createElement('span');
+  credits.className = 'reset-credits';
+  credits.id = meta.creditsId;
+  credits.title = 'Reset credits';
+  credits.setAttribute('aria-label', 'Reset credits');
+  credits.hidden = true;
+  const creditsIcon = document.createElement('span');
+  creditsIcon.className = 'icon icon-bolt reset-credits-icon';
+  creditsIcon.setAttribute('aria-hidden', 'true');
+  const creditsCount = document.createElement('span');
+  creditsCount.className = 'reset-credits-count';
+  credits.append(creditsIcon, creditsCount);
   const statusWrap = document.createElement('span');
   statusWrap.className = 'status-wrap';
 
@@ -789,21 +848,23 @@ function buildProviderCard(meta) {
   dot.id = meta.dotId;
   dotBtn.append(dot);
 
-  const tooltip = document.createElement('span');
-  tooltip.className = 'status-tooltip';
-  tooltip.id = meta.tooltipId;
-  statusWrap.append(dotBtn, tooltip);
+  statusWrap.append(dotBtn);
 
-  const dropdown = createDropdown(statusWrap, {
+  const statusCard = document.createElement('div');
+  statusCard.className = 'provider-status-card';
+  statusCard.id = meta.statusCardId;
+  statusCard.hidden = true;
+
+  const dropdown = createDropdown(providerHeader, {
     onOpen: () => {
       closeOpenDetailsTooltips();
       updateProviderStatus(meta.id);
-      tooltip.classList.add('is-open');
+      statusCard.hidden = false;
       dotBtn.setAttribute('aria-expanded', 'true');
       requestWindowResize();
     },
     onClose: () => {
-      tooltip.classList.remove('is-open');
+      statusCard.hidden = true;
       dotBtn.setAttribute('aria-expanded', 'false');
       requestWindowResize();
     },
@@ -814,8 +875,9 @@ function buildProviderCard(meta) {
     dropdown.toggle();
   });
 
-  statusArea.append(statusWrap);
-  heading.append(name, statusArea);
+  statusArea.append(credits, statusWrap);
+  heading.append(nameArea, statusArea);
+  providerHeader.append(heading, statusCard);
 
   const groups = document.createElement('div');
   groups.className = 'usage-groups';
@@ -831,7 +893,7 @@ function buildProviderCard(meta) {
   error.setAttribute('role', 'status');
   error.hidden = true;
 
-  section.append(heading, groups, error);
+  section.append(providerHeader, groups, error);
 
   return section;
 }
@@ -866,6 +928,8 @@ function syncProviderCards() {
       cardElements.set(instance.id, section);
       ensureProviderState(instance.id);
     }
+    updateProviderUser(instance.id);
+    updateResetCredits(instance.id);
     usageSections.append(section);
   }
 
@@ -1040,7 +1104,7 @@ async function connectExistingInstance(id, diagnosis) {
   const result = await connectProviderInstance(meta, diagnosis);
   if (result.awaitingCode) {
     // Mirrors what fetchProvider does before calling a render function: set
-    // the state this card's badge/tooltip reads before drawing it.
+    // the state this card's badge/status panel reads before drawing it.
     state.status = 'awaiting_code';
     state.lastError = result.message;
     renderNonUsageState(id, { status: 'awaiting_code', message: result.message });
@@ -1121,14 +1185,9 @@ function refreshStatusTooltips() {
   }
 }
 
-// A tooltip always opens downward from its anchor (never flips above) - the
-// window instead grows to fit it, via the same requestWindowResize() call
-// every other content change already uses. A tooltip is position:absolute,
-// so it never changes .shell's own box size on its own (the ResizeObserver
-// below only reacts to that), but requestWindowResize()'s own measurement
-// picks up its extent regardless, so each show/hide needs its own explicit
-// call after every show/hide, because the tooltip is absolutely positioned
-// and therefore does not trigger the shell's ResizeObserver by itself.
+// The status panel is rendered in normal card flow, so opening or closing it
+// changes the shell's measured content height naturally. The explicit resize
+// request keeps the native window height synchronized immediately.
 
 document.addEventListener('click', () => {
   closeOpenDetailsTooltips();

@@ -6,9 +6,13 @@ package providers
 // relative-seconds resets, Antigravity's window sort order/labels) is
 // resolved once, here, in Go.
 type DisplayUsage struct {
-	Plan      string              `json:"plan"`
-	Groups    []DisplayUsageGroup `json:"groups"`
-	FetchedAt string              `json:"fetchedAt"`
+	Plan         string              `json:"plan"`
+	User         string              `json:"user"`
+	Email        string              `json:"email,omitempty"`
+	DisplayName  string              `json:"displayName,omitempty"`
+	ResetCredits *int                `json:"resetCredits,omitempty"`
+	Groups       []DisplayUsageGroup `json:"groups"`
+	FetchedAt    string              `json:"fetchedAt"`
 
 	DiagnosisFields
 }

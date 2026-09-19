@@ -1,6 +1,6 @@
 // Shared open/close bookkeeping for a window's small floating panels - a
 // menu, a dropdown, a popover. Pulled out because app.js has more than one
-// kind (the titlebar's main menu, and every card's own status-tooltip
+// kind (the titlebar's main menu, and every card's own status card
 // "dropdown"), and without something coordinating them, opening one no
 // longer closes the other and both can end up on screen at once.
 //

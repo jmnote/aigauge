@@ -24,6 +24,12 @@ func TestParseCodexUsage(t *testing.T) {
 	if usage.PlanType != "pro" {
 		t.Errorf("PlanType = %q, want %q", usage.PlanType, "pro")
 	}
+	if usage.Email != "alex@example.com" {
+		t.Errorf("Email = %q, want %q", usage.Email, "alex@example.com")
+	}
+	if usage.RateLimitResetCredits.AvailableCount == nil || *usage.RateLimitResetCredits.AvailableCount != 7 {
+		t.Errorf("AvailableCount = %#v, want 7", usage.RateLimitResetCredits.AvailableCount)
+	}
 	if *usage.RateLimit.PrimaryWindow.UsedPercent != 37.5 || *usage.RateLimit.SecondaryWindow.UsedPercent != 62.25 {
 		t.Errorf("used percentages = (%v, %v), want (37.5, 62.25)", *usage.RateLimit.PrimaryWindow.UsedPercent, *usage.RateLimit.SecondaryWindow.UsedPercent)
 	}
@@ -119,6 +125,16 @@ func TestCodexToDisplay(t *testing.T) {
 	if display.Plan != "pro" {
 		t.Errorf("Plan = %q, want %q", display.Plan, "pro")
 	}
+	if display.ResetCredits == nil || *display.ResetCredits != 7 {
+		t.Errorf("ResetCredits = %#v, want 7", display.ResetCredits)
+	}
+	const expectedEmail = "alex@example.com"
+	if display.User != expectedEmail {
+		t.Errorf("User = %q, want full email %q", display.User, expectedEmail)
+	}
+	if display.Email != expectedEmail {
+		t.Errorf("Email = %q, want full email %q", display.Email, expectedEmail)
+	}
 	if len(display.Groups) != 1 || len(display.Groups[0].Buckets) != 2 {
 		t.Fatalf("Groups = %#v, want one group with 5h/7d buckets", display.Groups)
 	}
@@ -128,6 +144,33 @@ func TestCodexToDisplay(t *testing.T) {
 	}
 	if sevenDay.Label != "7d" || sevenDay.Remaining != 37.75 {
 		t.Errorf("7d bucket = %#v, want (7d, 37.75)", sevenDay)
+	}
+}
+
+func TestCodexIdentifierUsesTheFullTrimmedEmail(t *testing.T) {
+	if got := emailIdentifier("  jane@example.com  "); got != "jane@example.com" {
+		t.Errorf("emailIdentifier() = %q, want full trimmed email", got)
+	}
+}
+
+func TestClaudeToDisplayUsesAccountDisplayName(t *testing.T) {
+	usage := connectedClaude(t, []byte(`{"five_hour":{"utilization":10}}`))
+	usage.AccountDisplayName = "Jane"
+	if got := usage.ToDisplay().User; got != "Jane" {
+		t.Errorf("User = %q, want %q", got, "Jane")
+	}
+	if got := usage.ToDisplay().DisplayName; got != "Jane" {
+		t.Errorf("DisplayName = %q, want %q", got, "Jane")
+	}
+}
+
+func TestParseClaudeProfileIdentity(t *testing.T) {
+	got, err := parseClaudeProfileIdentity([]byte(`{"account":{"display_name":"Jane"}}`))
+	if err != nil {
+		t.Fatalf("parseClaudeProfileIdentity() error = %v", err)
+	}
+	if got != "Jane" {
+		t.Errorf("display name = %q, want profile display name", got)
 	}
 }
 

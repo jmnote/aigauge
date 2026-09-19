@@ -297,12 +297,16 @@ func parseClaudeCredentials(data []byte) *Token {
 			ExpiresAt        int64  `json:"expiresAt"`
 			SubscriptionType string `json:"subscriptionType"`
 		} `json:"claudeAiOauth"`
+		OrganizationUUID string `json:"organizationUuid"`
 	}
 	if err := json.Unmarshal(data, &creds); err == nil && creds.ClaudeAiOauth.AccessToken != "" {
 		tok := &Token{
 			AccessToken:  creds.ClaudeAiOauth.AccessToken,
 			RefreshToken: creds.ClaudeAiOauth.RefreshToken,
-			Extra:        Extra{Plan: creds.ClaudeAiOauth.SubscriptionType},
+			Extra: Extra{
+				Plan:             creds.ClaudeAiOauth.SubscriptionType,
+				OrganizationUUID: creds.OrganizationUUID,
+			},
 		}
 		if creds.ClaudeAiOauth.ExpiresAt > 0 {
 			if creds.ClaudeAiOauth.ExpiresAt > 1e11 {

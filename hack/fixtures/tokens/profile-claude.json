@@ -1,0 +1,33 @@
+{
+  "account": {
+    "created_at": "2024-01-29T02:18:45.661095Z",
+    "display_name": "JL",
+    "email": "oqsuwy@acegi.kmp",
+    "full_name": "JL",
+    "has_claude_max": false,
+    "has_claude_pro": true,
+    "uuid": "024c6813-5e7a-9d2f-4680-be357EXAMPLE"
+  },
+  "application": {
+    "name": "Claude Code",
+    "slug": "claude-code",
+    "uuid": "9d1c250a-e61b-44d9-88ed-5944d1962f5e"
+  },
+  "enabled_plugins": [],
+  "organization": {
+    "billing_type": "stripe_subscription",
+    "cc_onboarding_flags": {},
+    "claude_ai_completion_feedback_enabled": true,
+    "claude_code_trial_duration_days": null,
+    "claude_code_trial_ends_at": null,
+    "has_extra_usage_enabled": false,
+    "name": "JL",
+    "organization_type": "claude_pro",
+    "payment_auth_hosted_invoice_url": null,
+    "rate_limit_tier": "default_claude_ai",
+    "seat_tier": null,
+    "subscription_created_at": "2026-09-01T05:38:25.250600Z",
+    "subscription_status": "active",
+    "uuid": "ea246c8f-03bd-5791-4a6c-e8b02EXAMPLE"
+  }
+}

@@ -528,7 +528,8 @@ func TestParseClaudeCredentials(t *testing.T) {
 			"refreshToken": "claude-refresh-456",
 			"expiresAt": 1789615400667,
 			"subscriptionType": "pro"
-		}
+		},
+		"organizationUuid": "ea246c8f-03bd-5791-4a6c-e8b02example"
 	}`
 	tok := parseClaudeCredentials([]byte(raw))
 	if tok == nil {
@@ -542,6 +543,9 @@ func TestParseClaudeCredentials(t *testing.T) {
 	}
 	if tok.Extra.Plan != "pro" {
 		t.Errorf("Extra.Plan = %q, want \"pro\"", tok.Extra.Plan)
+	}
+	if tok.Extra.OrganizationUUID != "ea246c8f-03bd-5791-4a6c-e8b02example" {
+		t.Errorf("Extra.OrganizationUUID = %q, want imported organization UUID", tok.Extra.OrganizationUUID)
 	}
 	expectedExp := time.UnixMilli(1789615400667)
 	if !tok.ExpiresAt.Equal(expectedExp) {
