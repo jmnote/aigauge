@@ -302,7 +302,9 @@ func parseClaudeCredentials(data []byte) *Token {
 		tok := &Token{
 			AccessToken:  creds.ClaudeAiOauth.AccessToken,
 			RefreshToken: creds.ClaudeAiOauth.RefreshToken,
-			Extra:        Extra{Plan: creds.ClaudeAiOauth.SubscriptionType},
+			Extra: Extra{
+				Plan: creds.ClaudeAiOauth.SubscriptionType,
+			},
 		}
 		if creds.ClaudeAiOauth.ExpiresAt > 0 {
 			if creds.ClaudeAiOauth.ExpiresAt > 1e11 {

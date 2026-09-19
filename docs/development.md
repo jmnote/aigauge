@@ -106,6 +106,17 @@ that same response parsed and converted (`ParseXUsage` + `ToDisplay` - `internal
 `DisplayUsage` shape the app renders. Because the output reflects your own account (plan tier, usage
 percentages, reset times), review it before committing either directory.
 
+The token fixture task also captures Claude's authenticated profile response, including the
+account display name used to identify browser-authenticated sessions:
+
+```powershell
+.\build.ps1 fixtures-tokens
+```
+
+This writes `hack/fixtures/tokens/profile-claude.json` alongside the token fixtures, skipping
+existing files rather than overwriting them. UUID, email, and name fields are obfuscated before
+the response is written.
+
 ## Listing screenshots
 
 Capture the native Wails window in both themes:

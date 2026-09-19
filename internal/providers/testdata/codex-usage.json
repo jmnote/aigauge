@@ -1,5 +1,9 @@
 {
-  "plan_type": "pro",
+	"email": "alex@example.com",
+	"plan_type": "pro",
+	"rate_limit_reset_credits": {
+		"available_count": 7
+	},
   "rate_limit": {
     "primary_window": {
       "used_percent": 37.5,

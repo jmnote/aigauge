@@ -82,6 +82,11 @@ export function providerTypeLabel(type) {
   return PROVIDER_TYPES.find(t => t.id === type)?.label || type;
 }
 
+export function shouldShowProviderUser(providers, type, user) {
+	if (!user || !['codex', 'claude'].includes(type) || !Array.isArray(providers)) return false;
+  return providers.filter(instance => instance?.type === type).length > 1;
+}
+
 // Turns one raw provider entry from storage into a valid instance, or null if
 // it is unsalvageable (missing id, or a type this build does not know). A
 // missing/blank label falls back to its type's name rather than surfacing an

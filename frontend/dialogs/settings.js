@@ -1,6 +1,6 @@
 import {
   normalizeConfig, VALID_THEMES, PROVIDER_REFRESH_OPTIONS, providerTypeLabel,
-  formatHotkeyError, hotkeyOptionLabel, HOTKEY_OPTIONS,
+  formatHotkeyError, hotkeyOptionLabel, HOTKEY_OPTIONS, shouldShowProviderUser,
 } from '/logic.mjs';
 import { showToast } from '/ui/toast.mjs';
 
@@ -32,6 +32,40 @@ const PROVIDER_TYPE_RPC = {
 // emits whenever either one saves a change.
 let config = normalizeConfig(await rpc('GetSettings'));
 let confirmedConfig = structuredClone(config);
+const providerUsers = new Map();
+let userRefreshGeneration = 0;
+
+function providerDisplayName(instance) {
+  const user = providerUsers.get(instance.id) || '';
+  const parts = [providerTypeLabel(instance.type)];
+  if (shouldShowProviderUser(config.providers, instance.type, user)) parts.push(user);
+  return parts.join(' ');
+}
+
+async function refreshProviderUsers() {
+  const generation = ++userRefreshGeneration;
+  const currentIds = new Set(config.providers.map(instance => instance.id));
+  for (const id of providerUsers.keys()) {
+    if (!currentIds.has(id)) providerUsers.delete(id);
+  }
+
+  const candidates = config.providers.filter(instance =>
+    !instance.pending && ['codex', 'claude'].includes(instance.type) &&
+    config.providers.filter(other => other.type === instance.type).length > 1);
+  const results = await Promise.allSettled(candidates.map(async instance => ({
+    id: instance.id,
+    usage: await rpc(PROVIDER_TYPE_RPC[instance.type].usageRpcMethod, instance.id),
+  })));
+  if (generation !== userRefreshGeneration) return;
+  for (const result of results) {
+    if (result.status !== 'fulfilled') continue;
+    const { id, usage } = result.value;
+    const user = typeof usage?.user === 'string' ? usage.user.trim() : '';
+    if (user) providerUsers.set(id, user);
+    else providerUsers.delete(id);
+  }
+  renderProviderList();
+}
 
 let settingsWriteQueue = Promise.resolve();
 function enqueueSettingSave(method, ...args) {
@@ -100,6 +134,7 @@ async function reloadConfig() {
     console.warn('Failed to reload settings:', e);
   }
   renderProviderList();
+  void refreshProviderUsers();
 }
 
 const addingProviders = new Set();
@@ -172,7 +207,7 @@ providerAddDialogActionClose.addEventListener('click', () => {
   providerAddDialogActionClose.hidden = true;
 });
 function confirmRemove(instance) {
-  confirmDialogTitle.textContent = `Remove ${instance.label}?`;
+  confirmDialogTitle.textContent = `Remove ${providerDisplayName(instance)}?`;
   confirmDialogMessage.textContent = instance.type === 'antigravity'
     ? 'This stops monitoring it. You can add it again later.'
     : 'This removes its saved login. You can add it again later.';
@@ -211,13 +246,13 @@ providerAddDialogImport.addEventListener('click', async () => {
     if (connection?.status !== 'connected') {
       throw new Error(connection?.message || 'The existing credentials could not be used.');
     }
-    providerAddDialogStatus.textContent = `Adding ${instance.label}…`;
+    providerAddDialogStatus.textContent = `Adding ${providerDisplayName(instance)}…`;
     pendingProviderId = null;
     addingProviders.delete(provider);
     pendingLogin = null;
     await rpc('CommitProviderInstance', instance.id);
     providerAddDialog.hidden = true;
-    showToast(`${instance.label} added successfully.`);
+    showToast(`${providerDisplayName(instance)} added successfully.`);
   } catch (error) {
     if (generation !== providerFlowGeneration || pendingLogin?.instance.id !== instance.id) return;
     console.warn(`Failed to import ${provider}:`, error);
@@ -242,7 +277,7 @@ providerAddDialogLogin.addEventListener('click', async () => {
   providerAddDialogImport.hidden = true;
   providerAddDialogLogin.disabled = true;
   providerAddDialogStatus.classList.add('is-loading');
-  providerAddDialogStatus.textContent = `Connecting to ${instance.label}…`;
+  providerAddDialogStatus.textContent = `Connecting to ${providerDisplayName(instance)}…`;
   try {
     const connection = await rpc('ConnectProvider', instance.id);
     if (generation !== providerFlowGeneration || pendingLogin?.instance.id !== instance.id) return;
@@ -272,7 +307,7 @@ providerAddDialogLogin.addEventListener('click', async () => {
     await rpc('CommitProviderInstance', instance.id);
     providerAddDialog.hidden = true;
     providerAddDialogLogin.hidden = true;
-    showToast(`${instance.label} added successfully.`);
+    showToast(`${providerDisplayName(instance)} added successfully.`);
   } catch (error) {
     if (generation !== providerFlowGeneration || pendingLogin?.instance.id !== instance.id) return;
     console.warn(`Failed to add ${provider}:`, error);
@@ -545,14 +580,24 @@ function renderProviderList() {
     // happens from that card, which has its own Connect/paste-code UI.
     const nameLabel = document.createElement('span');
     nameLabel.className = 'provider-setting';
-    nameLabel.textContent = instance.label;
+    const providerName = document.createElement('span');
+    providerName.className = 'provider-setting-name';
+    providerName.textContent = providerTypeLabel(instance.type);
+    nameLabel.append(providerName);
+    const user = providerUsers.get(instance.id) || '';
+    if (shouldShowProviderUser(config.providers, instance.type, user)) {
+      const userLabel = document.createElement('span');
+      userLabel.className = 'provider-setting-user';
+      userLabel.textContent = user;
+      nameLabel.append(userLabel);
+    }
 
     const rightWrap = document.createElement('span');
     rightWrap.className = 'provider-row-actions';
 
     const refreshSelect = document.createElement('select');
     refreshSelect.className = 'provider-refresh-select';
-    refreshSelect.title = `Refresh interval for ${instance.label}`;
+    refreshSelect.title = `Refresh interval for ${providerDisplayName(instance)}`;
     for (const value of PROVIDER_REFRESH_OPTIONS) {
       refreshSelect.add(new Option(`${value / 60}m`, value));
     }
@@ -570,8 +615,8 @@ function renderProviderList() {
     upBtn.className = 'provider-move-btn';
     upBtn.dataset.action = 'move-up';
     upBtn.textContent = '▲';
-    upBtn.title = `Move ${instance.label} up`;
-    upBtn.setAttribute('aria-label', `Move ${instance.label} up`);
+    upBtn.title = `Move ${providerDisplayName(instance)} up`;
+    upBtn.setAttribute('aria-label', `Move ${providerDisplayName(instance)} up`);
     upBtn.disabled = index === 0;
 
     const downBtn = document.createElement('button');
@@ -579,8 +624,8 @@ function renderProviderList() {
     downBtn.className = 'provider-move-btn';
     downBtn.dataset.action = 'move-down';
     downBtn.textContent = '▼';
-    downBtn.title = `Move ${instance.label} down`;
-    downBtn.setAttribute('aria-label', `Move ${instance.label} down`);
+    downBtn.title = `Move ${providerDisplayName(instance)} down`;
+    downBtn.setAttribute('aria-label', `Move ${providerDisplayName(instance)} down`);
     downBtn.disabled = index === visibleProviders.length - 1;
     moveButtons.append(upBtn, downBtn);
     rightWrap.append(moveButtons);
@@ -589,8 +634,8 @@ function renderProviderList() {
     deleteBtn.type = 'button';
     deleteBtn.className = 'provider-delete-btn';
     deleteBtn.dataset.action = 'delete';
-    deleteBtn.title = `Remove ${instance.label}`;
-    deleteBtn.setAttribute('aria-label', `Remove ${instance.label}`);
+    deleteBtn.title = `Remove ${providerDisplayName(instance)}`;
+    deleteBtn.setAttribute('aria-label', `Remove ${providerDisplayName(instance)}`);
     deleteBtn.append(Object.assign(document.createElement('span'), { className: 'icon icon-trash' }));
     rightWrap.append(deleteBtn);
 
@@ -729,6 +774,7 @@ providerListEl.addEventListener('click', async event => {
 });
 
 renderProviderList();
+void refreshProviderUsers();
 resizeToContent();
 
 // ---------------------------------------------------------------------------
@@ -754,4 +800,5 @@ wails.Events.On('aigauge:config-updated', event => {
   applyTheme(config.theme, false);
   renderThresholdUI();
   renderProviderList();
+  void refreshProviderUsers();
 });

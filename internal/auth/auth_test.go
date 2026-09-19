@@ -527,7 +527,7 @@ func TestParseClaudeCredentials(t *testing.T) {
 			"accessToken": "claude-access-123",
 			"refreshToken": "claude-refresh-456",
 			"expiresAt": 1789615400667,
-			"subscriptionType": "pro"
+		"subscriptionType": "pro"
 		}
 	}`
 	tok := parseClaudeCredentials([]byte(raw))

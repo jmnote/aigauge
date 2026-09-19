@@ -156,12 +156,26 @@ code {
   padding: 0 16px;
 }
 
-.heading:has(.status-tooltip.is-open) {
-  z-index: 30;
-}
-
 .heading strong {
   font-size: .78rem;
+}
+
+.provider-name-area {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  line-height: 1;
+}
+
+.provider-user {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: .68rem;
+  font-weight: 500;
+  line-height: 1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-area,
@@ -176,6 +190,26 @@ code {
 
 .status-area {
   gap: 6px;
+  line-height: 1;
+}
+
+.reset-credits {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  color: var(--muted);
+  font-size: .68rem;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.reset-credits[hidden] {
+  display: none;
+}
+
+.icon.reset-credits-icon {
+  width: 11px;
+  height: 11px;
 }
 
 
@@ -223,7 +257,7 @@ code {
   background: var(--base-warning);
 }
 
-.status-tooltip,
+.provider-status-card,
 .details-tooltip {
   position: absolute;
   top: calc(100% + 4px);
@@ -248,16 +282,30 @@ code {
   white-space: pre-line;
 }
 
-.status-tooltip {
-
+.provider-status-card {
+  position: relative;
+  top: auto;
+  right: auto;
   left: auto;
-  right: 0;
+  z-index: auto;
   transform: none;
-  font-size: .7rem;
-  line-height: 1.5;
-
+  display: grid;
   grid-template-columns: max-content 1fr;
   column-gap: 8px;
+  width: auto;
+  max-width: none;
+  margin: -4px 0 12px;
+  padding: 8px 10px 34px;
+  border-radius: 6px;
+  font-size: .7rem;
+  line-height: 1.5;
+  background: color-mix(in srgb, var(--surface) 65%, transparent);
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.provider-status-card[hidden] {
+  display: none;
 }
 
 .details-tooltip {
@@ -265,7 +313,6 @@ code {
   line-height: 1.4;
 }
 
-.status-tooltip::before,
 .details-tooltip::before {
   content: "";
   position: absolute;
@@ -275,7 +322,7 @@ code {
   height: 8px;
 }
 
-.status-tooltip a,
+.provider-status-card a,
 .details-tooltip a {
   color: var(--base-accent);
   text-decoration: underline;
@@ -283,12 +330,12 @@ code {
   cursor: pointer;
 }
 
-.status-tooltip a:hover,
+.provider-status-card a:hover,
 .details-tooltip a:hover {
   filter: brightness(1.15);
 }
 
-.status-tooltip code,
+.provider-status-card code,
 .details-tooltip code {
   font-size: .95em;
 }
@@ -318,36 +365,31 @@ code {
 }
 
 
-.status-tooltip.is-open {
-  display: grid;
-}
-
-.status-tooltip-row {
+.status-card-row {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
   align-items: center;
 }
 
-.status-tooltip-value {
+.status-card-value {
   grid-column: 2;
 }
 
 
-.status-tooltip-actions {
-  grid-column: 1 / -1;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid var(--border);
+.status-card-actions {
+  position: absolute;
+  bottom: 5px;
+  right: 6px;
 }
 
-.status-tooltip-actions .provider-menu-item {
-  display: flex;
+.status-card-actions .provider-menu-item {
+  display: inline-flex;
   align-items: center;
-  gap: 7px;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
   font-size: .7rem;
 }
 
@@ -430,12 +472,12 @@ button {
   z-index: 20;
 }
 
-.usage-card>.heading,
+.usage-card>.provider-header,
 .usage-card>.provider-error {
   width: 100%;
 }
 
-.usage-card>.heading {
+.usage-card>.provider-header>.heading {
   margin-bottom: 12px;
 }
 
@@ -1000,9 +1042,21 @@ button {
 .provider-setting {
   display: flex;
   align-items: center;
+  gap: 6px;
   color: var(--muted);
   font-size: .75rem;
   white-space: nowrap;
+}
+
+.provider-setting-name {
+  color: var(--text);
+  font-weight: 400;
+}
+
+.provider-setting-user {
+  color: color-mix(in srgb, var(--muted) 72%, transparent);
+  font-size: .7rem;
+  font-weight: 400;
 }
 
 .provider-move-buttons {
@@ -1709,7 +1763,7 @@ button {
     background: var(--button-hover);
   }
 
-  .status-tooltip,
+  .provider-status-card,
   .details-tooltip {
     border-color: var(--border);
     color: var(--muted);
@@ -1778,7 +1832,7 @@ button {
   }
 
 
-  .status-tooltip,
+  .provider-status-card,
   .details-tooltip {
     border-color: var(--border);
     color: var(--muted);

@@ -17,8 +17,9 @@ type Token struct {
 // Extra contains provider-specific token metadata that is not part of the
 // OAuth token response itself.
 type Extra struct {
-	Plan  string `json:"plan,omitempty"`
-	Email string `json:"email,omitempty"`
+	Plan               string `json:"plan,omitempty"`
+	Email              string `json:"email,omitempty"`
+	AccountDisplayName string `json:"accountDisplayName,omitempty"`
 }
 
 // IsExpired reports whether the token is expired or close to expiration (within 2 minutes).

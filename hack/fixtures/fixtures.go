@@ -12,11 +12,13 @@
 // for the sample-data preview.
 //
 // Run via `.\build.ps1 fixtures-usage <codex|claude|antigravity|all>` from
-// the repository root. Use `fixtures-tokens` for Codex and Claude token samples.
+// the repository root. Use `fixtures-tokens` for Codex and Claude token samples;
+// Claude's authenticated profile response is captured alongside its token.
 package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -187,6 +189,25 @@ func obfuscateCredentialFields(provider string, object map[string]any) error {
 	return nil
 }
 
+func obfuscateProfileFields(profile map[string]any) error {
+	targets := map[string][]string{
+		"account":      {"display_name", "email", "full_name", "uuid"},
+		"organization": {"name", "uuid"},
+	}
+	for objectName, fields := range targets {
+		object, ok := profile[objectName].(map[string]any)
+		if !ok {
+			return fmt.Errorf("Claude profile field %s must be a JSON object", objectName)
+		}
+		for _, field := range fields {
+			if err := obfuscateField(object, field, true); err != nil {
+				return fmt.Errorf("Claude profile field %s.%s: %w", objectName, field, err)
+			}
+		}
+	}
+	return nil
+}
+
 func writeJSON(dir, filename string, data []byte, pretty bool) error {
 	if pretty {
 		var buf bytes.Buffer
@@ -349,6 +370,10 @@ func captureTokens(tokensDir, target string) int {
 	for _, cfg := range selected {
 		outPath := filepath.Join(tokensDir, "token_"+cfg.id+".json")
 		credentialsFilePath := filepath.Join(tokensDir, cfg.credentialsFileName)
+		profilePath := ""
+		if cfg.id == "claude" {
+			profilePath = filepath.Join(tokensDir, "profile-claude.json")
+		}
 		tokenExists, err := fixtureFileExists(outPath)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "warning: check %s: %v\n", outPath, err)
@@ -367,7 +392,19 @@ func captureTokens(tokensDir, target string) int {
 		if credentialsFileExists {
 			fmt.Printf("Skipping %s: credentials fixture already exists at %s\n", cfg.name, credentialsFilePath)
 		}
-		if tokenExists && credentialsFileExists {
+		profileExists := true
+		if profilePath != "" {
+			profileExists, err = fixtureFileExists(profilePath)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "warning: check %s: %v\n", profilePath, err)
+				failures = append(failures, cfg.name)
+				continue
+			}
+			if profileExists {
+				fmt.Printf("Skipping %s: profile fixture already exists at %s\n", cfg.name, profilePath)
+			}
+		}
+		if tokenExists && credentialsFileExists && profileExists {
 			continue
 		}
 
@@ -386,6 +423,44 @@ func captureTokens(tokensDir, target string) int {
 			fmt.Fprintf(os.Stderr, "warning: validate %s: %v\n", cfg.name, err)
 			failures = append(failures, cfg.name)
 			continue
+		}
+		if profilePath != "" && !profileExists {
+			oauth, ok := parsedRaw["claudeAiOauth"].(map[string]any)
+			accessToken, tokenOK := oauth["accessToken"].(string)
+			if !ok || !tokenOK || accessToken == "" {
+				fmt.Fprintln(os.Stderr, "warning: Claude credentials have no usable access token for profile capture")
+				failures = append(failures, cfg.name)
+				continue
+			}
+			profileRaw, profileErr := providers.FetchClaudeRawProfileWithAccessToken(context.Background(), accessToken)
+			if profileErr != nil {
+				settings, settingsErr := config.Load()
+				if instanceID, ok := settings.FirstInstance("claude"); settingsErr == nil && ok {
+					profileRaw, profileErr = providers.FetchClaudeRawProfile(instanceID)
+				}
+				if profileErr != nil {
+					fmt.Fprintf(os.Stderr, "warning: fetch Claude profile: %v\n", profileErr)
+					failures = append(failures, cfg.name)
+					continue
+				}
+			}
+			var profile map[string]any
+			if err := json.Unmarshal(profileRaw, &profile); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: Claude profile is not a JSON object: %v\n", err)
+				failures = append(failures, cfg.name)
+				continue
+			}
+			if err := obfuscateProfileFields(profile); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: obfuscate Claude profile: %v\n", err)
+				failures = append(failures, cfg.name)
+				continue
+			}
+			if err := writeJSONValue(profilePath, profile); err != nil {
+				fmt.Fprintf(os.Stderr, "warning: write %s: %v\n", profilePath, err)
+				failures = append(failures, cfg.name)
+				continue
+			}
+			fmt.Printf("  Wrote obfuscated profile to %s\n", profilePath)
 		}
 		if err := obfuscateCredentialFields(cfg.id, parsedRaw); err != nil {
 			fmt.Fprintf(os.Stderr, "warning: obfuscate %s: %v\n", cfg.name, err)
@@ -473,7 +548,6 @@ func main() {
 		}
 		os.Exit(captureTokens(tokensDir, target))
 	}
-
 	usageDir := filepath.Join("hack", "fixtures", "usage")
 	if err := os.MkdirAll(usageDir, 0o755); err != nil {
 		fatalf("create %s: %v", usageDir, err)

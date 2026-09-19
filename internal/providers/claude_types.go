@@ -9,12 +9,13 @@ import "encoding/json"
 // stamped on at fetch time, both attached after the fact. ToDisplay
 // (claude.go) does all validation and unit conversion; this type does none.
 type ClaudeUsage struct {
-	FiveHour       claudeUsageWindow  `json:"five_hour"`
-	SevenDay       claudeUsageWindow  `json:"seven_day"`
-	SevenDayOpus   *claudeUsageWindow `json:"seven_day_opus"`
-	SevenDaySonnet *claudeUsageWindow `json:"seven_day_sonnet"`
-	Plan           string             `json:"plan"`
-	FetchedAt      string             `json:"fetchedAt"`
+	FiveHour           claudeUsageWindow  `json:"five_hour"`
+	SevenDay           claudeUsageWindow  `json:"seven_day"`
+	SevenDayOpus       *claudeUsageWindow `json:"seven_day_opus"`
+	SevenDaySonnet     *claudeUsageWindow `json:"seven_day_sonnet"`
+	Plan               string             `json:"plan"`
+	FetchedAt          string             `json:"fetchedAt"`
+	AccountDisplayName string             `json:"-"`
 
 	// Raw is the complete, untrimmed response body ParseClaudeUsage was
 	// given - this endpoint is undocumented and returns several fields
@@ -39,4 +40,11 @@ type claudeCredentials struct {
 		AccessToken      string `json:"accessToken"`
 		SubscriptionType string `json:"subscriptionType"`
 	} `json:"claudeAiOauth"`
+	AccountDisplayName string `json:"accountDisplayName"`
+}
+
+type claudeProfile struct {
+	Account struct {
+		DisplayName string `json:"display_name"`
+	} `json:"account"`
 }

@@ -5,7 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
+
+	"github.com/jmnote/aigauge/internal/auth"
 )
 
 var errNoUsageWindows = errors.New("response contains no usable usage windows")
@@ -40,7 +43,8 @@ func displayBucket(label string, window claudeUsageWindow) (DisplayUsageBucket, 
 // windows optional and undocumented) and converts utilization into
 // remaining percentage.
 func (u ClaudeUsage) ToDisplay() DisplayUsage {
-	display := DisplayUsage{Plan: u.Plan, FetchedAt: u.FetchedAt, DiagnosisFields: u.DiagnosisFields}
+	displayName := strings.TrimSpace(u.AccountDisplayName)
+	display := DisplayUsage{Plan: u.Plan, User: displayName, DisplayName: displayName, FetchedAt: u.FetchedAt, DiagnosisFields: u.DiagnosisFields}
 	if u.Status != StatusConnected {
 		return display
 	}
@@ -117,6 +121,50 @@ func FetchClaudeRawUsage(tokenKey string) ([]byte, error) {
 	})
 }
 
+// FetchClaudeRawProfile returns Claude's authenticated profile response for
+// fixture development. Unlike the OAuth token response, this endpoint carries
+// the organization UUID used to identify a browser-authenticated account.
+func FetchClaudeRawProfile(tokenKey string) ([]byte, error) {
+	ctx := context.Background()
+	deps := defaultDeps()
+	diagnosis, credentials, ok := diagnoseClaude(ctx, deps, tokenKey, true)
+	if !ok {
+		return nil, fmt.Errorf("%s", diagnosis.Message)
+	}
+	accessToken, err := authorizedAccessToken(ctx, deps, "claude", tokenKey, credentials.ClaudeAiOauth.AccessToken)
+	if err != nil {
+		return nil, err
+	}
+	return FetchClaudeRawProfileWithAccessToken(ctx, accessToken)
+}
+
+// FetchClaudeRawProfileWithAccessToken is the credential-file counterpart to
+// FetchClaudeRawProfile, used by fixtures-tokens before those credentials have
+// necessarily been imported into AI Gauge's own token store.
+func FetchClaudeRawProfileWithAccessToken(ctx context.Context, accessToken string) ([]byte, error) {
+	return fetchAuthorizedJSON(ctx, "https://api.anthropic.com/api/oauth/profile", "Claude", map[string]string{
+		"Authorization":  "Bearer " + accessToken,
+		"anthropic-beta": "oauth-2025-04-20",
+	})
+}
+
+func parseClaudeProfileIdentity(data []byte) (string, error) {
+	var profile claudeProfile
+	if err := json.Unmarshal(data, &profile); err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(profile.Account.DisplayName), nil
+}
+
+func rememberClaudeIdentity(tokenKey, accessToken, displayName string) {
+	tok, err := auth.GetToken(tokenKey)
+	if err != nil || tok == nil || tok.AccessToken != accessToken {
+		return
+	}
+	tok.Extra.AccountDisplayName = displayName
+	_ = auth.SaveToken(tokenKey, tok)
+}
+
 func getClaudeUsage(ctx context.Context, deps providerDeps, tokenKey string, active bool) ClaudeUsage {
 	usage := ClaudeUsage{FetchedAt: time.Now().Format(time.RFC3339)}
 
@@ -130,6 +178,15 @@ func getClaudeUsage(ctx context.Context, deps providerDeps, tokenKey string, act
 	if err != nil {
 		usage.applyDiagnosis(usageFailureDiagnosis("Claude", err))
 		return usage
+	}
+	accountDisplayName := credentials.AccountDisplayName
+	if accountDisplayName == "" {
+		if profileBody, profileErr := FetchClaudeRawProfileWithAccessToken(ctx, accessToken); profileErr == nil {
+			if profileName, parseErr := parseClaudeProfileIdentity(profileBody); parseErr == nil && profileName != "" {
+				accountDisplayName = profileName
+				rememberClaudeIdentity(tokenKey, accessToken, accountDisplayName)
+			}
+		}
 	}
 	body, err := fetchAuthorizedJSON(ctx, "https://api.anthropic.com/api/oauth/usage", "Claude", map[string]string{
 		"Authorization":  "Bearer " + accessToken,
@@ -147,6 +204,7 @@ func getClaudeUsage(ctx context.Context, deps providerDeps, tokenKey string, act
 	}
 	parsed.FetchedAt = usage.FetchedAt
 	parsed.Plan = credentials.ClaudeAiOauth.SubscriptionType
+	parsed.AccountDisplayName = accountDisplayName
 	parsed.Status = StatusConnected
 	return parsed
 }

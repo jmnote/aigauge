@@ -27,6 +27,7 @@ import {
   providerVisibilityAction,
   retryDelay,
   shouldCountFailure,
+  shouldShowProviderUser,
   shouldKeepStaleData,
   shouldScheduleRetry,
 } from './logic.mjs';
@@ -216,6 +217,18 @@ test('providerTypeLabel names every known type and echoes back an unknown one', 
   assert.equal(providerTypeLabel('antigravity'), 'Antigravity');
   assert.equal(PROVIDER_TYPE_IDS.length, 3);
   assert.equal(providerTypeLabel('gemini'), 'gemini');
+});
+
+test('account identifiers appear only when the same supported provider is registered more than once', () => {
+  const providers = [
+    { id: 'c1', type: 'codex' },
+    { id: 'c2', type: 'codex' },
+    { id: 'a1', type: 'antigravity' },
+  ];
+  assert.equal(shouldShowProviderUser(providers, 'codex', 'alex'), true);
+  assert.equal(shouldShowProviderUser(providers, 'claude', 'ea24'), false);
+  assert.equal(shouldShowProviderUser(providers, 'codex', ''), false);
+  assert.equal(shouldShowProviderUser([...providers, { id: 'a2', type: 'antigravity' }], 'antigravity', 'abcd'), false);
 });
 
 test('a provider list keeps order, drops bad entries, and de-duplicates by id', () => {

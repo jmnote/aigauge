@@ -430,7 +430,6 @@ func refreshTokenRaw(ctx context.Context, cfgType, tokenKey string) (*Token, []b
 	if raw.ExpiresIn > 0 {
 		tok.ExpiresAt = time.Now().Add(time.Duration(raw.ExpiresIn) * time.Second)
 	}
-
 	if err := SaveToken(tokenKey, tok); err != nil {
 		return nil, nil, fmt.Errorf("failed to save refreshed token: %w", err)
 	}
