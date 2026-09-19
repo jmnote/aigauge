@@ -130,29 +130,11 @@ switch ($Task) {
         git diff --check
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
-        $packageArguments = @{
-            Task = "package"
-            Architecture = $Architecture
-            Version = $Version
-            MakeAppx = $MakeAppx
-        }
-        if ($SkipWindowsResources) { $packageArguments.SkipWindowsResources = $true }
-        if ($ReleaseArtifact) { $packageArguments.ReleaseArtifact = $true }
-        & $PSCommandPath @packageArguments
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-        $checkVersion = Resolve-Version -Requested $Version
-        $artifactSuffix = if ($ReleaseArtifact) { "" } else { "_local" }
-        $packagePath = Join-Path $PSScriptRoot ("dist\aigauge_{0}_{1}{2}.msix" -f $checkVersion, $Architecture, $artifactSuffix)
-        $manifestPath = Join-Path $PSScriptRoot ("dist\staging\{0}\AppxManifest.xml" -f $Architecture)
-        if (-not (Test-Path -LiteralPath $packagePath -PathType Leaf)) {
-            throw "Expected MSIX was not created: $packagePath"
-        }
-        $stagedManifest = Get-Content -LiteralPath $manifestPath -Raw
-        if ($stagedManifest -notmatch ('Version="{0}"' -f [regex]::Escape($checkVersion))) {
-            throw "MSIX manifest version does not match requested version: $checkVersion"
-        }
-        Write-Output "Checks passed: $packagePath"
+        # MSIX packaging is intentionally not part of this task: CI's
+        # "package" job already builds it on every PR (see
+        # .github/workflows/pull-request.yml), and it needs MakeAppx and
+        # takes noticeably longer than the checks above.
+        Write-Output "Checks passed"
     }
     "clean" {
         $repoRoot = [System.IO.Path]::GetFullPath($PSScriptRoot).TrimEnd([System.IO.Path]::DirectorySeparatorChar)
