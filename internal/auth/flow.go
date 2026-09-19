@@ -24,6 +24,11 @@ var (
 	refreshes   = map[string]*refreshCall{}
 )
 
+// minDevicePollInterval floors the device-code poll interval GitHub returns,
+// so a misconfigured or absent interval never hammers the token endpoint.
+// Tests may lower it to avoid waiting out a real poll tick.
+var minDevicePollInterval = 5 * time.Second
+
 type refreshCall struct {
 	done chan struct{}
 	tok  *Token
@@ -717,8 +722,8 @@ func BeginDeviceAuthFlow(cfgType, tokenKey string) (authURL, userCode string, er
 	}
 
 	interval := time.Duration(raw.Interval) * time.Second
-	if interval < 5*time.Second {
-		interval = 5 * time.Second
+	if interval < minDevicePollInterval {
+		interval = minDevicePollInterval
 	}
 
 	flow := &pendingDeviceFlow{
@@ -766,9 +771,18 @@ func (p *pendingDeviceFlow) pollLoop(tokenKey string) {
 			if err != nil && !retry {
 				return
 			}
-			ticker.Reset(p.interval)
+			ticker.Reset(p.currentInterval())
 		}
 	}
+}
+
+// currentInterval reads p.interval under pollMu, since checkOnce (called both
+// from pollLoop and, concurrently, from CompleteDeviceAuthFlow's RPC handler
+// goroutine) can rewrite it on a "slow_down" response.
+func (p *pendingDeviceFlow) currentInterval() time.Duration {
+	p.pollMu.Lock()
+	defer p.pollMu.Unlock()
+	return p.interval
 }
 
 func (p *pendingDeviceFlow) checkOnce(tokenKey string) (*Token, bool, error) {
@@ -780,6 +794,15 @@ func (p *pendingDeviceFlow) checkOnce(tokenKey string) (*Token, bool, error) {
 	}
 	if p.err != nil {
 		return nil, false, p.err
+	}
+
+	// Re-check the interval under pollMu: CompleteDeviceAuthFlow checks
+	// time.Since(lastPoll) before calling checkOnce, but several concurrent
+	// RPCs (e.g. native focus, webview focus, and visibilitychange all
+	// firing on window regain) can pass that check before any of them has
+	// updated lastPoll, so it must be re-verified here to actually throttle.
+	if time.Since(p.lastPoll) < p.interval {
+		return nil, true, nil
 	}
 
 	cfg, ok := GetProviderConfig(p.cfgType)
@@ -926,15 +949,18 @@ func CompleteDeviceAuthFlow(tokenKey string) (*Token, error) {
 		return nil, err
 	}
 
-	if time.Since(pending.lastPoll) < 2*time.Second {
+	if time.Since(pending.lastPoll) < pending.interval {
 		pending.pollMu.Unlock()
 		select {
 		case <-pending.done:
-			if pending.tok != nil {
-				return pending.tok, nil
+			pending.pollMu.Lock()
+			tok, err := pending.tok, pending.err
+			pending.pollMu.Unlock()
+			if tok != nil {
+				return tok, nil
 			}
-			if pending.err != nil {
-				return nil, pending.err
+			if err != nil {
+				return nil, err
 			}
 		case <-time.After(200 * time.Millisecond):
 		}

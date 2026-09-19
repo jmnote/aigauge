@@ -239,11 +239,12 @@ providerAddDialogDeviceOpen.addEventListener('click', async () => {
       }, 2000);
     } catch { /* best effort clipboard */ }
   }
+  const authUrl = pendingAuthCode?.authUrl || 'https://github.com/login/device';
   try {
-    await rpc('OpenURL', 'https://github.com/login/device');
+    await rpc('OpenURL', authUrl);
   } catch {
     if (wails?.Browser?.OpenURL) {
-      wails.Browser.OpenURL('https://github.com/login/device');
+      wails.Browser.OpenURL(authUrl);
     }
   }
 });
@@ -334,7 +335,8 @@ providerAddDialogLogin.addEventListener('click', async () => {
     if (connection?.status === 'awaiting_code') {
       providerAddDialogStatus.classList.remove('is-loading');
       const userCode = connection.details || '';
-      if (provider === 'copilot' && userCode) {
+      const deviceAuthURL = connection.authUrl || '';
+      if (deviceAuthURL && userCode) {
         providerAddDialogStatus.textContent = 'Authorize with code at GitHub. Once approved, connection completes automatically:';
         providerAddDialogDeviceCode.textContent = userCode;
         providerAddDialogDeviceBox.hidden = false;
@@ -347,8 +349,10 @@ providerAddDialogLogin.addEventListener('click', async () => {
         } catch { /* best effort clipboard */ }
 
         let completed = false;
+        let inFlight = false;
         const checkDeviceAuth = async () => {
-          if (completed || !pendingAuthCode || pendingAuthCode.id !== instance.id) return;
+          if (completed || inFlight || !pendingAuthCode || pendingAuthCode.id !== instance.id) return;
+          inFlight = true;
           try {
             const result = await rpc('SubmitAuthCode', instance.id, '');
             if (result?.status === 'connected' && !completed && pendingAuthCode) {
@@ -357,6 +361,8 @@ providerAddDialogLogin.addEventListener('click', async () => {
             }
           } catch {
             // Still pending, continue waiting
+          } finally {
+            inFlight = false;
           }
         };
 
@@ -368,20 +374,18 @@ providerAddDialogLogin.addEventListener('click', async () => {
           }
         }).catch(() => { /* cancelled or dialog closed */ });
 
-        // Native window focus, webview focus, visibility change, and click all trigger instant check
+        // Native window focus, webview focus, and visibility change all trigger instant check
         const unsubscribeNativeFocus = wails.Events.On('aigauge:window-focus', checkDeviceAuth);
         window.addEventListener('focus', checkDeviceAuth);
-        window.addEventListener('pointerdown', checkDeviceAuth);
         const onVisibility = () => { if (document.visibilityState === 'visible') checkDeviceAuth(); };
         document.addEventListener('visibilitychange', onVisibility);
 
         try {
-          await new Promise(resolve => { pendingAuthCode = { id: instance.id, resolve }; });
+          await new Promise(resolve => { pendingAuthCode = { id: instance.id, authUrl: deviceAuthURL, resolve }; });
         } finally {
           completed = true;
           if (typeof unsubscribeNativeFocus === 'function') unsubscribeNativeFocus();
           window.removeEventListener('focus', checkDeviceAuth);
-          window.removeEventListener('pointerdown', checkDeviceAuth);
           document.removeEventListener('visibilitychange', onVisibility);
           pendingAuthCode = null;
         }

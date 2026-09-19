@@ -1,7 +1,7 @@
 package auth
 
 import (
-	"os"
+	"maps"
 	"sync"
 	"time"
 )
@@ -135,7 +135,7 @@ var DefaultConfigs = map[string]ProviderConfig{
 		AuthURL:    "https://github.com/login/device",
 		TokenURL:   "https://github.com/login/oauth/access_token",
 		DeviceURL:  "https://github.com/login/device/code",
-		ClientID:   defaultCopilotClientID(),
+		ClientID:   "Ov23li770eIXd5MyhFer",
 		Scopes:     []string{"read:user", "copilot"},
 		DeviceFlow: true,
 	},
@@ -150,22 +150,13 @@ var DefaultConfigs = map[string]ProviderConfig{
 	// Antigravity.
 }
 
-func defaultCopilotClientID() string {
-	if id := os.Getenv("AIGAUGE_COPILOT_CLIENT_ID"); id != "" {
-		return id
-	}
-	return "Ov23li82lk0Rjtwtz7BG"
-}
-
 var (
 	configMu sync.RWMutex
 	configs  = map[string]ProviderConfig{}
 )
 
 func init() {
-	for k, v := range DefaultConfigs {
-		configs[k] = v
-	}
+	maps.Copy(configs, DefaultConfigs)
 }
 
 // GetProviderConfig returns the configuration for the requested provider ID.

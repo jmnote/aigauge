@@ -78,6 +78,13 @@ type Diagnosis struct {
 	Message   string `json:"message"`
 	Details   string `json:"details,omitempty"`
 	CanImport bool   `json:"canImport,omitempty"`
+
+	// AuthURL is the verification URL a device-flow login (see
+	// ProviderConfig.DeviceFlow) returned for this connection attempt - the
+	// page the frontend's "Open GitHub" button should launch, rather than a
+	// URL it guesses itself. Only set on a StatusAwaitingCode device-flow
+	// response.
+	AuthURL string `json:"authUrl,omitempty"`
 }
 
 // DiagnosisFields is embedded in every provider's usage struct (ClaudeUsage,

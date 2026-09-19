@@ -5,6 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -237,9 +239,17 @@ func (a *App) launchBrowser(u string) error {
 	return openSystemBrowser(u)
 }
 
-// OpenURL opens the given URL in the user's default browser.
+// OpenURL opens the given URL in the user's default browser. It is exposed
+// to the frontend via Wails binding, so it rejects anything that is not an
+// http(s) URL rather than handing an arbitrary string to the OS's URL
+// handler.
 func (a *App) OpenURL(u string) error {
-	return a.launchBrowser(u)
+	trimmed := strings.TrimSpace(u)
+	parsed, err := url.Parse(trimmed)
+	if err != nil || (!strings.EqualFold(parsed.Scheme, "http") && !strings.EqualFold(parsed.Scheme, "https")) {
+		return fmt.Errorf("refusing to open non-http(s) URL")
+	}
+	return a.launchBrowser(trimmed)
 }
 
 // ConnectProvider initiates the browser-based OAuth flow for a provider
@@ -312,6 +322,7 @@ func (a *App) ConnectProvider(instanceID string) (providers.Diagnosis, error) {
 			Status:  providers.StatusAwaitingCode,
 			Message: fmt.Sprintf("Enter code %s at GitHub in your browser, then click Complete Connection.", userCode),
 			Details: userCode,
+			AuthURL: authURL,
 		}, nil
 	}
 

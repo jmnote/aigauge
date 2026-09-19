@@ -651,7 +651,7 @@ func TestWaitForDeviceAuth(t *testing.T) {
 				"user_code":        "WAIT-1234",
 				"verification_uri": "https://github.com/login/device",
 				"expires_in":       900,
-				"interval":         5,
+				"interval":         0,
 			})
 			return
 		}
@@ -675,22 +675,24 @@ func TestWaitForDeviceAuth(t *testing.T) {
 		ClientID:   "test-client-id",
 	})
 
+	prevMinInterval := minDevicePollInterval
+	minDevicePollInterval = 10 * time.Millisecond
+	defer func() { minDevicePollInterval = prevMinInterval }()
+
 	_, _, err := BeginDeviceAuthFlow("test_device_wait", "inst-device-wait")
 	if err != nil {
 		t.Fatalf("BeginDeviceAuthFlow failed: %v", err)
 	}
 
+	// The timeout must exceed one poll tick for this to actually exercise
+	// pollLoop completing the flow in the background, rather than timing
+	// out before the first tick.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	// WaitForDeviceAuth should succeed when token is acquired
 	tok, err := WaitForDeviceAuth(ctx, "inst-device-wait")
 	if err != nil {
-		// If background ticker has not ticked yet, check if CompleteDeviceAuthFlow can complete it
-		tok, err = CompleteDeviceAuthFlow("inst-device-wait")
-		if err != nil {
-			t.Fatalf("WaitForDeviceAuth/Complete failed: %v", err)
-		}
+		t.Fatalf("WaitForDeviceAuth failed: %v", err)
 	}
 	if tok == nil || tok.AccessToken == "" {
 		t.Errorf("expected access token, got %+v", tok)
