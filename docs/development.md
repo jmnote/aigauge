@@ -16,12 +16,22 @@ aigauge/
 └── wails.json
 ```
 
+Keep Wails bindings in `internal/app` and provider implementations in `internal/providers`. Test
+parsing and conversion with fixture JSON; unit tests must not require live network or CLI calls.
+Keep OS-specific process settings in platform-specific files if cross-platform builds are introduced.
+
 ## Build, run, and test
 
 ```powershell
 .\build.ps1 build
 .\build.ps1 run
 .\build.ps1 test
+```
+
+If script execution is blocked, run with a process-scoped execution policy override:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; .\build.ps1 build
 ```
 
 The app enforces a single running instance, so a leftover one from a previous `run` or `build`
@@ -55,25 +65,8 @@ Before opening a PR, the combined local gate can be run with:
 .\build.ps1 checks
 ```
 
-This also creates a local MSIX and verifies that its package name and staged manifest version
-match the requested version (local builds default to `0.0.0`). Local packages use an explicit suffix such as
-`dist/aigauge_0.2.4.0_x64_local.msix`; the release workflow alone produces the canonical
-`aigauge_0.2.4.0_x64.msix` asset. The versioned local package remains in `dist/` for inspection.
-Remove generated packaging output explicitly when it is no longer needed:
-
-```powershell
-.\build.ps1 clean
-```
-
-`frontend/images/logo.svg` is the source logo. The checked-in `frontend/images/logo.png` is the raster asset used
-by Windows executable resources and MSIX package icons. Windows builds also generate an ignored
-`rsrc_windows_amd64.syso` file from `frontend/images/logo.png`. The resource embeds the AI Gauge icon and Windows file metadata into `aigauge.exe`. Install the
-resource generator once with `go install github.com/tc-hib/go-winres@v0.3.3` if it is not already
-available.
-The MSIX manifest supplies the Store icons on its own, so the PR-check workflows (`msix.yml`,
-`pull-request.yml`) skip this step for speed. The release workflow (`release.yml`) does not skip
-it: `aigauge.exe` is also uploaded to GitHub Releases as the portable executable, and without the
-embedded resource that file has no icon at all in Explorer/the taskbar.
+See [packaging.md](packaging.md) for what this also verifies locally and how to clean up
+generated packaging output.
 
 ## Frontend preview
 
@@ -141,41 +134,6 @@ wait, invoke the capture helper directly, for example:
 Capturing live provider data needs real logged-in accounts and a sufficiently long
 `-RenderWaitSeconds` to give the fetch time to finish.
 
-## MSIX packaging
-
-```powershell
-.\build.ps1 package
-```
-
-Release tags are the application version source of truth. For example, `v0.2.1` becomes the four-part
-MSIX version `0.2.1.0`; pass the same tag to `build.ps1 -Version` for a matching local package. The staging directory is `dist/staging/`; the generated package is written
-to `dist/` and ignored by Git.
-
-The packaging script locates `makeappx.exe` from the Windows SDK. If it is not on `PATH`, pass its
-full path through the existing packaging script parameter. `signtool.exe` is only needed when
-creating a locally signed package.
-
-### Releases
-
-Releases are triggered by pushing a stable `vX.Y.Z` tag:
-
-```powershell
-git tag v0.6.2
-git push origin v0.6.2
-```
-
-The `Release` GitHub Actions workflow (`.github/workflows/release.yml`) builds the MSIX, attaches both
-the MSIX and the standalone portable executable (`aigauge_<version>_x64.exe`) plus `SHA256SUMS.txt` to
-the GitHub release, and publishes the package to the Microsoft Store.
-
-The portable `.exe` runs unsigned and needs no installation - unlike the MSIX, which either goes through
-Store certification or needs a certificate matching the package Publisher installed and trusted
-first. Running the portable `.exe` still triggers SmartScreen on a machine that has not seen it
-before; that is a separate, much smaller prompt than installing a certificate.
-
-> For Microsoft Store publishing, Partner Center credentials, and submission details, see
-> [`hack/msstore/msstore.md`](../hack/msstore/msstore.md).
-
 ## Windows startup behavior
 
 Settings offers **Off** (the default), **Show window**, and **Start in tray**. The mode is saved as
@@ -210,7 +168,7 @@ registering a real startup task. Before release, also test an installed MSIX:
    the window appears. Repeat opening Settings to check subsequent state queries.
 5. Disable AI Gauge in Task Manager or Windows Settings, return to the app, and try to enable it.
    Verify that the app reports the block and displays **Off** until it is re-enabled in Windows.
-6. Select **Off** and verify no automatic launch at the next sign-in. When testing an upgrade with the
+6. Select **Off** and verify no automatic launch at the next sign-in.
 
 ## Threshold preferences
 

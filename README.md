@@ -19,24 +19,17 @@
 
 ## Features
 
-- View remaining Codex quotas and reset times for the 5-hour and 7-day windows.
-- View remaining Claude Code quotas and reset times for the 5-hour and 7-day (weekly) windows.
-- View remaining GitHub Copilot quota and credit allowance balances.
-- View Google Antigravity (`agy`) model-group quotas and reset times.
-- Add multiple independent Codex, Claude, or GitHub Copilot account instances and reorder their cards.
-- Add an Antigravity instance backed by the installed `agy` CLI.
-- Connect through the official browser login flow or import an existing local CLI session.
-- Connect GitHub Copilot securely via the standard GitHub OAuth Device Flow.
-- Remove provider instances and their locally stored AI Gauge credentials.
-- Automatically adjusts window size to fit active content.
-- Keep the widget always on top with the title bar pin button.
-- Refresh usage automatically in the background at a configurable interval.
-- Keep the widget in the Windows system tray.
-- Show or hide the widget from anywhere with an optional global hotkey.
-- Optionally start with Windows, with the window shown or minimized to the system tray.
-- Choose Light, Dark, or System appearance.
-- Configure Warning and Critical thresholds for usage bars.
-- Persist settings locally between sessions.
+- Monitor remaining quotas and reset times for OpenAI Codex, Claude Code, GitHub Copilot, and
+  Google Antigravity (`agy`) in one widget, refreshed automatically in the background.
+- Add multiple accounts per provider, reorder their cards, and remove instances along with their
+  locally stored AI Gauge credentials.
+- Connect through each provider's official browser login or CLI session import, or GitHub's
+  standard OAuth Device Flow.
+- Stay out of the way in the system tray, with always-on-top pinning and an optional global hotkey
+  to show or hide the widget from anywhere.
+- Customize the experience: Light, Dark, or System appearance; Warning and Critical usage
+  thresholds; refresh interval; and how AI Gauge starts with Windows.
+- Settings persist locally between sessions.
 
 ## Usage
 
@@ -101,24 +94,10 @@ See the full [Privacy Policy](docs/privacy-policy.md).
   or free the shortcut, then select **Retry** in Settings.
 - Check the status dot tooltip for failure count, last successful fetch, last error, and next fetch.
 
-## For developers
+## Contributing
 
-See [docs/development.md](docs/development.md) for build, test, frontend preview, screenshot,
-and MSIX packaging instructions.
-
-When building directly on Windows, run the build from PowerShell with a process-scoped execution
-policy override if script execution is blocked:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\build.ps1 build
-```
-
-The same build can be started as a single command:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass; .\build.ps1 build
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) for build, test, frontend preview, and screenshot
+instructions.
 
 ## License
 
