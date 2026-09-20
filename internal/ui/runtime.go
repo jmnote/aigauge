@@ -28,7 +28,6 @@ type runtime struct {
 	settingsWindow *application.WebviewWindow
 	icon           []byte
 	activeHotkey   string
-	windowVisible  bool
 }
 
 const (
@@ -83,7 +82,6 @@ func Run(frontendAssets fs.FS, icon []byte, startHidden bool) error {
 			NonClientRegionSupport: true,
 		},
 	})
-	rt.windowVisible = !startHidden
 	rt.configureWindow()
 	rt.configureTray()
 	return rt.application.Run()
@@ -185,14 +183,16 @@ func (rt *runtime) showWindow() {
 	if rt.window == nil {
 		return
 	}
-	rt.windowVisible = true
 	rt.window.Restore()
 	rt.window.Show()
 	rt.window.Focus()
 }
 
+// toggleWindow decides by actual OS window state rather than a remembered
+// visible/hidden flag, so a hotkey press brings a visible-but-occluded
+// window to the front instead of hiding it.
 func (rt *runtime) toggleWindow() {
-	if rt.windowVisible {
+	if rt.window != nil && rt.window.IsVisible() && rt.window.IsFocused() {
 		rt.hideToTray()
 		return
 	}
@@ -203,7 +203,6 @@ func (rt *runtime) hideToTray() {
 	if rt.window == nil {
 		return
 	}
-	rt.windowVisible = false
 	rt.window.Hide()
 }
 
