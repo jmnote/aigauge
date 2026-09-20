@@ -20,7 +20,7 @@
 ## Features
 
 - Monitor remaining quotas and reset times for OpenAI Codex, Claude Code, GitHub Copilot, and
-  Google Antigravity (`agy`) in one widget, refreshed automatically in the background.
+  Google Antigravity in one widget, refreshed automatically in the background.
 - Add multiple accounts per provider, reorder their cards, and remove instances along with their
   locally stored AI Gauge credentials.
 - Connect through each provider's official browser login or CLI session import, or GitHub's
