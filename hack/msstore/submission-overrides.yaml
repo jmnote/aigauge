@@ -6,39 +6,31 @@ Listings:
   en-us:
     BaseListing:
       Description: AI Gauge is a lightweight Windows system tray widget for monitoring
-        usage across OpenAI Codex, Anthropic Claude Code, GitHub Copilot, and
-        Google Antigravity. Connect Codex and Claude Code through their official
-        browser login flows or import an existing local CLI session; connect
-        GitHub Copilot via GitHub's secure OAuth device flow; Antigravity uses the
-        locally installed and signed-in agy command-line tool. AI Gauge shows
-        remaining quota percentages, reset times, connection status, and the last
-        successful update in a compact desktop window. Multiple Codex, Claude, or
-        Copilot accounts can be added and identified by their account details. You
-        can connect or import credentials, remove and reorder provider instances,
-        configure refresh intervals and warning and critical thresholds, keep the
-        widget above other windows, and choose a light, dark, or system theme.
-        Optionally start with Windows with the window shown or in the system tray.
-        AI Gauge runs locally, stores Codex, Claude, and Copilot OAuth tokens in
-        its protected local credential store, and does not retain usage data on a
-        remote server.
+        usage across OpenAI Codex, Claude Code, GitHub Copilot, and Google
+        Antigravity. Connect Codex, Claude Code, and GitHub Copilot through their
+        official sign-in flows, or use the locally installed and signed-in agy CLI
+        for Antigravity, to see remaining quota, reset times, and connection status
+        at a glance. Add and reorder multiple accounts per provider, customize
+        refresh intervals and warning and critical thresholds, choose a light,
+        dark, or system theme, and keep the widget pinned above other windows or
+        tucked away in the tray. AI Gauge runs entirely on your device and never
+        stores usage data on a remote server.
       Features:
-        - Automatic quota and reset-time monitoring
-        - Multiple provider accounts with ordering controls
-        - Account details for distinguishing multiple Codex, Claude, or Copilot
-          sessions
-        - Codex reset-credit visibility when provided by the service
-        - Official browser sign-in, GitHub Copilot device flow, and local
+        - Automatic quota and reset-time monitoring, with Codex reset-credit
+          visibility when available
+        - Multiple provider accounts with reordering and distinguishing account
+          details
+        - Official browser sign-in, GitHub Copilot device flow, or local
           credential import
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
         - Global hotkey toggle to show and hide the window
         - Optional Windows startup with the window shown or in the system tray
         - Independent warning and critical thresholds in 5% steps or disabled
-      ReleaseNotes: Added GitHub Copilot as a supported provider. Connect securely
-        via GitHub's OAuth device flow and monitor your premium request quota
-        alongside Codex, Claude, and Antigravity. Long account labels in Settings
-        now truncate with an ellipsis and show the full text on hover, keeping
-        action buttons from overflowing in multi-account setups.
+      ReleaseNotes: Added GitHub Copilot support - connect via GitHub's OAuth
+        device flow and monitor your premium request quota alongside Codex,
+        Claude, and Antigravity. Long account labels in Settings now truncate with
+        a hover tooltip instead of overflowing action buttons.
 
 NotesForCertification: |
   AI Gauge is a Windows tray widget for Codex, Claude Code, GitHub Copilot, and
