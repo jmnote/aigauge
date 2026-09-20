@@ -65,7 +65,7 @@ Before opening a PR, the combined local gate can be run with:
 .\build.ps1 checks
 ```
 
-See [docs/packaging.md](packaging.md) for what this also verifies locally and how to clean up
+See [packaging.md](packaging.md) for what this also verifies locally and how to clean up
 generated packaging output.
 
 ## Frontend preview
@@ -168,7 +168,7 @@ registering a real startup task. Before release, also test an installed MSIX:
    the window appears. Repeat opening Settings to check subsequent state queries.
 5. Disable AI Gauge in Task Manager or Windows Settings, return to the app, and try to enable it.
    Verify that the app reports the block and displays **Off** until it is re-enabled in Windows.
-6. Select **Off** and verify no automatic launch at the next sign-in. When testing an upgrade with the
+6. Select **Off** and verify no automatic launch at the next sign-in.
 
 ## Threshold preferences
 
