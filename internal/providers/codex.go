@@ -31,16 +31,29 @@ func (u CodexUsage) ToDisplay() DisplayUsage {
 
 	primary := u.RateLimit.PrimaryWindow
 	secondary := u.RateLimit.SecondaryWindow
-	if primary.UsedPercent == nil || primary.ResetAfterSeconds == nil ||
-		secondary.UsedPercent == nil || secondary.ResetAfterSeconds == nil {
-		display.applyDiagnosis(usageUnreadableDiagnosis("Codex", ReasonUnsupportedResponse, fmt.Errorf("response is missing required usage fields")))
-		return display
-	}
-	if *primary.UsedPercent < 0 || *primary.UsedPercent > 100 ||
-		*secondary.UsedPercent < 0 || *secondary.UsedPercent > 100 ||
-		*primary.ResetAfterSeconds < 0 || *secondary.ResetAfterSeconds < 0 {
-		display.applyDiagnosis(usageUnreadableDiagnosis("Codex", ReasonUnsupportedResponse, fmt.Errorf("response contains out-of-range usage fields")))
-		return display
+	for _, window := range []struct {
+		name  string
+		used  *float64
+		reset *int
+	}{
+		{"primary_window", primary.UsedPercent, primary.ResetAfterSeconds},
+		{"secondary_window", secondary.UsedPercent, secondary.ResetAfterSeconds},
+	} {
+		var err error
+		switch {
+		case window.used == nil:
+			err = fmt.Errorf("rate_limit.%s.used_percent is missing or null", window.name)
+		case window.reset == nil:
+			err = fmt.Errorf("rate_limit.%s.reset_after_seconds is missing or null", window.name)
+		case *window.used < 0 || *window.used > 100:
+			err = fmt.Errorf("rate_limit.%s.used_percent = %g; expected 0-100", window.name, *window.used)
+		case *window.reset < 0:
+			err = fmt.Errorf("rate_limit.%s.reset_after_seconds = %d; expected >= 0", window.name, *window.reset)
+		}
+		if err != nil {
+			display.applyDiagnosis(usageUnreadableDiagnosis("Codex", ReasonUnsupportedResponse, err))
+			return display
+		}
 	}
 
 	now := time.Now()
