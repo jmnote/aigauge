@@ -103,6 +103,8 @@ export function normalizeProviderInstance(raw) {
   if (!PROVIDER_TYPE_IDS.includes(raw.type)) return null;
   const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label : providerTypeLabel(raw.type);
   const refreshInterval = Number(raw.refreshInterval);
+  // Backend checks 1-3600s as a safety net; this list is the actual UI, so an
+  // unmatched value resets to the default rather than being clamped.
   return {
     id: raw.id, type: raw.type, label,
     refreshInterval: PROVIDER_REFRESH_OPTIONS.includes(refreshInterval) ? refreshInterval : DEFAULT_REFRESH_SECONDS
