@@ -576,6 +576,8 @@ func (a *App) SetHotkeyShortcut(shortcut string) error {
 	})
 }
 
+// SetProviderRefreshInterval accepts the backend's safe range. The frontend
+// owns the smaller set of intervals it presents as supported choices.
 func (a *App) SetProviderRefreshInterval(instanceID string, interval int) error {
 	if interval < config.MinRefreshInterval || interval > config.MaxRefreshInterval {
 		return fmt.Errorf("refresh interval %d is outside the supported range (%d-%ds)", interval, config.MinRefreshInterval, config.MaxRefreshInterval)

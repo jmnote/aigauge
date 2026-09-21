@@ -568,9 +568,10 @@ func TestSetProviderRefreshInterval(t *testing.T) {
 		t.Fatalf("AddProviderInstance() error = %v", err)
 	}
 
-	for _, validInterval := range []int{config.MinRefreshInterval, 3, 10, 60, 180, 300, 600, 1800, config.MaxRefreshInterval} {
-		if err := app.SetProviderRefreshInterval(instance.ID, validInterval); err != nil {
-			t.Errorf("SetProviderRefreshInterval(%d) error = %v, want nil", validInterval, err)
+	// The RPC's safety range is deliberately broader than the frontend's menu.
+	for _, acceptedInterval := range []int{config.MinRefreshInterval, 3, 10, 60, 180, 300, 600, 1800, config.MaxRefreshInterval} {
+		if err := app.SetProviderRefreshInterval(instance.ID, acceptedInterval); err != nil {
+			t.Errorf("SetProviderRefreshInterval(%d) error = %v, want nil", acceptedInterval, err)
 		}
 	}
 
