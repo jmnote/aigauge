@@ -164,8 +164,8 @@ async function submissionYaml() {
   }
 
   // Mask sensitive ephemeral SAS token and pin submission-churn fields (Id,
-  // Status, FriendlyName) that vary per fetch but carry no useful meaning in
-  // the committed snapshot, unless --raw is specified.
+  // Status, FriendlyName, ApplicationPackages Id) that vary per fetch but carry
+  // no useful meaning in the committed snapshot, unless --raw is specified.
   if (!process.argv.includes('--raw') && data) {
     if (data.FileUploadUrl) {
       data.FileUploadUrl = '__REDACTED__';
@@ -178,6 +178,13 @@ async function submissionYaml() {
     }
     if (data.FriendlyName) {
       data.FriendlyName = 'Submission X';
+    }
+    if (Array.isArray(data.ApplicationPackages)) {
+      for (const pkg of data.ApplicationPackages) {
+        if (pkg && pkg.Id) {
+          pkg.Id = '2000000000098313062';
+        }
+      }
     }
   }
 
