@@ -1,5 +1,5 @@
 import {
-  normalizeConfig, VALID_THEMES, PROVIDER_REFRESH_OPTIONS, providerTypeLabel,
+  normalizeConfig, VALID_THEMES, PROVIDER_REFRESH_OPTIONS, formatRefreshOption, providerTypeLabel,
   formatHotkeyError, hotkeyOptionLabel, HOTKEY_OPTIONS, shouldShowProviderUser,
 } from '/logic.mjs';
 import { showToast } from '/ui/toast.mjs';
@@ -76,7 +76,7 @@ function enqueueSettingSave(method, ...args) {
   const savedArgs = args.map(value => value && typeof value === 'object'
     ? JSON.parse(JSON.stringify(value)) : value);
   const request = settingsWriteQueue.then(() => rpc(method, ...savedArgs));
-  settingsWriteQueue = request.catch(() => {});
+  settingsWriteQueue = request.catch(() => { });
   return request;
 }
 
@@ -534,7 +534,7 @@ function saveThresholdSettings() {
     },
   };
   if (nextThresholds.warning.enabled && nextThresholds.critical.enabled &&
-      nextThresholds.warning.value < nextThresholds.critical.value) {
+    nextThresholds.warning.value < nextThresholds.critical.value) {
     showToast('Warning threshold must be at or above Critical threshold.');
     renderThresholdUI();
     return;
@@ -715,7 +715,7 @@ function renderProviderList() {
     refreshSelect.className = 'provider-refresh-select';
     refreshSelect.title = `Refresh interval for ${providerDisplayName(instance)}`;
     for (const value of PROVIDER_REFRESH_OPTIONS) {
-      refreshSelect.add(new Option(`${value / 60}m`, value));
+      refreshSelect.add(new Option(formatRefreshOption(value), value));
     }
     refreshSelect.value = String(instance.refreshInterval);
     refreshSelect.addEventListener('change', () => {
@@ -797,52 +797,52 @@ function renderProviderList() {
       }
       addingProviders.add(provider);
       const generation = ++providerFlowGeneration;
-        providerAddDialog.hidden = false;
-        providerAddDialogTitle.textContent = `Add ${providerTypeLabel(provider)}`;
-        providerAddDialogStatus.textContent = `Adding ${providerTypeLabel(provider)}…`;
-        providerAddDialogClose.disabled = true;
-        providerAddDialogLogin.hidden = true;
-        providerAddDialogImport.hidden = true;
-        providerAddDialogActionClose.hidden = true;
-        renderProviderList();
-        try {
-          const instance = await rpc('AddProviderInstance', provider);
-          if (generation !== providerFlowGeneration) {
-            try { await rpc('RemoveProviderInstance', instance.id); } catch { /* best effort cleanup */ }
-            addingProviders.delete(provider);
-            await reloadConfig();
-            return;
-          }
-          pendingProviderId = instance.id;
-          pendingLogin = { provider, instance, generation };
-          renderProviderList();
-          providerAddDialogStatus.textContent = 'Choose how to connect this account.';
-          providerAddDialogLogin.textContent = provider === 'antigravity' ? 'Start monitoring with agy CLI' : 'Sign in with browser';
-          if (provider === 'antigravity') {
-            providerAddDialogStatus.textContent = 'AI Gauge will track your quota usage through the installed agy CLI.';
-          }
-          providerAddDialogLogin.hidden = false;
-          if (provider !== 'antigravity') {
-            try {
-              const diagnosis = await rpc(PROVIDER_TYPE_RPC[provider].diagnoseRpcMethod, instance.id);
-              const canImport = diagnosis?.canImport === true;
-              providerAddDialogImport.hidden = !canImport;
-              if (canImport) {
-                providerAddDialogStatus.textContent = 'An existing credential file was found. You can try it, or sign in with a different account in your browser.';
-              }
-            } catch {
-              providerAddDialogImport.hidden = true;
-            }
-          }
-          providerAddDialogClose.disabled = false;
-        } catch (error) {
-          console.warn(`Failed to add ${provider}:`, error);
-          pendingLogin = null;
-          providerAddDialogStatus.textContent = `Could not add provider: ${error?.message || error}`;
+      providerAddDialog.hidden = false;
+      providerAddDialogTitle.textContent = `Add ${providerTypeLabel(provider)}`;
+      providerAddDialogStatus.textContent = `Adding ${providerTypeLabel(provider)}…`;
+      providerAddDialogClose.disabled = true;
+      providerAddDialogLogin.hidden = true;
+      providerAddDialogImport.hidden = true;
+      providerAddDialogActionClose.hidden = true;
+      renderProviderList();
+      try {
+        const instance = await rpc('AddProviderInstance', provider);
+        if (generation !== providerFlowGeneration) {
+          try { await rpc('RemoveProviderInstance', instance.id); } catch { /* best effort cleanup */ }
           addingProviders.delete(provider);
-          providerAddDialogClose.disabled = false;
           await reloadConfig();
+          return;
         }
+        pendingProviderId = instance.id;
+        pendingLogin = { provider, instance, generation };
+        renderProviderList();
+        providerAddDialogStatus.textContent = 'Choose how to connect this account.';
+        providerAddDialogLogin.textContent = provider === 'antigravity' ? 'Start monitoring with agy CLI' : 'Sign in with browser';
+        if (provider === 'antigravity') {
+          providerAddDialogStatus.textContent = 'AI Gauge will track your quota usage through the installed agy CLI.';
+        }
+        providerAddDialogLogin.hidden = false;
+        if (provider !== 'antigravity') {
+          try {
+            const diagnosis = await rpc(PROVIDER_TYPE_RPC[provider].diagnoseRpcMethod, instance.id);
+            const canImport = diagnosis?.canImport === true;
+            providerAddDialogImport.hidden = !canImport;
+            if (canImport) {
+              providerAddDialogStatus.textContent = 'An existing credential file was found. You can try it, or sign in with a different account in your browser.';
+            }
+          } catch {
+            providerAddDialogImport.hidden = true;
+          }
+        }
+        providerAddDialogClose.disabled = false;
+      } catch (error) {
+        console.warn(`Failed to add ${provider}:`, error);
+        pendingLogin = null;
+        providerAddDialogStatus.textContent = `Could not add provider: ${error?.message || error}`;
+        addingProviders.delete(provider);
+        providerAddDialogClose.disabled = false;
+        await reloadConfig();
+      }
     });
     providerAddButtonsEl.append(button);
   }

@@ -23,7 +23,11 @@ type ProviderInstance struct {
 	Pending bool `json:"pending,omitempty"`
 }
 
-const DefaultRefreshInterval = 180
+const (
+	MinRefreshInterval     = 1
+	MaxRefreshInterval     = 3600
+	DefaultRefreshInterval = 180
+)
 
 // Threshold is one gauge warning level: whether it is active and the percent
 // remaining at which it should trigger.

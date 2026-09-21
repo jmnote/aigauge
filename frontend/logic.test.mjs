@@ -12,10 +12,12 @@ import {
   MAX_REFRESH_SECONDS,
   MAX_RETRY_DELAY_SECONDS,
   MIN_REFRESH_SECONDS,
+  PROVIDER_REFRESH_OPTIONS,
   PROVIDER_TYPE_IDS,
   STATUS_BADGES,
   badgeClass,
   formatHotkeyError,
+  formatRefreshOption,
   hotkeyOptionLabel,
   normalizeConfig,
   normalizeProviderInstance,
@@ -195,10 +197,22 @@ test('a refresh interval is clamped into range', () => {
   assert.equal(parseIntervalToSeconds(99999), MAX_REFRESH_SECONDS);
 });
 
+test('refresh interval options format seconds and minutes correctly', () => {
+  assert.equal(formatRefreshOption(3), '3s');
+  assert.equal(formatRefreshOption(30), '30s');
+  assert.equal(formatRefreshOption(60), '1m');
+  assert.equal(formatRefreshOption(180), '3m');
+  assert.ok(PROVIDER_REFRESH_OPTIONS.includes(3));
+});
+
 test('a provider instance needs a valid id and a recognized type', () => {
   assert.deepEqual(
     normalizeProviderInstance({ id: 'abc123', type: 'claude' }),
     { id: 'abc123', type: 'claude', label: 'Claude', refreshInterval: DEFAULT_REFRESH_SECONDS },
+  );
+  assert.deepEqual(
+    normalizeProviderInstance({ id: 'abc123', type: 'claude', refreshInterval: 3 }),
+    { id: 'abc123', type: 'claude', label: 'Claude', refreshInterval: 3 },
   );
   assert.equal(normalizeProviderInstance({ id: 'abc123', type: 'gemini' }), null, 'unknown type');
   assert.equal(normalizeProviderInstance({ type: 'claude' }), null, 'missing id');
@@ -303,44 +317,56 @@ test('waiting-for-setup states are not styled as errors', () => {
 const thresholdFixtures = [
   {
     name: 'legacy endpoints',
-    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
-      warning: { enabled: true, value: 1 }, critical: { enabled: true, value: 99 },
-    } },
+    settings: {
+      theme: 'dark', startupMode: 'tray', thresholds: {
+        warning: { enabled: true, value: 1 }, critical: { enabled: true, value: 99 },
+      }
+    },
     expected: { warning: { enabled: true, value: 5 }, critical: { enabled: true, value: 5 } },
   },
   {
     name: 'rounded upper bound',
-    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
-      warning: { enabled: true, value: 42 }, critical: { enabled: true, value: 98 },
-    } },
+    settings: {
+      theme: 'dark', startupMode: 'tray', thresholds: {
+        warning: { enabled: true, value: 42 }, critical: { enabled: true, value: 98 },
+      }
+    },
     expected: { warning: { enabled: true, value: 40 }, critical: { enabled: true, value: 40 } },
   },
   {
     name: 'legacy disabled zero',
-    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
-      warning: { enabled: true, value: 50 }, critical: { enabled: false, value: 0 },
-    } },
+    settings: {
+      theme: 'dark', startupMode: 'tray', thresholds: {
+        warning: { enabled: true, value: 50 }, critical: { enabled: false, value: 0 },
+      }
+    },
     expected: { warning: { enabled: true, value: 50 }, critical: { enabled: false, value: 5 } },
   },
   {
     name: 'legacy enabled zero',
-    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
-      warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 0 },
-    } },
+    settings: {
+      theme: 'dark', startupMode: 'tray', thresholds: {
+        warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 0 },
+      }
+    },
     expected: { warning: { enabled: true, value: 50 }, critical: { enabled: true, value: 5 } },
   },
   {
     name: 'current maximum',
-    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
-      warning: { enabled: true, value: 100 }, critical: { enabled: true, value: 100 },
-    } },
+    settings: {
+      theme: 'dark', startupMode: 'tray', thresholds: {
+        warning: { enabled: true, value: 100 }, critical: { enabled: true, value: 100 },
+      }
+    },
     expected: { warning: { enabled: true, value: 100 }, critical: { enabled: true, value: 100 } },
   },
   {
     name: 'outside range',
-    settings: { theme: 'dark', startupMode: 'tray', thresholds: {
-      warning: { enabled: false, value: -10 }, critical: { enabled: true, value: 150 },
-    } },
+    settings: {
+      theme: 'dark', startupMode: 'tray', thresholds: {
+        warning: { enabled: false, value: -10 }, critical: { enabled: true, value: 150 },
+      }
+    },
     expected: { warning: { enabled: false, value: 5 }, critical: { enabled: true, value: 100 } },
   },
 ];

@@ -577,9 +577,8 @@ func (a *App) SetHotkeyShortcut(shortcut string) error {
 }
 
 func (a *App) SetProviderRefreshInterval(instanceID string, interval int) error {
-	valid := interval == 60 || interval == 180 || interval == 300 || interval == 600 || interval == 1800 || interval == 3600
-	if !valid {
-		return fmt.Errorf("invalid refresh interval %d", interval)
+	if interval < config.MinRefreshInterval || interval > config.MaxRefreshInterval {
+		return fmt.Errorf("refresh interval %d is outside the supported range (%d-%ds)", interval, config.MinRefreshInterval, config.MaxRefreshInterval)
 	}
 	return a.updateSettings(func(settings *config.Settings) error {
 		for i := range settings.Providers {
