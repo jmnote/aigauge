@@ -144,7 +144,7 @@ FileUploadUrl: null
 ApplicationPackages:
   - FileName: aigauge_0.11.0.0_x64.msix
     FileStatus: Uploaded
-    Id: "2000000000098313062"
+    Id: "2000000000098765432"
     Version: 0.11.0.0
     Architecture: x64
     Languages:

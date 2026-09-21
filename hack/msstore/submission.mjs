@@ -182,7 +182,7 @@ async function submissionYaml() {
     if (Array.isArray(data.ApplicationPackages)) {
       for (const pkg of data.ApplicationPackages) {
         if (pkg && pkg.Id) {
-          pkg.Id = '2000000000098313062';
+          pkg.Id = '2000000000098765432';
         }
       }
     }
