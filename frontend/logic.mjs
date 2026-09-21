@@ -10,7 +10,7 @@
 export const MIN_REFRESH_SECONDS = 1;
 export const MAX_REFRESH_SECONDS = 3600;
 export const DEFAULT_REFRESH_SECONDS = 180;
-export const PROVIDER_REFRESH_OPTIONS = [3, 30, 60, 180, 300, 600, 1800, 3600];
+export const PROVIDER_REFRESH_OPTIONS = [30, 60, 180, 300, 600, 1800, 3600];
 
 export function formatRefreshOption(seconds) {
   return seconds < 60 ? `${seconds}s` : `${seconds / 60}m`;

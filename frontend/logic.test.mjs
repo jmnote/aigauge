@@ -198,11 +198,10 @@ test('a refresh interval is clamped into range', () => {
 });
 
 test('refresh interval options format seconds and minutes correctly', () => {
-  assert.equal(formatRefreshOption(3), '3s');
   assert.equal(formatRefreshOption(30), '30s');
   assert.equal(formatRefreshOption(60), '1m');
   assert.equal(formatRefreshOption(180), '3m');
-  assert.ok(PROVIDER_REFRESH_OPTIONS.includes(3));
+  assert.ok(PROVIDER_REFRESH_OPTIONS.includes(30));
 });
 
 test('a provider instance needs a valid id and a recognized type', () => {
@@ -211,8 +210,8 @@ test('a provider instance needs a valid id and a recognized type', () => {
     { id: 'abc123', type: 'claude', label: 'Claude', refreshInterval: DEFAULT_REFRESH_SECONDS },
   );
   assert.deepEqual(
-    normalizeProviderInstance({ id: 'abc123', type: 'claude', refreshInterval: 3 }),
-    { id: 'abc123', type: 'claude', label: 'Claude', refreshInterval: 3 },
+    normalizeProviderInstance({ id: 'abc123', type: 'claude', refreshInterval: 30 }),
+    { id: 'abc123', type: 'claude', label: 'Claude', refreshInterval: 30 },
   );
   assert.equal(normalizeProviderInstance({ id: 'abc123', type: 'gemini' }), null, 'unknown type');
   assert.equal(normalizeProviderInstance({ type: 'claude' }), null, 'missing id');

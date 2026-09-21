@@ -37,8 +37,7 @@ type commandRunner interface {
 type pathLookup func(name string) (string, error)
 
 // execRunner runs the real executable. It never goes through a shell - the
-// executable and its arguments stay separate - and it does not create a console
-// window on Windows.
+// executable and its arguments stay separate.
 type execRunner struct{}
 
 func (execRunner) run(ctx context.Context, env []string, name string, args ...string) (commandResult, error) {
