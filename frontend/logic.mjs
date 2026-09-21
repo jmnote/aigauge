@@ -10,7 +10,11 @@
 export const MIN_REFRESH_SECONDS = 1;
 export const MAX_REFRESH_SECONDS = 3600;
 export const DEFAULT_REFRESH_SECONDS = 180;
-export const PROVIDER_REFRESH_OPTIONS = [60, 180, 300, 600, 1800, 3600];
+export const PROVIDER_REFRESH_OPTIONS = [30, 60, 180, 300, 600, 1800, 3600];
+
+export function formatRefreshOption(seconds) {
+  return seconds < 60 ? `${seconds}s` : `${seconds / 60}m`;
+}
 export const MAX_RETRY_DELAY_SECONDS = 1800;
 export const MIN_WINDOW_WIDTH = 200;
 export const MAX_WINDOW_WIDTH = 600;
@@ -85,7 +89,7 @@ export function providerTypeLabel(type) {
 }
 
 export function shouldShowProviderUser(providers, type, user) {
-	if (!user || !['codex', 'claude'].includes(type) || !Array.isArray(providers)) return false;
+  if (!user || !['codex', 'claude'].includes(type) || !Array.isArray(providers)) return false;
   return providers.filter(instance => instance?.type === type).length > 1;
 }
 
@@ -99,8 +103,12 @@ export function normalizeProviderInstance(raw) {
   if (!PROVIDER_TYPE_IDS.includes(raw.type)) return null;
   const label = typeof raw.label === 'string' && raw.label.trim() ? raw.label : providerTypeLabel(raw.type);
   const refreshInterval = Number(raw.refreshInterval);
-  return { id: raw.id, type: raw.type, label,
-    refreshInterval: PROVIDER_REFRESH_OPTIONS.includes(refreshInterval) ? refreshInterval : DEFAULT_REFRESH_SECONDS };
+  // The backend accepts a safe range; only these UI choices are supported.
+  // Other persisted values fall back to the default rather than being clamped.
+  return {
+    id: raw.id, type: raw.type, label,
+    refreshInterval: PROVIDER_REFRESH_OPTIONS.includes(refreshInterval) ? refreshInterval : DEFAULT_REFRESH_SECONDS
+  };
 }
 
 // Normalizes a whole stored provider list: drops unsalvageable entries and

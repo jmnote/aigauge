@@ -10,6 +10,14 @@ import (
 	"time"
 )
 
+// Disable agy auto-update to prevent console window flashes:
+// https://antigravity.google/docs/cli/troubleshooting/#resolution-3
+const agyDisableAutoUpdateEnv = "AGY_CLI_DISABLE_AUTO_UPDATE=true"
+
+func runAgy(ctx context.Context, runner commandRunner, agyPath string, args ...string) (commandResult, error) {
+	return runner.run(ctx, []string{agyDisableAutoUpdateEnv}, agyPath, args...)
+}
+
 // antigravityInstallGuideURL answers both "how do I install this" and "how do
 // I get a newer version".
 const antigravityInstallGuideURL = "https://antigravity.google/docs/cli/install/"
@@ -58,7 +66,7 @@ func EnsureAntigravityCLI() Diagnosis {
 }
 
 func checkAntigravityModels(ctx context.Context, runner commandRunner, agyPath, successMessage string) Diagnosis {
-	result, err := runner.run(ctx, agyPath, "models")
+	result, err := runAgy(ctx, runner, agyPath, "models")
 	if err != nil {
 		return Diagnosis{Status: StatusTemporaryError, Message: "Could not check Antigravity models.", Details: technicalDetails(err.Error())}
 	}
@@ -183,7 +191,7 @@ func FetchAntigravityRawUsage(_ string) ([]byte, error) {
 	if models.Status != StatusConnected {
 		return nil, errors.New(models.Message)
 	}
-	result, err := deps.runner.run(ctx, agyPath, "-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
+	result, err := runAgy(ctx, deps.runner, agyPath, "-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +244,7 @@ func diagnoseAntigravityLocal(ctx context.Context, deps providerDeps, _ string) 
 func diagnoseAntigravity(ctx context.Context, runner commandRunner, agyPath string, active bool) (Diagnosis, bool) {
 	ctx, cancel := context.WithTimeout(ctx, statusCommandTimeout)
 	defer cancel()
-	result, err := runner.run(ctx, agyPath, "--version")
+	result, err := runAgy(ctx, runner, agyPath, "--version")
 	if err != nil {
 		return Diagnosis{
 			Status:  StatusTemporaryError,
@@ -296,7 +304,7 @@ func getAntigravityUsage(ctx context.Context, deps providerDeps, _ string, activ
 
 	usageCtx, cancel := context.WithTimeout(ctx, antigravityUsageTimeout)
 	defer cancel()
-	result, runErr := deps.runner.run(usageCtx, agyPath,
+	result, runErr := runAgy(usageCtx, deps.runner, agyPath,
 		"-p", "/usage", "--output-format", "json", "--print-timeout", "30s")
 	if runErr != nil {
 		usage.applyDiagnosis(Diagnosis{
@@ -359,7 +367,7 @@ func classifyAntigravityUsage(ctx context.Context, deps providerDeps, agyPath st
 func classifyAntigravityWithModels(ctx context.Context, deps providerDeps, agyPath, usageOutput string) Diagnosis {
 	modelsCtx, cancel := context.WithTimeout(ctx, antigravityModelsTimeout)
 	defer cancel()
-	result, err := deps.runner.run(modelsCtx, agyPath, "models")
+	result, err := runAgy(modelsCtx, deps.runner, agyPath, "models")
 	if err != nil {
 		return Diagnosis{
 			Status:  StatusTemporaryError,

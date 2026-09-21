@@ -21,7 +21,7 @@ type fakeRunner struct {
 	calls  [][]string
 }
 
-func (r *fakeRunner) run(_ context.Context, name string, args ...string) (commandResult, error) {
+func (r *fakeRunner) run(_ context.Context, _ []string, name string, args ...string) (commandResult, error) {
 	r.calls = append(r.calls, append([]string{name}, args...))
 	return r.result, r.err
 }
@@ -57,7 +57,7 @@ type scriptedRunner struct {
 	calls   [][]string
 }
 
-func (r *scriptedRunner) run(_ context.Context, name string, args ...string) (commandResult, error) {
+func (r *scriptedRunner) run(_ context.Context, _ []string, name string, args ...string) (commandResult, error) {
 	r.calls = append(r.calls, append([]string{name}, args...))
 	key := ""
 	if len(args) > 0 {

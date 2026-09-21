@@ -559,3 +559,25 @@ func TestDeletingTheLastInstanceDoesNotResurrectStoredTokenMigration(t *testing.
 		t.Fatalf("GetSettings() after delete = %+v, want none (migration must not re-run within a process)", settings2.Providers)
 	}
 }
+
+func TestSetProviderRefreshInterval(t *testing.T) {
+	withIsolatedStores(t)
+	app := NewApp(nil, nil, nil, nil, nil, nil, nil)
+	instance, err := app.AddProviderInstance("claude")
+	if err != nil {
+		t.Fatalf("AddProviderInstance() error = %v", err)
+	}
+
+	// The RPC's safety range is deliberately broader than the frontend's menu.
+	for _, acceptedInterval := range []int{config.MinRefreshInterval, 3, 10, 60, 180, 300, 600, 1800, config.MaxRefreshInterval} {
+		if err := app.SetProviderRefreshInterval(instance.ID, acceptedInterval); err != nil {
+			t.Errorf("SetProviderRefreshInterval(%d) error = %v, want nil", acceptedInterval, err)
+		}
+	}
+
+	for _, invalidInterval := range []int{-5, 0, config.MaxRefreshInterval + 1, 7200} {
+		if err := app.SetProviderRefreshInterval(instance.ID, invalidInterval); err == nil {
+			t.Errorf("SetProviderRefreshInterval(%d) error = nil, want error", invalidInterval)
+		}
+	}
+}

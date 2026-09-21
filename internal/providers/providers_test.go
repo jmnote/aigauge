@@ -1,6 +1,7 @@
 package providers
 
 import (
+	"context"
 	"errors"
 	"os"
 	"path/filepath"
@@ -58,6 +59,30 @@ func TestParseAntigravityUsage(t *testing.T) {
 	}
 	if bucket.ResetTime != "2026-08-30T00:00:00Z" {
 		t.Errorf("ResetTime = %q, want %q", bucket.ResetTime, "2026-08-30T00:00:00Z")
+	}
+}
+
+type envCapturingRunner struct {
+	lastEnv []string
+}
+
+func (e *envCapturingRunner) run(_ context.Context, env []string, _ string, _ ...string) (commandResult, error) {
+	e.lastEnv = env
+	return commandResult{}, nil
+}
+
+func TestRunAgyInjectsAutoUpdateDisabledEnv(t *testing.T) {
+	runner := &envCapturingRunner{}
+	_, _ = runAgy(t.Context(), runner, "agy", "--version")
+	found := false
+	for _, env := range runner.lastEnv {
+		if env == "AGY_CLI_DISABLE_AUTO_UPDATE=true" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("runAgy did not inject AGY_CLI_DISABLE_AUTO_UPDATE=true, got %v", runner.lastEnv)
 	}
 }
 

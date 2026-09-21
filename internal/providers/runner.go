@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"os"
 	"os/exec"
 )
 
@@ -27,7 +28,7 @@ type commandResult struct {
 // and output, so the suite never depends on Claude, Codex, or agy being
 // installed, signed in, or reachable on the machine running it.
 type commandRunner interface {
-	run(ctx context.Context, name string, args ...string) (commandResult, error)
+	run(ctx context.Context, env []string, name string, args ...string) (commandResult, error)
 }
 
 // pathLookup resolves an executable name to a full path, mirroring
@@ -36,13 +37,15 @@ type commandRunner interface {
 type pathLookup func(name string) (string, error)
 
 // execRunner runs the real executable. It never goes through a shell - the
-// executable and its arguments stay separate - and it does not create a console
-// window on Windows.
+// executable and its arguments stay separate.
 type execRunner struct{}
 
-func (execRunner) run(ctx context.Context, name string, args ...string) (commandResult, error) {
+func (execRunner) run(ctx context.Context, env []string, name string, args ...string) (commandResult, error) {
 	command := exec.CommandContext(ctx, name, args...)
 	configureHiddenCommand(command)
+	if len(env) > 0 {
+		command.Env = append(os.Environ(), env...)
+	}
 
 	stdout := &limitedBuffer{limit: maxCommandOutput}
 	stderr := &limitedBuffer{limit: maxCommandOutput}
