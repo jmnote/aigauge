@@ -5,7 +5,8 @@
 Listings:
   en-us:
     BaseListing:
-      Description: AI Gauge is a lightweight Windows system tray widget for monitoring
+      Description:
+        AI Gauge is a lightweight Windows system tray widget for monitoring
         usage across OpenAI Codex, Claude Code, GitHub Copilot, and Google
         Antigravity. Connect Codex, Claude Code, and GitHub Copilot through their
         official sign-in flows, or use the locally installed and signed-in agy CLI
@@ -27,10 +28,11 @@ Listings:
         - Global hotkey toggle to show and hide the window
         - Optional Windows startup with the window shown or in the system tray
         - Independent warning and critical thresholds in 5% steps or disabled
-      ReleaseNotes: Added GitHub Copilot support - connect via GitHub's OAuth
-        device flow and monitor your premium request quota alongside Codex,
-        Claude, and Antigravity. Long account labels in Settings now truncate with
-        a hover tooltip instead of overflowing action buttons.
+      ReleaseNotes: Provider refresh intervals now support a 30-second option in
+        Settings for faster quota updates. Background Antigravity checks suppress
+        momentary console window flashes during CLI queries. Codex diagnostics
+        now report clearer details when rate-limit data is missing or out of
+        range.
 
 NotesForCertification: |
   AI Gauge is a Windows tray widget for Codex, Claude Code, GitHub Copilot, and
