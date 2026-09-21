@@ -174,7 +174,7 @@ async function submissionYaml() {
       data.Id = '1152921505700000000';
     }
     if (data.Status) {
-      data.Status = 'Certification';
+      data.Status = 'Published';
     }
     if (data.FriendlyName) {
       data.FriendlyName = 'Submission X';

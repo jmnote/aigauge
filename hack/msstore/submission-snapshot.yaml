@@ -22,36 +22,31 @@ Listings:
         - usage dashboard
         - background usage refresher
       Description: AI Gauge is a lightweight Windows system tray widget for monitoring
-        usage across OpenAI Codex, Anthropic Claude Code, and Google
-        Antigravity. Connect Codex and Claude Code through their official
-        browser login flows or import an existing local CLI session; Antigravity
-        uses the locally installed and signed-in agy command-line tool. AI Gauge
-        shows remaining quota percentages, reset times, connection status, and
-        the last successful update in a compact desktop window. Multiple Codex
-        or Claude accounts can be added and identified by their account details.
-        You can connect or import credentials, remove and reorder provider
-        instances, configure refresh intervals and warning and critical
-        thresholds, keep the widget above other windows, and choose a light,
-        dark, or system theme. Optionally start with Windows with the window
-        shown or in the system tray. AI Gauge runs locally, stores Codex and
-        Claude OAuth tokens in its protected local credential store, and does
-        not retain usage data on a remote server.
+        usage across OpenAI Codex, Claude Code, GitHub Copilot, and Google
+        Antigravity. Connect Codex, Claude Code, and GitHub Copilot through
+        their official sign-in flows, or use the locally installed and signed-in
+        agy CLI for Antigravity, to see remaining quota, reset times, and
+        connection status at a glance. Add and reorder multiple accounts per
+        provider, customize refresh intervals and warning and critical
+        thresholds, choose a light, dark, or system theme, and keep the widget
+        pinned above other windows or tucked away in the tray. AI Gauge runs
+        entirely on your device and never stores usage data on a remote server.
       Features:
-        - Automatic quota and reset-time monitoring
-        - Multiple provider accounts with ordering controls
-        - Account details for distinguishing multiple Codex or Claude sessions
-        - Codex reset-credit visibility when provided by the service
-        - Official browser sign-in and local credential import
+        - Automatic quota and reset-time monitoring, with Codex reset-credit
+          visibility when available
+        - Multiple provider accounts with reordering and distinguishing account
+          details
+        - Official browser sign-in, GitHub Copilot device flow, or local
+          credential import
         - Configurable background refresh intervals
         - Windows system tray access with light, dark, and system themes
         - Global hotkey toggle to show and hide the window
         - Optional Windows startup with the window shown or in the system tray
         - Independent warning and critical thresholds in 5% steps or disabled
-      ReleaseNotes: Provider cards now show account details when available, making
-        multiple Codex or Claude sessions easier to distinguish. Codex reset
-        credits and expanded fetch-status details are available from the card
-        status panel. Refresh is available from the panel's compact action
-        button.
+      ReleaseNotes: Added GitHub Copilot support - connect via GitHub's OAuth device
+        flow and monitor your premium request quota alongside Codex, Claude, and
+        Antigravity. Long account labels in Settings now truncate with a hover
+        tooltip instead of overflowing action buttons.
       Images:
         - FileName: aigauge-native-dark.png
           FileStatus: Uploaded
@@ -88,8 +83,9 @@ GamingOptions:
 HasExternalInAppProducts: false
 MeetAccessibilityGuidelines: false
 NotesForCertification: >-
-  AI Gauge is a Windows tray widget for Codex, Claude Code and Antigravity
-  usage.
+  AI Gauge is a Windows tray widget for Codex, Claude Code, GitHub Copilot, and
+
+  Antigravity usage.
 
 
   No test accounts are supplied. The clean-install experience, settings,
@@ -99,10 +95,12 @@ NotesForCertification: >-
 
   an account. Live quota checks are optional and require the reviewer's own
 
-  provider account; Antigravity additionally requires the supported agy CLI to
-  be
+  provider account; GitHub Copilot requires an active Copilot subscription, and
 
-  pre-installed and signed in.
+  Antigravity additionally requires the supported agy CLI to be pre-installed
+  and
+
+  signed in.
 
 
   Steps to verify:
@@ -113,11 +111,11 @@ NotesForCertification: >-
   by default), tray restore, and Always on top. Confirm thresholds offer
   Disabled or 5%-100% in 5% steps.
 
-  3. Add Codex or Claude Code and use Connect for browser sign-in. Claude's
-  manual flow may require CODE#STATE. If a local CLI session exists, verify
-  Import. For Antigravity, use the installed agy CLI. When two accounts of the
-  same supported provider are present, confirm their account details distinguish
-  the cards.
+  3. Add Codex, Claude Code, or GitHub Copilot and use Connect for browser or
+  device-flow sign-in. Claude's manual flow may require CODE#STATE. If a local
+  CLI session exists, verify Import for Codex or Claude. For Antigravity, use
+  the installed agy CLI. When two accounts of the same supported provider are
+  present, confirm their account details distinguish the cards.
 
   4. Open a provider's status dot to inspect the status card, fetch-failure
   count, reset credits when available, and the Refresh action. Reopen Settings,
@@ -134,7 +132,7 @@ NotesForCertification: >-
   connected or explicitly checked. Connected providers refresh automatically
   while the app is running, including after sign-in when startup is enabled.
   Antigravity checks use the locally installed agy CLI.
-Status: Certification
+Status: Published
 StatusDetails:
   Errors: []
   Warnings:
@@ -144,10 +142,10 @@ StatusDetails:
   CertificationReports: []
 FileUploadUrl: null
 ApplicationPackages:
-  - FileName: aigauge_0.10.0.0_x64.msix
+  - FileName: aigauge_0.11.0.0_x64.msix
     FileStatus: Uploaded
-    Id: "2000000000098283721"
-    Version: 0.10.0.0
+    Id: "2000000000098313062"
+    Version: 0.11.0.0
     Architecture: x64
     Languages:
       - en-US
