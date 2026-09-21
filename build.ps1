@@ -56,8 +56,6 @@ switch ($Task) {
     "test" {
         go test ./...
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-        go test hack/fixtures/fixtures.go hack/fixtures/fixtures_test.go
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
         # The frontend's pure rules (frontend/logic.mjs) - notably which
         # provider states may be counted as failures. node's built-in runner,
         # so this needs no test framework or browser stand-in.
@@ -121,9 +119,6 @@ switch ($Task) {
         }
 
         go test ./...
-        if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-
-        go test hack/fixtures/fixtures.go hack/fixtures/fixtures_test.go
         if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
         node --test "frontend/*.test.mjs"
