@@ -42,6 +42,7 @@ Before submitting changes, run:
 ```powershell
 gofmt -w main.go internal
 go test ./...
+go test hack/fixtures/fixtures.go hack/fixtures/fixtures_test.go
 node --test "frontend/*.test.mjs"
 git diff --check
 ```
@@ -91,6 +92,11 @@ provider instance), run:
 
 Existing fixture files are skipped and never overwritten. Delete the relevant files first when
 you intentionally want to capture a fresh snapshot.
+
+If parsing or display conversion fails, the sanitized raw `usage_<provider>.json` is still
+saved and the command reports the error (including available diagnostic details). No display
+fixture is written on failure. Sanitization failures prevent saving the response. Move or delete
+the saved raw fixture before retrying, since it also causes subsequent captures to be skipped.
 
 One API call per provider writes two files: `hack/fixtures/usage/usage_<provider>.json`, the API's raw
 response byte for byte (Codex's `user_id`/`email` obfuscated) - useful on its own as a reference for

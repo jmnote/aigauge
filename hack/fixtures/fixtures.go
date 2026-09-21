@@ -341,13 +341,17 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 			display = usage.ToDisplay()
 		}
 	}
-	if err != nil {
-		return fmt.Errorf("%s: %w", providerType, err)
-	}
-	if display.Error != "" {
-		return fmt.Errorf("%s: %s", providerType, display.Error)
+	return saveUsageSnapshot(providerType, usageDir, raw, display, err)
+}
+
+// Preserve the sanitized response before reporting parsing or conversion errors.
+// Fetch failures have no response to save. Never save a response if sanitizing fails.
+func saveUsageSnapshot(providerType, usageDir string, raw []byte, display providers.DisplayUsage, conversionErr error) error {
+	if len(raw) == 0 && conversionErr != nil {
+		return fmt.Errorf("%s: %w", providerType, conversionErr)
 	}
 
+	var err error
 	filename := providerType + ".json"
 	if providerType == "codex" {
 		if raw, err = obfuscateCodexUsageResponse(raw); err != nil {
@@ -361,6 +365,15 @@ func capture(settings config.Settings, providerType, usageDir string) error {
 
 	if err := writeJSON(usageDir, "usage_"+filename, raw, true); err != nil {
 		return err
+	}
+	if conversionErr != nil {
+		return fmt.Errorf("%s: %w", providerType, conversionErr)
+	}
+	if display.Error != "" {
+		if display.Details != "" {
+			return fmt.Errorf("%s: %s (%s)", providerType, display.Error, display.Details)
+		}
+		return fmt.Errorf("%s: %s", providerType, display.Error)
 	}
 	displayJSON, err := json.MarshalIndent(display, "", "  ")
 	if err != nil {
